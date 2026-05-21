@@ -8590,11 +8590,25 @@ function getFirstLastLetters(word) {
                             </div>
                         </div>
                     ` : ''}
+                    ${isPracticeFocusModeEnabled() ? `
+                        <div style="text-align:center;margin:14px 0 6px;">
+                            <button onclick="if(state.practiceFocusWordIndex!==null){clearPracticeFocus();render();}else{cyclePracticeFocus();}"
+                                title="Режим фокуса"
+                                style="background:${state.practiceFocusWordIndex !== null ? 'rgba(181,204,113,0.15)' : 'none'};
+                                       border:1px solid ${state.practiceFocusWordIndex !== null ? 'var(--accent-primary)' : 'var(--border-color)'};
+                                       border-radius:50%;width:48px;height:48px;font-size:22px;cursor:pointer;
+                                       display:inline-flex;align-items:center;justify-content:center;
+                                       transition:border-color 0.2s,background 0.2s;
+                                       box-shadow:${state.practiceFocusWordIndex !== null ? '0 0 0 3px rgba(181,204,113,0.2)' : 'none'};">
+                                👁️
+                            </button>
+                        </div>
+                    ` : ''}
                     ${getTermNavInline()}
                 </div>
             `;
         }
-        
+
         function renderExampleView(text) {
             return `
                 ${getTermNavHeader(text)}
