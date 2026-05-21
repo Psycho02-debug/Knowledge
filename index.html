@@ -4853,6 +4853,19 @@
         </div>
     </div>
 
+    <div class="modal" id="bulkImportModal">
+        <div class="modal-content">
+            <h3>Загрузить список материалов</h3>
+            <p style="font-size:13px;color:var(--text-secondary);margin:0 0 10px 0;line-height:1.5;">Первая строка блока — <strong>название</strong>, остальные строки — <strong>описание</strong>. Между материалами — пустая строка.</p>
+            <textarea id="bulkImportText" placeholder="CSAT&#10;Метрика удовлетворённости клиентов. Показывает, насколько клиент доволен конкретным взаимодействием.&#10;&#10;NPS&#10;Net Promoter Score — индекс лояльности. Измеряет вероятность рекомендации компании.&#10;&#10;Конверсия&#10;Доля пользователей, совершивших целевое действие, от общего числа посетителей." oninput="updateBulkImportPreview()" style="min-height:220px;"></textarea>
+            <div id="bulkImportPreview" style="font-size:13px;color:var(--accent-primary);font-weight:600;margin:8px 0 2px;min-height:18px;"></div>
+            <div class="modal-buttons">
+                <button class="modal-cancel" onclick="closeModal('bulkImportModal')">Отмена</button>
+                <button class="modal-save" onclick="processBulkImport()">Добавить</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="flashcardModal">
         <div class="modal-content" style="max-height:80vh;overflow-y:auto;">
             <h3 id="flashcardModalTitle">Новая карточка</h3>
@@ -8126,6 +8139,7 @@ function getFirstLastLetters(word) {
                     <button class="back-btn" onclick="goBack()">← Назад</button>
                     <h1>${getCurrentFolderTitle()}</h1>
                     <div class="header-actions">
+                        <button class="delete-folder-btn" style="color:var(--accent-primary);" onclick="showBulkImportModal()">Загрузить список</button>
                         <button class="delete-folder-btn" onclick="deleteFolder()">${isSubfolder ? 'Удалить модуль' : 'Удалить'}</button>
                     </div>
                 </div>
@@ -11095,6 +11109,67 @@ function getFirstLastLetters(word) {
             render();
         }
         
+        function showBulkImportModal() {
+            document.getElementById('bulkImportText').value = '';
+            document.getElementById('bulkImportPreview').textContent = '';
+            document.getElementById('bulkImportModal').classList.add('show');
+            setTimeout(() => document.getElementById('bulkImportText').focus(), 100);
+        }
+
+        function parseBulkImportItems(raw) {
+            const blocks = raw.split(/\n[ \t]*\n/).filter(b => b.trim());
+            const items = [];
+            for (const block of blocks) {
+                const lines = block.trim().split('\n');
+                const title = lines[0].trim();
+                const content = lines.slice(1).join('\n').trim();
+                if (title && content) items.push({ title, content });
+            }
+            return items;
+        }
+
+        function updateBulkImportPreview() {
+            const raw = document.getElementById('bulkImportText').value;
+            const items = parseBulkImportItems(raw);
+            const preview = document.getElementById('bulkImportPreview');
+            if (items.length > 0) {
+                const n = items.length;
+                const ending = (n % 10 === 1 && n !== 11) ? 'материал' :
+                               (n % 10 >= 2 && n % 10 <= 4 && (n < 10 || n > 20)) ? 'материала' : 'материалов';
+                preview.textContent = 'Будет добавлено: ' + n + ' ' + ending;
+                preview.style.color = 'var(--accent-primary)';
+            } else {
+                preview.textContent = raw.trim() ? 'Не удалось распознать — проверьте формат' : '';
+                preview.style.color = 'var(--accent-wrong-text)';
+            }
+        }
+
+        function processBulkImport() {
+            const raw = document.getElementById('bulkImportText').value;
+            const items = parseBulkImportItems(raw);
+            if (items.length === 0) {
+                alert('Не удалось распознать материалы.\n\nФормат:\nНазвание\nОписание материала\n\nСледующее название\nОписание');
+                return;
+            }
+            const folder = getCurrentFolder();
+            for (const item of items) {
+                folder.texts.push({
+                    title: item.title,
+                    content: item.content,
+                    example: '',
+                    image: '',
+                    hiddenWords: [],
+                    revealedWords: [],
+                    wordHints: {},
+                    hintTypes: {},
+                    hiddenWordGroups: {}
+                });
+            }
+            saveData();
+            closeModal('bulkImportModal');
+            render();
+        }
+
         function deleteFolderFromList(index) {
             if (confirm('Удалить папку «' + state.folders[index].name + '» и все материалы в ней?')) {
                 state.folders.splice(index, 1);
