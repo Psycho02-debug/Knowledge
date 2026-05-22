@@ -8591,7 +8591,7 @@ function getFirstLastLetters(word) {
                         </div>
                     ` : ''}
                     ${isPracticeFocusModeEnabled() ? `
-                        <div style="text-align:center;margin:14px 0 6px;display:flex;align-items:center;justify-content:center;gap:12px;">
+                        <div style="margin:60px 0 10px;position:relative;height:48px;display:flex;align-items:center;justify-content:center;">
                             <button onclick="cyclePracticeFocus()"
                                 title="Следующее слово"
                                 style="background:${state.practiceFocusWordIndex !== null ? 'rgba(181,204,113,0.15)' : 'none'};
@@ -8605,9 +8605,10 @@ function getFirstLastLetters(word) {
                             ${state.practiceFocusWordIndex !== null ? `
                                 <button onclick="clearPracticeFocus();render();"
                                     title="Выйти из режима фокуса"
-                                    style="background:none;border:1px solid var(--border-color);border-radius:20px;
+                                    style="position:absolute;left:calc(50% + 34px);top:50%;transform:translateY(-50%);
+                                           background:none;border:1px solid var(--border-color);border-radius:20px;
                                            padding:8px 16px;font-size:13px;color:var(--text-secondary);cursor:pointer;
-                                           font-family:inherit;transition:border-color 0.2s,color 0.2s;">
+                                           font-family:inherit;transition:border-color 0.2s,color 0.2s;white-space:nowrap;">
                                     Выйти из фокуса
                                 </button>
                             ` : ''}
