@@ -8366,7 +8366,18 @@ function getFirstLastLetters(word) {
                 <div class="header">
                     <button class="back-btn" onclick="goBackToChooser()">← Назад</button>
                     <h1>${text.title}</h1>
-                    <div style="width:36px;"></div>
+                    ${isPracticeFocusModeEnabled() ? `
+                        <button onclick="cyclePracticeFocus()" title="Режим фокуса"
+                            style="width:36px;height:36px;border-radius:50%;flex-shrink:0;
+                                   background:${state.practiceFocusWordIndex !== null ? 'rgba(181,204,113,0.15)' : 'none'};
+                                   border:1px solid ${state.practiceFocusWordIndex !== null ? 'var(--accent-primary)' : 'transparent'};
+                                   font-size:20px;cursor:pointer;
+                                   display:inline-flex;align-items:center;justify-content:center;
+                                   transition:border-color 0.2s,background 0.2s;
+                                   box-shadow:${state.practiceFocusWordIndex !== null ? '0 0 0 3px rgba(181,204,113,0.2)' : 'none'};">
+                            👁️
+                        </button>
+                    ` : `<div style="width:36px;"></div>`}
                 </div>
             `;
         }
@@ -8590,28 +8601,15 @@ function getFirstLastLetters(word) {
                             </div>
                         </div>
                     ` : ''}
-                    ${isPracticeFocusModeEnabled() ? `
-                        <div style="margin:60px 0 10px;position:relative;height:48px;display:flex;align-items:center;justify-content:center;">
-                            <button onclick="cyclePracticeFocus()"
-                                title="Следующее слово"
-                                style="background:${state.practiceFocusWordIndex !== null ? 'rgba(181,204,113,0.15)' : 'none'};
-                                       border:1px solid ${state.practiceFocusWordIndex !== null ? 'var(--accent-primary)' : 'var(--border-color)'};
-                                       border-radius:50%;width:48px;height:48px;font-size:22px;cursor:pointer;
-                                       display:inline-flex;align-items:center;justify-content:center;
-                                       transition:border-color 0.2s,background 0.2s;
-                                       box-shadow:${state.practiceFocusWordIndex !== null ? '0 0 0 3px rgba(181,204,113,0.2)' : 'none'};">
-                                👁️
+                    ${isPracticeFocusModeEnabled() && state.practiceFocusWordIndex !== null ? `
+                        <div style="text-align:center;margin:20px 0 10px;">
+                            <button onclick="clearPracticeFocus();render();"
+                                title="Выйти из режима фокуса"
+                                style="background:none;border:1px solid var(--border-color);border-radius:20px;
+                                       padding:8px 18px;font-size:13px;color:var(--text-secondary);cursor:pointer;
+                                       font-family:inherit;transition:border-color 0.2s,color 0.2s;">
+                                Выйти из фокуса
                             </button>
-                            ${state.practiceFocusWordIndex !== null ? `
-                                <button onclick="clearPracticeFocus();render();"
-                                    title="Выйти из режима фокуса"
-                                    style="position:absolute;left:calc(50% + 34px);top:50%;transform:translateY(-50%);
-                                           background:none;border:1px solid var(--border-color);border-radius:20px;
-                                           padding:8px 16px;font-size:13px;color:var(--text-secondary);cursor:pointer;
-                                           font-family:inherit;transition:border-color 0.2s,color 0.2s;white-space:nowrap;">
-                                    Выйти из фокуса
-                                </button>
-                            ` : ''}
                         </div>
                     ` : ''}
                     ${getTermNavInline()}
