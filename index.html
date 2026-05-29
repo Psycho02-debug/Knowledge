@@ -8363,15 +8363,14 @@ function getFirstLastLetters(word) {
             const hasPrev = current > 0;
             const hasNext = current < total - 1;
             const showNavInCenter = state.mode === 'practice';
-            const nav = showNavInCenter ? getStudyNavigationMeta() : null;
             return `
                 <div class="header">
                     <button class="back-btn" onclick="goBackToChooser()">← Назад</button>
                     ${showNavInCenter ? `
-                        <div class="term-nav-inline" style="margin:0;">
-                            <button class="term-nav-btn-inline" onclick="navigateToTerm(-1)" ${!nav.hasPrev ? 'disabled' : ''}>‹</button>
-                            <span class="term-counter-inline">${nav.current + 1}/${nav.total}</span>
-                            <button class="term-nav-btn-inline" onclick="navigateToTerm(1)" ${!nav.hasNext ? 'disabled' : ''}>›</button>
+                        <div style="display:flex;align-items:center;justify-content:center;gap:10px;">
+                            <button class="term-nav-btn-inline" onclick="navigateToTerm(-1)" ${!hasPrev ? 'disabled' : ''}>‹</button>
+                            <span class="term-counter-inline">${current + 1}/${total}</span>
+                            <button class="term-nav-btn-inline" onclick="navigateToTerm(1)" ${!hasNext ? 'disabled' : ''}>›</button>
                         </div>
                     ` : `<h1>${text.title}</h1>`}
                     ${isPracticeFocusModeEnabled() ? `
