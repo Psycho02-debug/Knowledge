@@ -1161,6 +1161,126 @@
             min-height: 80px;
         }
 
+        body.practice-layout {
+            padding-bottom: 0;
+        }
+
+        .container.practice-shell {
+            display: flex;
+            flex-direction: column;
+            min-height: calc(100dvh - 68px);
+            padding-bottom: calc(150px + env(safe-area-inset-bottom));
+        }
+
+        .practice-shell .text-display-row {
+            flex: 1;
+            display: flex;
+        }
+
+        .practice-shell .text-display {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .text-display-inner {
+            white-space: pre-wrap;
+        }
+
+        .text-display.size-xl .text-display-inner {
+            text-align: center;
+        }
+
+        .text-display.size-xl {
+            font-size: clamp(1.6rem, 8vw, 2.4rem);
+            line-height: 1.9;
+        }
+
+        .text-display.size-lg {
+            font-size: clamp(1.25rem, 6vw, 1.8rem);
+            line-height: 2.0;
+        }
+
+        .text-display.size-md {
+            font-size: clamp(1.05rem, 4.6vw, 1.35rem);
+            line-height: 2.2;
+        }
+
+        .text-display.size-sm {
+            font-size: 1rem;
+            line-height: 2.4;
+        }
+
+        .text-display.size-xl .word,
+        .text-display.size-lg .word {
+            max-width: 100%;
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+
+        .practice-dock {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 90;
+            padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+            background: var(--bg-app);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .practice-dock-inner {
+            max-width: 600px;
+            margin: 0 auto;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .practice-dock .action-buttons {
+            margin-top: 0;
+        }
+
+        .practice-dock-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .practice-dock .term-nav-inline {
+            position: static;
+            bottom: auto;
+            left: auto;
+            right: auto;
+            gap: 10px;
+        }
+
+        .practice-attention-btn {
+            background: none;
+            border: 1px solid var(--border-color);
+            color: var(--text-tertiary);
+            font-size: 13px;
+            font-family: inherit;
+            cursor: pointer;
+            padding: 9px 16px;
+            border-radius: 20px;
+            white-space: nowrap;
+            transition: border-color 0.2s, color 0.2s;
+        }
+
+        .practice-attention-btn.active {
+            border-color: #ec4899;
+            color: #ec4899;
+        }
+
         .term-example {
             background: var(--bg-card);
             border-radius: 12px;
@@ -1211,8 +1331,8 @@
         .word.hidden-word {
             background: var(--gradient-primary);
             color: var(--accent-on-strong);
-            border-radius: 8px;
-            padding: 8px 12px;
+            border-radius: 0.38em;
+            padding: 0.42em 0.62em;
             font-weight: 600;
             display: inline-block;
             line-height: 1.05;
@@ -1438,8 +1558,8 @@
         .word.revealed {
             background: var(--accent-correct);
             color: var(--accent-correct-text);
-            padding: 6px 10px;
-            border-radius: 8px;
+            padding: 0.34em 0.5em;
+            border-radius: 0.38em;
             display: inline-block;
             line-height: 1.05;
         }
@@ -1453,10 +1573,10 @@
 
         .action-btn {
             flex: 1;
-            padding: 12px;
+            padding: 14px;
             border: none;
             border-radius: 12px;
-            font-size: 13px;
+            font-size: 15px;
             cursor: pointer;
             font-weight: 600;
             min-width: 80px;
@@ -6394,7 +6514,8 @@ function getFirstLastLetters(word) {
             renderQueuedWhileHidden = false;
             const app = document.getElementById('app');
             if (!app) return;
-            
+            document.body.classList.toggle('practice-layout', state.view === 'practice' && state.mode === 'practice');
+
             if (state.view === 'home') {
                 app.innerHTML = renderHomeView();
             } else if (state.view === 'learning') {
@@ -8357,23 +8478,10 @@ function getFirstLastLetters(word) {
         }
 
         function getTermNavHeader(text) {
-            const folder = getCurrentFolder();
-            const total = folder.texts.length;
-            const current = state.currentText;
-            const hasPrev = current > 0;
-            const hasNext = current < total - 1;
-            const showNavInCenter = state.mode === 'practice';
-            const nav = showNavInCenter ? getStudyNavigationMeta() : null;
             return `
                 <div class="header">
                     <button class="back-btn" onclick="goBackToChooser()">← Назад</button>
-                    ${showNavInCenter ? `
-                        <div style="display:flex;align-items:center;justify-content:center;gap:10px;">
-                            <button class="term-nav-btn-inline" onclick="navigateToTerm(-1)" ${!nav.hasPrev ? 'disabled' : ''}>‹</button>
-                            <span class="term-counter-inline">${nav.current + 1}/${nav.total}</span>
-                            <button class="term-nav-btn-inline" onclick="navigateToTerm(1)" ${!nav.hasNext ? 'disabled' : ''}>›</button>
-                        </div>
-                    ` : `<h1>${text.title}</h1>`}
+                    <h1>${text.title}</h1>
                     ${isPracticeFocusModeEnabled() ? `
                         <button onclick="cyclePracticeFocus()" title="Режим фокуса"
                             style="width:36px;height:36px;border-radius:50%;flex-shrink:0;
@@ -8559,14 +8667,16 @@ function getFirstLastLetters(word) {
                 }
             }
             
+            const isPracticeLayout = state.mode === 'practice';
+            const plainLength = text.content.replace(/\s+/g, ' ').trim().length;
+            const sizeClass = !isPracticeLayout ? 'size-sm'
+                : plainLength <= 60 ? 'size-xl'
+                : plainLength <= 180 ? 'size-lg'
+                : plainLength <= 400 ? 'size-md' : 'size-sm';
+
             return `
                 ${getTermNavHeader(text)}
-                <div class="container">
-                    ${state.mode === 'practice' ? `
-                        <div style="text-align:center;font-size:18px;font-weight:700;color:var(--text-primary);padding:10px 0 2px;line-height:1.3;">
-                            ${escapeHtml(text.title)}
-                        </div>
-                    ` : ''}
+                <div class="container${isPracticeLayout ? ' practice-shell' : ''}">
                     ${state.mode === 'edit' ? `
                         <div class="help-text">
                             Нажмите на слова, затем: ??? скрыть, П_Т подсказка, ? вопрос
@@ -8578,7 +8688,7 @@ function getFirstLastLetters(word) {
                     `}
                     
                     ${text.image ? `<div style="text-align:center;margin-bottom:12px;"><img src="${text.image}" loading="lazy" decoding="async" style="max-width:100%;max-height:150px;border-radius:12px;object-fit:cover;"></div>` : ''}
-                    <div class="text-display-row"><div class="text-display ${isPracticeFocusActive ? 'practice-focus-mode' : ''}">${practiceParts.join('')}</div></div>
+                    <div class="text-display-row"><div class="text-display ${sizeClass}${isPracticeFocusActive ? ' practice-focus-mode' : ''}"><div class="text-display-inner">${practiceParts.join('')}</div></div></div>
                     
                     ${state.pendingWords.length > 0 ? `
                         <div class="batch-actions">
@@ -8592,19 +8702,18 @@ function getFirstLastLetters(word) {
                         </div>
                     ` : ''}
                     
-                    <div class="action-buttons">
-                        ${state.mode === 'practice' ? `
-                            <button class="action-btn btn-reset" onclick="resetReveal()">Скрыть всё</button>
-                            <button class="action-btn btn-save" onclick="showAllWords()">Показать всё</button>
-                        ` : state.mode === 'edit' ? `
-                            <button class="action-btn btn-reset" onclick="clearMarks()">Сбросить выбор</button>
-                        ` : ''}
-                    </div>
-                    <div style="text-align:center;margin-top:12px;">
-                        <button onclick="toggleAttention(state.currentText)" style="background:none;border:1px solid ${text.attention ? '#ec4899' : 'var(--border-color)'};color:${text.attention ? '#ec4899' : 'var(--text-tertiary)'};font-size:14px;cursor:pointer;padding:8px 20px;border-radius:20px;font-family:inherit;transition:border-color 0.2s, color 0.2s;">
-                            ${text.attention ? '★ Сложный' : '☆ Пометить как сложный'}
-                        </button>
-                    </div>
+                    ${isPracticeLayout ? '' : `
+                        <div class="action-buttons">
+                            ${state.mode === 'edit' ? `
+                                <button class="action-btn btn-reset" onclick="clearMarks()">Сбросить выбор</button>
+                            ` : ''}
+                        </div>
+                        <div style="text-align:center;margin-top:12px;">
+                            <button class="practice-attention-btn ${text.attention ? 'active' : ''}" onclick="toggleAttention(state.currentText)">
+                                ${text.attention ? '★ Сложный' : '☆ Пометить как сложный'}
+                            </button>
+                        </div>
+                    `}
                     ${state.mode === 'practice' && state.practiceMode === 'hints' ? `
                         <div class="hint-reveal-controls">
                             <div class="hint-reveal-label">После нажатия на вопрос</div>
@@ -8625,8 +8734,24 @@ function getFirstLastLetters(word) {
                             </button>
                         </div>
                     ` : ''}
-                    ${getTermNavInline()}
+                    ${isPracticeLayout ? '' : getTermNavInline()}
                 </div>
+                ${isPracticeLayout ? `
+                    <div class="practice-dock">
+                        <div class="practice-dock-inner">
+                            <div class="action-buttons">
+                                <button class="action-btn btn-reset" onclick="resetReveal()">Скрыть всё</button>
+                                <button class="action-btn btn-save" onclick="showAllWords()">Показать всё</button>
+                            </div>
+                            <div class="practice-dock-row">
+                                <button class="practice-attention-btn ${text.attention ? 'active' : ''}" onclick="toggleAttention(state.currentText)">
+                                    ${text.attention ? '★ Сложный' : '☆ Сложный'}
+                                </button>
+                                ${getTermNavInline()}
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
             `;
         }
 
