@@ -1192,23 +1192,27 @@
             text-align: center;
         }
 
+        .practice-shell .text-display {
+            font-size: max(1rem, min(var(--size-max, 1rem), var(--fit-w, 99rem), var(--fit-h, 99rem)));
+        }
+
         .text-display.size-xl {
-            font-size: clamp(1.6rem, 8vw, 2.4rem);
+            --size-max: 2.4rem;
             line-height: 1.9;
         }
 
         .text-display.size-lg {
-            font-size: clamp(1.25rem, 6vw, 1.8rem);
+            --size-max: 1.8rem;
             line-height: 2.0;
         }
 
         .text-display.size-md {
-            font-size: clamp(1.05rem, 4.6vw, 1.35rem);
+            --size-max: 1.35rem;
             line-height: 2.2;
         }
 
         .text-display.size-sm {
-            font-size: 1rem;
+            --size-max: 1rem;
             line-height: 2.4;
         }
 
@@ -1279,6 +1283,60 @@
         .practice-attention-btn.active {
             border-color: #ec4899;
             color: #ec4899;
+        }
+
+        @media (orientation: landscape) and (max-height: 560px) {
+            body.practice-layout .header {
+                padding: 8px 14px;
+            }
+
+            body.practice-layout .help-text {
+                display: none;
+            }
+
+            .container.practice-shell {
+                min-height: calc(100dvh - 52px);
+                padding-top: 10px;
+                padding-left: max(16px, env(safe-area-inset-left));
+                padding-right: max(16px, env(safe-area-inset-right));
+                padding-bottom: calc(74px + env(safe-area-inset-bottom));
+                max-width: 900px;
+            }
+
+            .practice-shell .text-display {
+                --fit-h: 9vh;
+                padding: 12px 18px;
+                border-radius: 16px;
+            }
+
+            .practice-shell .text-display.size-xl,
+            .practice-shell .text-display.size-lg {
+                line-height: 1.7;
+            }
+
+            .practice-dock {
+                padding: 8px max(16px, env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-right));
+            }
+
+            .practice-dock-inner {
+                flex-direction: row;
+                align-items: center;
+                gap: 12px;
+                max-width: 900px;
+            }
+
+            .practice-dock-inner .action-buttons {
+                flex: 1;
+            }
+
+            .practice-dock-row {
+                flex: 0 0 auto;
+                gap: 10px;
+            }
+
+            .practice-dock .action-btn {
+                padding: 11px 14px;
+            }
         }
 
         .term-example {
@@ -8673,6 +8731,13 @@ function getFirstLastLetters(word) {
                 : plainLength <= 60 ? 'size-xl'
                 : plainLength <= 180 ? 'size-lg'
                 : plainLength <= 400 ? 'size-md' : 'size-sm';
+            // Кегль ограничиваем шириной строки: самое длинное слово не должно
+            // занимать больше доли строки, иначе слова встают столбцом.
+            const plainWords = text.content.split(/\s+/).filter(Boolean);
+            const longestWord = plainWords.reduce((max, word) => Math.max(max, word.length), 1);
+            const lineShare = plainWords.length <= 1 ? 0.92 : 0.52;
+            const wordWidthEm = (longestWord * 0.62 + 1.3).toFixed(2);
+            const fitStyle = `--fit-w: calc((100vw - 76px) * ${lineShare} / ${wordWidthEm});`;
 
             return `
                 ${getTermNavHeader(text)}
@@ -8688,7 +8753,7 @@ function getFirstLastLetters(word) {
                     `}
                     
                     ${text.image ? `<div style="text-align:center;margin-bottom:12px;"><img src="${text.image}" loading="lazy" decoding="async" style="max-width:100%;max-height:150px;border-radius:12px;object-fit:cover;"></div>` : ''}
-                    <div class="text-display-row"><div class="text-display ${sizeClass}${isPracticeFocusActive ? ' practice-focus-mode' : ''}"><div class="text-display-inner">${practiceParts.join('')}</div></div></div>
+                    <div class="text-display-row"><div class="text-display ${sizeClass}${isPracticeFocusActive ? ' practice-focus-mode' : ''}" style="${fitStyle}"><div class="text-display-inner">${practiceParts.join('')}</div></div></div>
                     
                     ${state.pendingWords.length > 0 ? `
                         <div class="batch-actions">
