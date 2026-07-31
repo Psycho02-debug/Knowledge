@@ -4878,6 +4878,287 @@
                 margin-bottom: 6px;
             }
         }
+
+        /* ===== COURSES ===== */
+        .learning-choice-option-courses {
+            background: linear-gradient(135deg, rgba(96, 165, 250, 0.12), rgba(59, 90, 130, 0.1));
+            border-color: rgba(96, 165, 250, 0.14);
+        }
+
+        .learning-course-demo {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .learning-course-node {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            font-size: 13px;
+        }
+
+        .learning-course-node-icon {
+            width: 26px;
+            height: 26px;
+            flex: 0 0 26px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            background: var(--bg-badge);
+        }
+
+        .learning-course-node.done { border-color: rgba(74, 222, 128, 0.35); }
+        .learning-course-node.done .learning-course-node-icon { background: var(--accent-correct); color: var(--accent-correct-text); }
+        .learning-course-node.current { border-color: var(--accent-primary); }
+        .learning-course-node.current .learning-course-node-icon { background: var(--gradient-primary); color: var(--accent-on-strong); }
+        .learning-course-node.locked { opacity: 0.55; }
+        .learning-course-node-text { color: var(--text-secondary); }
+
+        .course-road {
+            padding: 6px 0 4px;
+        }
+
+        .course-node {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px;
+            margin: 0;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 18px;
+            cursor: pointer;
+            transition: transform 0.15s ease, border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .course-node:active { transform: scale(0.985); }
+        .course-node.unlocked:hover { border-color: var(--accent-primary); box-shadow: var(--shadow-card-hover); }
+        .course-node.locked { opacity: 0.55; cursor: not-allowed; filter: grayscale(0.35); }
+        .course-node.done { border-color: rgba(74, 222, 128, 0.4); }
+
+        .course-connector {
+            height: 16px;
+            width: 3px;
+            background: linear-gradient(var(--border-color), transparent);
+            margin: 0 auto;
+            border-radius: 3px;
+        }
+
+        .course-node-num {
+            position: absolute;
+            top: -8px;
+            left: -6px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--gradient-primary);
+            color: var(--accent-on-strong);
+            font-size: 12px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow-accent-sm);
+        }
+
+        .course-node.locked .course-node-num { background: var(--bg-badge); color: var(--text-tertiary); }
+        .course-node.done .course-node-num { background: var(--accent-correct); color: var(--accent-correct-text); }
+
+        .course-node-emoji {
+            width: 50px;
+            height: 50px;
+            flex: 0 0 50px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+        }
+
+        .course-node.done .course-node-emoji { background: rgba(74, 222, 128, 0.12); border-color: rgba(74, 222, 128, 0.4); }
+
+        .course-node-body { flex: 1; min-width: 0; }
+        .course-node-title { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+        .course-node-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; line-height: 1.4; }
+
+        .course-node-meta {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .course-node-meta .pill {
+            font-size: 10.5px;
+            padding: 3px 8px;
+            border-radius: 20px;
+            background: var(--bg-badge);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        .course-node-edit { flex: 0 0 auto; align-self: flex-start; }
+
+        .course-edit-meta-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 16px;
+            margin: 8px 0 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .course-edit-meta-sub { color: var(--text-secondary); font-size: 13px; }
+        .course-edit-theory-preview { font-size: 14px; line-height: 1.6; color: var(--text-primary); white-space: pre-wrap; }
+        .course-edit-theory-preview.muted { color: var(--text-tertiary); font-style: italic; }
+
+        .course-task-list { display: flex; flex-direction: column; gap: 10px; }
+
+        .course-task-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            flex-wrap: wrap;
+        }
+
+        .course-task-row-badge {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 9px;
+            border-radius: 20px;
+            white-space: nowrap;
+            background: var(--bg-badge);
+            color: var(--accent-primary);
+            flex: 0 0 auto;
+        }
+
+        .course-task-row-badge.match { color: var(--accent-strong); }
+        .course-task-row-q { flex: 1; min-width: 140px; font-size: 14px; color: var(--text-primary); line-height: 1.4; }
+        .course-task-row-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+
+        .course-theory-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 18px;
+            padding: 20px;
+            margin-top: 10px;
+        }
+
+        .course-theory-kicker {
+            font-size: 11px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--accent-primary);
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .course-theory-card p { font-size: 15px; line-height: 1.65; color: var(--text-primary); margin: 0 0 12px; }
+        .course-theory-card p:last-of-type { margin-bottom: 18px; }
+        .course-theory-empty { color: var(--text-tertiary); font-style: italic; }
+
+        .complete-btn-course {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            background: var(--gradient-primary);
+            color: var(--accent-on-strong);
+            box-shadow: var(--shadow-accent-md);
+            transition: transform 0.15s;
+        }
+
+        .complete-btn-course:active { transform: scale(0.98); }
+        .complete-btn-course:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+
+        .course-progress-row { display: flex; gap: 6px; margin: 4px 0 12px; }
+        .course-progress-dot { flex: 1; height: 6px; border-radius: 4px; background: var(--bg-badge); transition: background 0.25s; }
+        .course-progress-dot.current { background: var(--accent-primary); }
+        .course-progress-dot.done { background: var(--accent-correct); }
+
+        .course-task-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 18px;
+            padding: 18px;
+        }
+
+        .course-task-tag {
+            font-size: 11px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .course-task-card h3 { margin: 0 0 14px; font-size: 17px; line-height: 1.4; color: var(--text-primary); }
+        .course-multi-hint { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; }
+
+        .course-explain {
+            margin-top: 14px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            font-size: 13.5px;
+            line-height: 1.55;
+            color: var(--text-secondary);
+        }
+
+        .course-match-grid { display: flex; gap: 10px; margin: 4px 0; }
+        .course-match-col { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+        .course-match-col-head { font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-tertiary); margin: 0 0 2px; text-align: center; }
+
+        .course-match-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            width: 100%;
+            padding: 11px 10px;
+            border-radius: 12px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            font-size: 13px;
+            cursor: pointer;
+            transition: 0.15s;
+            line-height: 1.3;
+            min-height: 48px;
+        }
+
+        .course-match-item:active { transform: scale(0.98); }
+        .course-match-item.selected { border-color: var(--accent-primary); background: var(--mode-active-bg); }
+        .course-match-item.correct { background: var(--accent-correct); border-color: var(--accent-correct); color: var(--accent-correct-text); }
+        .course-match-item.wrong { background: var(--accent-wrong); border-color: var(--accent-wrong); color: var(--accent-wrong-text); }
+        .course-match-item:disabled { cursor: default; }
+
+        .course-task-modal-hint { font-size: 12px; color: var(--text-secondary); margin: 2px 0 10px; line-height: 1.4; }
+        .course-task-option-row, .course-task-pair-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .course-task-option-row input[type="text"], .course-task-pair-row input[type="text"] { flex: 1; margin: 0; }
+        .course-task-correct-check { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+        .course-task-correct-check input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent-primary); margin: 0; }
     </style>
 </head>
 <body>
@@ -5066,7 +5347,78 @@
             </div>
         </div>
     </div>
-    
+
+    <div class="modal" id="courseLessonModal">
+        <div class="modal-content" style="max-height:80vh;overflow-y:auto;">
+            <h3 id="courseLessonModalTitle">Новый урок</h3>
+            <input type="text" id="courseLessonEmoji" placeholder="Эмодзи, например 📘" maxlength="4" style="max-width:120px;">
+            <input type="text" id="courseLessonTitleInput" placeholder="Название урока" onkeydown="if(event.key===&#39;Enter&#39;)saveCourseLesson()">
+            <input type="text" id="courseLessonSub" placeholder="Подзаголовок (необязательно)">
+            <textarea id="courseLessonTheory" placeholder="Теория перед заданиями (необязательно). Пустая строка разделяет абзацы." style="min-height:120px;"></textarea>
+            <div class="modal-buttons">
+                <button class="modal-cancel" onclick="closeModal('courseLessonModal')">Отмена</button>
+                <button class="modal-save" onclick="saveCourseLesson()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="courseTaskModal">
+        <div class="modal-content" style="max-height:80vh;overflow-y:auto;">
+            <h3 id="courseTaskModalTitle">Новое задание</h3>
+            <div class="hint-reveal-toggle" style="margin-bottom:12px;">
+                <button type="button" class="hint-reveal-btn active" id="courseTaskTypeQuizBtn" onclick="setCourseTaskType('quiz')">✓ Тест</button>
+                <button type="button" class="hint-reveal-btn" id="courseTaskTypeMatchBtn" onclick="setCourseTaskType('match')">🔗 Сопоставление</button>
+            </div>
+            <textarea id="courseTaskQuestion" placeholder="Текст вопроса" style="min-height:70px;"></textarea>
+
+            <div id="courseTaskQuizFields">
+                <div class="course-task-modal-hint">Заполните минимум 2 варианта и отметьте галочкой правильные (несколько галочек — вопрос с несколькими ответами).</div>
+                <div class="course-task-option-row">
+                    <label class="course-task-correct-check"><input type="checkbox" id="courseTaskCorrect0"></label>
+                    <input type="text" id="courseTaskOption0" placeholder="Вариант ответа 1">
+                </div>
+                <div class="course-task-option-row">
+                    <label class="course-task-correct-check"><input type="checkbox" id="courseTaskCorrect1"></label>
+                    <input type="text" id="courseTaskOption1" placeholder="Вариант ответа 2">
+                </div>
+                <div class="course-task-option-row">
+                    <label class="course-task-correct-check"><input type="checkbox" id="courseTaskCorrect2"></label>
+                    <input type="text" id="courseTaskOption2" placeholder="Вариант ответа 3">
+                </div>
+                <div class="course-task-option-row">
+                    <label class="course-task-correct-check"><input type="checkbox" id="courseTaskCorrect3"></label>
+                    <input type="text" id="courseTaskOption3" placeholder="Вариант ответа 4">
+                </div>
+            </div>
+
+            <div id="courseTaskMatchFields" style="display:none;">
+                <div class="course-task-modal-hint">Заполните минимум 2 полные пары «термин — определение».</div>
+                <div class="course-task-pair-row">
+                    <input type="text" id="courseTaskPairLeft0" placeholder="Термин 1">
+                    <input type="text" id="courseTaskPairRight0" placeholder="Определение 1">
+                </div>
+                <div class="course-task-pair-row">
+                    <input type="text" id="courseTaskPairLeft1" placeholder="Термин 2">
+                    <input type="text" id="courseTaskPairRight1" placeholder="Определение 2">
+                </div>
+                <div class="course-task-pair-row">
+                    <input type="text" id="courseTaskPairLeft2" placeholder="Термин 3">
+                    <input type="text" id="courseTaskPairRight2" placeholder="Определение 3">
+                </div>
+                <div class="course-task-pair-row">
+                    <input type="text" id="courseTaskPairLeft3" placeholder="Термин 4">
+                    <input type="text" id="courseTaskPairRight3" placeholder="Определение 4">
+                </div>
+            </div>
+
+            <textarea id="courseTaskExplain" placeholder="Пояснение к ответу (необязательно)" style="min-height:60px;"></textarea>
+            <div class="modal-buttons">
+                <button class="modal-cancel" onclick="closeCourseTaskModal()">Отмена</button>
+                <button class="modal-save" onclick="saveCourseTask()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="gameSetupModal">
         <div class="modal-content" style="max-height: 80vh; overflow-y: auto;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -5654,6 +6006,15 @@
             return count + ' карточек';
         }
 
+        function getLessonCountText(count) {
+            if (count === 0) return '0 уроков';
+            const mod10 = count % 10;
+            const mod100 = count % 100;
+            if (mod10 === 1 && mod100 !== 11) return count + ' урок';
+            if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return count + ' урока';
+            return count + ' уроков';
+        }
+
         function normalizeFlashcardCard(card) {
             if (!card || typeof card !== 'object') return null;
             return {
@@ -5678,6 +6039,93 @@
         function normalizeFlashcardFoldersTree(folders) {
             if (!Array.isArray(folders)) return [];
             return folders.map(normalizeFlashcardFolder).filter(Boolean);
+        }
+
+        function normalizeCourseTask(task) {
+            if (!task || typeof task !== 'object') return null;
+            if (task.type === 'match') {
+                const pairs = (Array.isArray(task.pairs) ? task.pairs : [])
+                    .map(p => Array.isArray(p) ? [String(p[0] || '').trim(), String(p[1] || '').trim()] : ['', ''])
+                    .filter(p => p[0] && p[1]);
+                if (pairs.length < 2) return null;
+                return {
+                    type: 'match',
+                    q: String(task.q || '').trim() || 'Сопоставьте пары',
+                    pairs: pairs,
+                    explain: String(task.explain || '').trim()
+                };
+            }
+            const rawOptions = Array.isArray(task.options) ? task.options.map(o => String(o || '').trim()) : [];
+            const correctSet = new Set(Array.isArray(task.correct) ? task.correct : (Number.isInteger(task.correct) ? [task.correct] : []));
+            const options = [];
+            const correct = [];
+            rawOptions.forEach((text, i) => {
+                if (!text) return;
+                if (correctSet.has(i)) correct.push(options.length);
+                options.push(text);
+            });
+            const q = String(task.q || '').trim();
+            if (!q || options.length < 2 || correct.length < 1) return null;
+            return {
+                type: 'quiz',
+                q: q,
+                options: options,
+                correct: correct,
+                multi: correct.length > 1,
+                explain: String(task.explain || '').trim()
+            };
+        }
+
+        function normalizeCourseLesson(lesson) {
+            if (!lesson || typeof lesson !== 'object') return null;
+            return {
+                id: typeof lesson.id === 'string' && lesson.id ? lesson.id : ('lesson_' + Math.random().toString(36).slice(2)),
+                emoji: String(lesson.emoji || '📘').slice(0, 4) || '📘',
+                title: String(lesson.title || '').trim() || 'Урок',
+                sub: String(lesson.sub || '').trim(),
+                theory: String(lesson.theory || '').trim(),
+                tasks: Array.isArray(lesson.tasks) ? lesson.tasks.map(normalizeCourseTask).filter(Boolean) : []
+            };
+        }
+
+        function normalizeCourseFolder(folder) {
+            if (!folder || typeof folder !== 'object') return null;
+            const lessons = Array.isArray(folder.lessons) ? folder.lessons.map(normalizeCourseLesson).filter(Boolean) : [];
+            const lessonIds = new Set(lessons.map(l => l.id));
+            return {
+                name: typeof folder.name === 'string' && folder.name.trim() ? folder.name : 'Курс',
+                lessons: lessons,
+                doneLessonIds: Array.isArray(folder.doneLessonIds) ? folder.doneLessonIds.filter(id => typeof id === 'string' && lessonIds.has(id)) : []
+            };
+        }
+
+        function normalizeCourseFoldersTree(folders) {
+            if (!Array.isArray(folders)) return [];
+            return folders.map(normalizeCourseFolder).filter(Boolean);
+        }
+
+        function getDefaultCourseStudyState() {
+            return {
+                taskIndex: 0,
+                selected: [],
+                confirmed: false,
+                answered: false,
+                isCorrect: null,
+                matchState: null,
+                stats: { correct: 0, wrong: 0, answered: 0 },
+                completed: false
+            };
+        }
+
+        function getCurrentCourseFolder() {
+            if (state.currentCourseFolder === null) return null;
+            return state.courseFolders[state.currentCourseFolder] || null;
+        }
+
+        function getCurrentCourseLesson() {
+            const folder = getCurrentCourseFolder();
+            if (!folder || state.currentCourseLesson === null) return null;
+            return folder.lessons[state.currentCourseLesson] || null;
         }
 
         function getBuiltInFlashcardFolders() {
@@ -6052,12 +6500,18 @@
             view: 'home',
             folders: [],
             flashcardFolders: [],
+            courseFolders: [],
             profile: getDefaultProfile(),
             learningBranch: null,
             currentFolder: null,
             currentSubfolder: null,
             currentText: null,
             currentFlashcardFolder: null,
+            currentCourseFolder: null,
+            currentCourseLesson: null,
+            editingCourseLessonMode: 'create',
+            editingCourseTaskIndex: null,
+            courseTaskTypeDraft: 'quiz',
             returnToRootTexts: false,
             folderModalMode: 'root',
             mode: 'chooser', // chooser, edit, practice, game, quiz, type, example
@@ -6112,10 +6566,12 @@
             },
             learningGuideOpen: {
                 texts: false,
-                cards: false
+                cards: false,
+                courses: false
             },
             flashcardSessionConfig: getDefaultFlashcardSessionConfig(),
-            flashcardStudyState: getDefaultFlashcardStudyState()
+            flashcardStudyState: getDefaultFlashcardStudyState(),
+            courseStudyState: getDefaultCourseStudyState()
         };
         
         let serverVersion = null;
@@ -6161,9 +6617,11 @@
             hasPendingSaveData = false;
             normalizeFoldersTree(state.folders);
             state.flashcardFolders = normalizeFlashcardFoldersTree(state.flashcardFolders);
+            state.courseFolders = normalizeCourseFoldersTree(state.courseFolders);
             const payload = JSON.stringify({
                 folders: state.folders,
-                flashcardFolders: state.flashcardFolders
+                flashcardFolders: state.flashcardFolders,
+                courseFolders: state.courseFolders
             });
             if (payload === lastSavedData) return;
             localStorage.setItem('wordMemorizer', payload);
@@ -6198,14 +6656,15 @@
         function getLocalData() {
             try {
                 const saved = localStorage.getItem('wordMemorizer');
-                if (!saved) return { folders: [], flashcardFolders: [] };
+                if (!saved) return { folders: [], flashcardFolders: [], courseFolders: [] };
                 const parsed = JSON.parse(saved);
                 return {
                     folders: Array.isArray(parsed.folders) ? parsed.folders : [],
-                    flashcardFolders: Array.isArray(parsed.flashcardFolders) ? parsed.flashcardFolders : []
+                    flashcardFolders: Array.isArray(parsed.flashcardFolders) ? parsed.flashcardFolders : [],
+                    courseFolders: Array.isArray(parsed.courseFolders) ? parsed.courseFolders : []
                 };
             } catch (e) {
-                return { folders: [], flashcardFolders: [] };
+                return { folders: [], flashcardFolders: [], courseFolders: [] };
             }
         }
 
@@ -6214,12 +6673,14 @@
             const localData = getLocalData();
             state.folders = localData.folders || [];
             state.flashcardFolders = normalizeFlashcardFoldersTree(localData.flashcardFolders || []);
+            state.courseFolders = normalizeCourseFoldersTree(localData.courseFolders || []);
             state.profile = getLocalProfile();
             normalizeFoldersTree(state.folders);
             const seededFlashcards = ensureBuiltInFlashcardFolders();
             lastSavedData = JSON.stringify({
                 folders: state.folders,
-                flashcardFolders: state.flashcardFolders
+                flashcardFolders: state.flashcardFolders,
+                courseFolders: state.courseFolders
             });
             if (seededFlashcards) {
                 lastSavedData = '';
@@ -6592,6 +7053,14 @@ function getFirstLastLetters(word) {
                 app.innerHTML = renderFlashcardFolderView();
             } else if (state.view === 'card_study') {
                 app.innerHTML = renderFlashcardStudyView();
+            } else if (state.view === 'course_folders') {
+                app.innerHTML = renderCourseFoldersView();
+            } else if (state.view === 'course_folder') {
+                app.innerHTML = renderCourseFolderView();
+            } else if (state.view === 'course_lesson_edit') {
+                app.innerHTML = renderCourseLessonEditView();
+            } else if (state.view === 'course_lesson') {
+                app.innerHTML = renderCourseLessonView();
             } else if (state.view === 'texts') {
                 app.innerHTML = renderTextsView();
                 if (HAS_TOUCH_INPUT) initTermCardSwipe();
@@ -7143,6 +7612,10 @@ function getFirstLastLetters(word) {
                 state.currentFlashcardFolder = null;
                 state.editingFlashcardIndex = null;
                 state.flashcardStudyState = getDefaultFlashcardStudyState();
+                state.currentCourseFolder = null;
+                state.currentCourseLesson = null;
+                state.editingCourseTaskIndex = null;
+                state.courseStudyState = getDefaultCourseStudyState();
                 state.returnToRootTexts = false;
                 state.pendingWords = [];
                 state.pendingHintGroups = [];
@@ -7183,6 +7656,18 @@ function getFirstLastLetters(word) {
                 showFlashcardModal();
                 return;
             }
+            if (state.view === 'course_folders') {
+                showCourseFolderModal();
+                return;
+            }
+            if (state.view === 'course_folder') {
+                showCourseLessonModal();
+                return;
+            }
+            if (state.view === 'course_lesson_edit') {
+                showCourseTaskModal();
+                return;
+            }
             showLearningCreateModal();
         }
 
@@ -7197,6 +7682,10 @@ function getFirstLastLetters(word) {
             state.currentText = null;
             state.currentFlashcardFolder = null;
             state.editingFlashcardIndex = null;
+            state.currentCourseFolder = null;
+            state.currentCourseLesson = null;
+            state.editingCourseTaskIndex = null;
+            state.courseStudyState = getDefaultCourseStudyState();
             state.returnToRootTexts = false;
             state.pendingWords = [];
             state.pendingHintGroups = [];
@@ -7208,7 +7697,7 @@ function getFirstLastLetters(word) {
             clearPracticeFocus();
             resetTextsShuffle();
             resetStudyQueue();
-            state.view = 'card_folders';
+            state.view = branch === 'courses' ? 'course_folders' : 'card_folders';
             render();
         }
 
@@ -7437,8 +7926,11 @@ function getFirstLastLetters(word) {
             const textCount = getAllMaterialEntries().length;
             const flashcardFoldersCount = state.flashcardFolders.length;
             const flashcardCount = getTotalFlashcardCount();
+            const courseFoldersCount = state.courseFolders.length;
+            const courseLessonCount = state.courseFolders.reduce((sum, folder) => sum + folder.lessons.length, 0);
             const textsGuideOpen = state.learningGuideOpen && state.learningGuideOpen.texts;
             const cardsGuideOpen = state.learningGuideOpen && state.learningGuideOpen.cards;
+            const coursesGuideOpen = state.learningGuideOpen && state.learningGuideOpen.courses;
             const guideIcon = getLearningGuideIcon();
 
             return renderShell(`
@@ -7525,6 +8017,38 @@ function getFirstLastLetters(word) {
                                                     <div class="learning-card-mini-label">Оборотная сторона</div>
                                                     <div class="learning-card-mini-text">≈ 3,14</div>
                                                     <div class="learning-card-mini-note">Переверните карточку и мгновенно проверьте ответ.</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="learning-choice-option learning-choice-option-courses">
+                                <button class="learning-choice-main" onclick="openLearningBranch('courses')">
+                                    <div class="learning-choice-icon">🧩</div>
+                                    <div class="learning-choice-option-title">Курсы</div>
+                                    <div class="learning-choice-option-desc">Мини-курсы с теорией и заданиями: проходите уроки по дорожной карте или создайте свой.</div>
+                                    <div class="learning-choice-meta">${courseFoldersCount ? courseFoldersCount + ' курсов · ' + getLessonCountText(courseLessonCount) : 'Пока без курсов'}</div>
+                                </button>
+                                <div class="learning-help-widget ${coursesGuideOpen ? 'is-open' : ''}">
+                                    <button class="learning-help-toggle" onclick="event.stopPropagation();toggleLearningGuide('courses')">
+                                        <span class="learning-help-label">Как играть?</span>
+                                        <span class="learning-help-icon">${guideIcon}</span>
+                                    </button>
+                                    <div class="learning-help-content">
+                                        <div class="learning-onboarding-copy">
+                                            <div class="learning-course-demo">
+                                                <div class="learning-course-node done">
+                                                    <div class="learning-course-node-icon">✓</div>
+                                                    <div class="learning-course-node-text">Урок 1 пройден</div>
+                                                </div>
+                                                <div class="learning-course-node current">
+                                                    <div class="learning-course-node-icon">▶</div>
+                                                    <div class="learning-course-node-text">Урок 2: теория + задания</div>
+                                                </div>
+                                                <div class="learning-course-node locked">
+                                                    <div class="learning-course-node-icon">🔒</div>
+                                                    <div class="learning-course-node-text">Урок 3 откроется после второго</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -7714,6 +8238,779 @@ function getFirstLastLetters(word) {
                     <div class="folder-empty-card">В этой папке пока нет карточек. Нажмите на кнопку + внизу, чтобы добавить первую карточку.</div>
                 `}
             `, 'learning', 'compact-shell');
+        }
+
+        /* ================= COURSES ================= */
+
+        function getTaskCountText(count) {
+            if (count === 0) return '0 заданий';
+            const mod10 = count % 10;
+            const mod100 = count % 100;
+            if (mod10 === 1 && mod100 !== 11) return count + ' задание';
+            if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return count + ' задания';
+            return count + ' заданий';
+        }
+
+        function isCourseLessonUnlocked(folder, index) {
+            if (index === 0) return true;
+            const prevLesson = folder.lessons[index - 1];
+            return prevLesson ? folder.doneLessonIds.includes(prevLesson.id) : true;
+        }
+
+        function openCourseFolder(index) {
+            state.learningBranch = 'courses';
+            state.currentCourseFolder = index;
+            state.currentCourseLesson = null;
+            state.courseStudyState = getDefaultCourseStudyState();
+            state.view = 'course_folder';
+            render();
+        }
+
+        function goBackToCourseFolders() {
+            state.currentCourseFolder = null;
+            state.currentCourseLesson = null;
+            state.courseStudyState = getDefaultCourseStudyState();
+            state.view = 'course_folders';
+            render();
+        }
+
+        function goBackToCourseFolder() {
+            state.currentCourseLesson = null;
+            state.courseStudyState = getDefaultCourseStudyState();
+            state.view = 'course_folder';
+            render();
+        }
+
+        function deleteCourseFolderFromList(index) {
+            const folder = state.courseFolders[index];
+            if (!folder) return;
+            if (!confirm('Удалить курс «' + folder.name + '» и все его уроки?')) return;
+            state.courseFolders.splice(index, 1);
+            if (state.currentCourseFolder === index) {
+                state.currentCourseFolder = null;
+                state.currentCourseLesson = null;
+                state.view = 'course_folders';
+            } else if (state.currentCourseFolder !== null && state.currentCourseFolder > index) {
+                state.currentCourseFolder -= 1;
+            }
+            saveData();
+            render();
+        }
+
+        function deleteCurrentCourseFolder() {
+            const folder = getCurrentCourseFolder();
+            if (!folder) return;
+            if (!confirm('Удалить курс «' + folder.name + '» и все его уроки?')) return;
+            state.courseFolders.splice(state.currentCourseFolder, 1);
+            state.currentCourseFolder = null;
+            state.currentCourseLesson = null;
+            state.courseStudyState = getDefaultCourseStudyState();
+            saveData();
+            state.view = 'course_folders';
+            render();
+        }
+
+        function openCourseLessonEdit(index) {
+            const folder = getCurrentCourseFolder();
+            if (!folder || !folder.lessons[index]) return;
+            state.currentCourseLesson = index;
+            state.view = 'course_lesson_edit';
+            render();
+        }
+
+        function deleteCourseLesson(index) {
+            const folder = getCurrentCourseFolder();
+            const lesson = folder && folder.lessons[index];
+            if (!lesson) return;
+            if (!confirm('Удалить урок «' + lesson.title + '» и все его задания?')) return;
+            folder.lessons.splice(index, 1);
+            folder.doneLessonIds = folder.doneLessonIds.filter(id => id !== lesson.id);
+            if (state.currentCourseLesson === index) {
+                state.currentCourseLesson = null;
+                state.view = 'course_folder';
+            } else if (state.currentCourseLesson !== null && state.currentCourseLesson > index) {
+                state.currentCourseLesson -= 1;
+            }
+            saveData();
+            render();
+        }
+
+        function deleteCourseTask(index) {
+            const lesson = getCurrentCourseLesson();
+            if (!lesson || !lesson.tasks[index]) return;
+            if (!confirm('Удалить это задание?')) return;
+            lesson.tasks.splice(index, 1);
+            saveData();
+            render();
+        }
+
+        function prepareCourseTask(study, lesson, index) {
+            study.taskIndex = index;
+            study.selected = [];
+            study.confirmed = false;
+            study.answered = false;
+            study.isCorrect = null;
+            study.matchState = null;
+            const task = lesson.tasks[index];
+            if (task && task.type === 'match') {
+                const pairIndexes = task.pairs.map((_, i) => i);
+                study.matchState = {
+                    terms: shuffleArray(pairIndexes.slice()),
+                    defs: shuffleArray(pairIndexes.slice()),
+                    matched: [],
+                    selectedTerm: null,
+                    wrongDef: null,
+                    hadError: false
+                };
+            }
+        }
+
+        function openCourseLesson(index) {
+            const folder = getCurrentCourseFolder();
+            if (!folder) return;
+            const lesson = folder.lessons[index];
+            if (!lesson) return;
+            if (!isCourseLessonUnlocked(folder, index)) {
+                alert('🔒 Сначала пройдите предыдущий урок');
+                return;
+            }
+            state.currentCourseLesson = index;
+            const study = getDefaultCourseStudyState();
+            study.stage = lesson.theory ? 'theory' : 'tasks';
+            if (study.stage === 'tasks' && lesson.tasks.length) prepareCourseTask(study, lesson, 0);
+            state.courseStudyState = study;
+            state.view = 'course_lesson';
+            render();
+        }
+
+        function restartCourseLesson() {
+            if (state.currentCourseLesson === null) return;
+            openCourseLesson(state.currentCourseLesson);
+        }
+
+        function startCourseLessonTasks() {
+            const lesson = getCurrentCourseLesson();
+            const study = state.courseStudyState;
+            if (!lesson) return;
+            study.stage = 'tasks';
+            if (lesson.tasks.length) prepareCourseTask(study, lesson, 0);
+            render();
+        }
+
+        function completeCourseLesson(folder, lesson) {
+            const study = state.courseStudyState;
+            study.completed = true;
+            if (!folder.doneLessonIds.includes(lesson.id)) {
+                folder.doneLessonIds.push(lesson.id);
+            }
+            if (study.stats.answered > 0) {
+                recordStudyStats('course_lesson', study.stats.answered, study.stats.correct);
+            }
+            saveData();
+        }
+
+        function handleTheoryContinue() {
+            const lesson = getCurrentCourseLesson();
+            const folder = getCurrentCourseFolder();
+            if (!lesson || !folder) return;
+            if (lesson.tasks.length) {
+                startCourseLessonTasks();
+            } else {
+                completeCourseLesson(folder, lesson);
+                render();
+            }
+        }
+
+        function advanceCourseTask() {
+            const folder = getCurrentCourseFolder();
+            const lesson = getCurrentCourseLesson();
+            const study = state.courseStudyState;
+            if (!folder || !lesson) return;
+            const nextIndex = study.taskIndex + 1;
+            if (nextIndex >= lesson.tasks.length) {
+                completeCourseLesson(folder, lesson);
+                render();
+                return;
+            }
+            prepareCourseTask(study, lesson, nextIndex);
+            render();
+        }
+
+        function toggleCourseQuizOption(index) {
+            const study = state.courseStudyState;
+            if (state.view !== 'course_lesson' || study.answered) return;
+            const pos = study.selected.indexOf(index);
+            if (pos === -1) study.selected.push(index); else study.selected.splice(pos, 1);
+            render();
+        }
+
+        function submitCourseQuizChoice(optionIndex) {
+            const study = state.courseStudyState;
+            const lesson = getCurrentCourseLesson();
+            if (state.view !== 'course_lesson' || !lesson || study.answered) return;
+            const task = lesson.tasks[study.taskIndex];
+            if (!task || task.type !== 'quiz') return;
+            const correct = task.correct.includes(optionIndex);
+            study.selected = [optionIndex];
+            study.answered = true;
+            study.isCorrect = correct;
+            study.stats.answered += 1;
+            if (correct) study.stats.correct += 1; else study.stats.wrong += 1;
+            render();
+            setTimeout(() => {
+                if (state.view !== 'course_lesson') return;
+                advanceCourseTask();
+            }, correct ? 500 : 900);
+        }
+
+        function confirmCourseQuizMulti() {
+            const study = state.courseStudyState;
+            const lesson = getCurrentCourseLesson();
+            if (state.view !== 'course_lesson' || !lesson || study.answered || !study.selected.length) return;
+            const task = lesson.tasks[study.taskIndex];
+            if (!task || task.type !== 'quiz') return;
+            const correctSet = task.correct.slice().sort().join(',');
+            const selectedSet = study.selected.slice().sort().join(',');
+            const correct = correctSet === selectedSet;
+            study.answered = true;
+            study.confirmed = true;
+            study.isCorrect = correct;
+            study.stats.answered += 1;
+            if (correct) study.stats.correct += 1; else study.stats.wrong += 1;
+            render();
+            setTimeout(() => {
+                if (state.view !== 'course_lesson') return;
+                advanceCourseTask();
+            }, correct ? 600 : 1200);
+        }
+
+        function selectCourseMatchTerm(pairIndex) {
+            const study = state.courseStudyState;
+            const ms = study.matchState;
+            if (state.view !== 'course_lesson' || !ms || ms.matched.includes(pairIndex)) return;
+            ms.selectedTerm = pairIndex;
+            ms.wrongDef = null;
+            render();
+        }
+
+        function selectCourseMatchDef(pairIndex) {
+            const study = state.courseStudyState;
+            const ms = study.matchState;
+            if (state.view !== 'course_lesson' || !ms || ms.selectedTerm === null || ms.matched.includes(pairIndex)) return;
+            const term = ms.selectedTerm;
+            if (term === pairIndex) {
+                ms.matched.push(pairIndex);
+                ms.selectedTerm = null;
+                ms.wrongDef = null;
+                if (ms.matched.length === ms.terms.length) {
+                    study.answered = true;
+                    study.isCorrect = !ms.hadError;
+                    study.stats.answered += 1;
+                    if (!ms.hadError) study.stats.correct += 1; else study.stats.wrong += 1;
+                    render();
+                    setTimeout(() => {
+                        if (state.view !== 'course_lesson') return;
+                        advanceCourseTask();
+                    }, 500);
+                    return;
+                }
+                render();
+                return;
+            }
+            ms.wrongDef = pairIndex;
+            ms.selectedTerm = null;
+            ms.hadError = true;
+            render();
+            setTimeout(() => {
+                if (state.view !== 'course_lesson') return;
+                const liveStudy = state.courseStudyState;
+                if (liveStudy.matchState) liveStudy.matchState.wrongDef = null;
+                render();
+            }, 500);
+        }
+
+        function renderCourseTheoryHtml(theory) {
+            const paragraphs = String(theory || '').split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+            if (!paragraphs.length) return '<p class="course-theory-empty">Теория не добавлена.</p>';
+            return paragraphs.map(p => `<p>${escapeHtml(p).replace(/\n/g, '<br>')}</p>`).join('');
+        }
+
+        function renderCourseQuizBody(task, study) {
+            const optionsHtml = task.options.map((option, index) => {
+                const isSelected = study.selected.includes(index);
+                const isCorrectOpt = task.correct.includes(index);
+                let cls = 'quiz-option';
+                if (study.answered) {
+                    if (isCorrectOpt) cls += ' correct';
+                    else if (isSelected) cls += ' wrong';
+                } else if (task.multi && isSelected) {
+                    cls += ' focused';
+                }
+                const clickHandler = task.multi ? `toggleCourseQuizOption(${index})` : `submitCourseQuizChoice(${index})`;
+                return `
+                    <button class="${cls}" ${study.answered ? 'disabled' : ''} onclick="${clickHandler}">
+                        <span class="option-letter">${optionLetters[index] || ''}</span>
+                        ${escapeHtml(option)}
+                    </button>
+                `;
+            }).join('');
+
+            if (!task.multi) {
+                return `<div class="quiz-options">${optionsHtml}</div>`;
+            }
+            return `
+                <div class="course-multi-hint">☑️ Можно выбрать несколько ответов</div>
+                <div class="quiz-options">${optionsHtml}</div>
+                ${!study.answered ? `<button class="complete-btn-course" ${study.selected.length ? '' : 'disabled'} onclick="confirmCourseQuizMulti()">Подтвердить выбор</button>` : ''}
+            `;
+        }
+
+        function renderCourseMatchBody(task, study) {
+            const ms = study.matchState;
+            if (!ms) return '';
+            return `
+                <div class="course-match-grid">
+                    <div class="course-match-col">
+                        <div class="course-match-col-head">Термин</div>
+                        ${ms.terms.map(pairIndex => {
+                            const matched = ms.matched.includes(pairIndex);
+                            const selected = ms.selectedTerm === pairIndex;
+                            let cls = 'course-match-item';
+                            if (matched) cls += ' correct';
+                            else if (selected) cls += ' selected';
+                            return `<button class="${cls}" ${matched ? 'disabled' : ''} onclick="selectCourseMatchTerm(${pairIndex})">${escapeHtml(task.pairs[pairIndex][0])}</button>`;
+                        }).join('')}
+                    </div>
+                    <div class="course-match-col">
+                        <div class="course-match-col-head">Определение</div>
+                        ${ms.defs.map(pairIndex => {
+                            const matched = ms.matched.includes(pairIndex);
+                            const wrong = ms.wrongDef === pairIndex;
+                            let cls = 'course-match-item';
+                            if (matched) cls += ' correct';
+                            else if (wrong) cls += ' wrong';
+                            return `<button class="${cls}" ${matched ? 'disabled' : ''} onclick="selectCourseMatchDef(${pairIndex})">${escapeHtml(task.pairs[pairIndex][1])}</button>`;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderCourseFoldersView() {
+            const totalLessons = state.courseFolders.reduce((sum, folder) => sum + folder.lessons.length, 0);
+            const doneLessons = state.courseFolders.reduce((sum, folder) => sum + folder.doneLessonIds.length, 0);
+
+            return renderShell(`
+                <div class="app-toolbar">
+                    <div>
+                        <div class="app-page-title">Курсы</div>
+                    </div>
+                    <button class="icon-ghost-btn" onclick="setPrimaryView('learning')" aria-label="Назад">←</button>
+                </div>
+
+                <div class="dashboard-summary">
+                    <div class="summary-stat">
+                        <div class="summary-stat-value">${state.courseFolders.length}</div>
+                        <div class="summary-stat-label">курсов</div>
+                    </div>
+                    <div class="summary-stat">
+                        <div class="summary-stat-value">${totalLessons}</div>
+                        <div class="summary-stat-label">уроков</div>
+                    </div>
+                    <div class="summary-stat">
+                        <div class="summary-stat-value">${doneLessons}</div>
+                        <div class="summary-stat-label">пройдено</div>
+                    </div>
+                </div>
+
+                <div class="folder-dashboard-list">
+                    ${state.courseFolders.length ? state.courseFolders.map((folder, index) => `
+                        <div class="folder-dashboard-card" onclick="openCourseFolder(${index})">
+                            <div class="folder-dashboard-head">
+                                <div class="folder-dashboard-icon">🧩</div>
+                                <div class="folder-dashboard-copy">
+                                    <div class="folder-dashboard-title">${escapeHtml(folder.name)}</div>
+                                    <p>${getLessonCountText(folder.lessons.length)} · пройдено ${folder.doneLessonIds.length}</p>
+                                </div>
+                                <div class="folder-dashboard-actions">
+                                    <button class="folder-mini-action" onclick="event.stopPropagation();deleteCourseFolderFromList(${index})" title="Удалить">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                    </button>
+                                    <div class="folder-dashboard-arrow">›</div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('') : `
+                        <div class="folder-empty-card">Курсов пока нет. Нажмите на кнопку +, чтобы создать первый курс и добавить уроки.</div>
+                    `}
+                </div>
+            `, 'learning', 'compact-shell');
+        }
+
+        function renderCourseFolderView() {
+            const folder = getCurrentCourseFolder();
+            if (!folder) {
+                state.view = 'course_folders';
+                return renderCourseFoldersView();
+            }
+            const total = folder.lessons.length;
+            const doneCount = folder.doneLessonIds.length;
+
+            return renderShell(`
+                <div class="app-toolbar">
+                    <div>
+                        <div class="app-page-title">${escapeHtml(folder.name)}</div>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <button class="icon-ghost-btn" onclick="goBackToCourseFolders()" aria-label="Назад">←</button>
+                        <button class="icon-ghost-btn" onclick="deleteCurrentCourseFolder()" aria-label="Удалить">✕</button>
+                    </div>
+                </div>
+
+                <div class="dashboard-summary">
+                    <div class="summary-stat">
+                        <div class="summary-stat-value">${total}</div>
+                        <div class="summary-stat-label">уроков</div>
+                    </div>
+                    <div class="summary-stat">
+                        <div class="summary-stat-value">${doneCount}</div>
+                        <div class="summary-stat-label">пройдено</div>
+                    </div>
+                    <div class="summary-stat">
+                        <div class="summary-stat-value">${total ? Math.round(doneCount / total * 100) : 0}%</div>
+                        <div class="summary-stat-label">прогресс</div>
+                    </div>
+                </div>
+
+                ${total ? `
+                    <div class="course-road">
+                        ${folder.lessons.map((lesson, index) => {
+                            const done = folder.doneLessonIds.includes(lesson.id);
+                            const unlocked = isCourseLessonUnlocked(folder, index);
+                            const stateClass = done ? 'done' : (unlocked ? 'unlocked' : 'locked');
+                            const connector = index < total - 1 ? '<div class="course-connector"></div>' : '';
+                            return `
+                                <div class="course-node ${stateClass}" onclick="${unlocked ? `openCourseLesson(${index})` : `alert('🔒 Сначала пройдите предыдущий урок')`}">
+                                    <div class="course-node-num">${done ? '✓' : (index + 1)}</div>
+                                    <div class="course-node-emoji">${unlocked ? escapeHtml(lesson.emoji) : '🔒'}</div>
+                                    <div class="course-node-body">
+                                        <div class="course-node-title">${escapeHtml(lesson.title)}</div>
+                                        ${lesson.sub ? `<div class="course-node-sub">${escapeHtml(lesson.sub)}</div>` : ''}
+                                        <div class="course-node-meta">
+                                            <span class="pill">${getTaskCountText(lesson.tasks.length)}</span>
+                                            <span class="pill">${done ? 'пройдено' : (unlocked ? 'доступно' : 'закрыто')}</span>
+                                        </div>
+                                    </div>
+                                    <button class="folder-mini-action course-node-edit" onclick="event.stopPropagation();openCourseLessonEdit(${index})" title="Редактировать">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                    </button>
+                                </div>
+                                ${connector}
+                            `;
+                        }).join('')}
+                    </div>
+                ` : `
+                    <div class="folder-empty-card">В этом курсе пока нет уроков. Нажмите на кнопку + внизу, чтобы добавить первый урок.</div>
+                `}
+            `, 'learning', 'compact-shell');
+        }
+
+        function renderCourseLessonEditView() {
+            const folder = getCurrentCourseFolder();
+            const lesson = getCurrentCourseLesson();
+            if (!folder || !lesson) {
+                state.view = 'course_folder';
+                return renderCourseFolderView();
+            }
+            return renderShell(`
+                <div class="app-toolbar">
+                    <div>
+                        <div class="app-page-title">${escapeHtml(lesson.emoji)} ${escapeHtml(lesson.title)}</div>
+                        <div class="app-page-subtitle">Редактирование урока</div>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <button class="icon-ghost-btn" onclick="goBackToCourseFolder()" aria-label="Назад">←</button>
+                        <button class="icon-ghost-btn" onclick="deleteCourseLesson(${state.currentCourseLesson})" aria-label="Удалить">✕</button>
+                    </div>
+                </div>
+
+                <div class="course-edit-meta-card">
+                    ${lesson.sub ? `<div class="course-edit-meta-sub">${escapeHtml(lesson.sub)}</div>` : ''}
+                    ${lesson.theory ? `<div class="course-edit-theory-preview">${escapeHtml(lesson.theory)}</div>` : `<div class="course-edit-theory-preview muted">Теория не добавлена — урок начнётся сразу с заданий.</div>`}
+                    <button class="module-action-btn secondary" onclick="showEditCourseLessonModal(${state.currentCourseLesson})">Редактировать урок</button>
+                </div>
+
+                <div class="home-section-header" style="margin-top:4px;">
+                    <div class="home-section-title" style="font-size:1.25rem;">Задания</div>
+                </div>
+
+                ${lesson.tasks.length ? `
+                    <div class="course-task-list">
+                        ${lesson.tasks.map((task, index) => `
+                            <div class="course-task-row">
+                                <div class="course-task-row-badge ${task.type}">${task.type === 'match' ? '🔗 Сопоставление' : (task.multi ? '☑️ Несколько ответов' : '◉ Один ответ')}</div>
+                                <div class="course-task-row-q">${escapeHtml(task.q)}</div>
+                                <div class="course-task-row-actions">
+                                    <button class="folder-mini-action" onclick="showEditCourseTaskModal(${index})" title="Редактировать">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                    </button>
+                                    <button class="folder-mini-action" onclick="deleteCourseTask(${index})" title="Удалить">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <div class="folder-empty-card">В уроке пока нет заданий. Нажмите на кнопку + внизу, чтобы добавить тест или сопоставление.</div>
+                `}
+            `, 'learning', 'compact-shell');
+        }
+
+        function renderCourseLessonView() {
+            const folder = getCurrentCourseFolder();
+            const lesson = getCurrentCourseLesson();
+            const study = state.courseStudyState;
+            if (!folder || !lesson) {
+                state.view = 'course_folder';
+                return renderCourseFolderView();
+            }
+
+            const header = `
+                <div class="app-toolbar">
+                    <div>
+                        <div class="app-page-title">${escapeHtml(lesson.emoji)} ${escapeHtml(lesson.title)}</div>
+                        <div class="app-page-subtitle">${escapeHtml(lesson.sub || folder.name)}</div>
+                    </div>
+                    <button class="icon-ghost-btn" onclick="goBackToCourseFolder()" aria-label="Назад">←</button>
+                </div>
+            `;
+
+            if (study.completed) {
+                return renderShell(`
+                    ${header}
+                    <div class="flashcard-study-layout">
+                        <div class="flashcard-complete-card">
+                            <div class="flashcard-complete-icon">${study.stats.answered && study.stats.wrong === 0 ? '🏆' : '✓'}</div>
+                            <div class="flashcard-complete-title">Урок пройден</div>
+                            <div class="flashcard-complete-desc">
+                                ${study.stats.answered ? `Правильных: ${study.stats.correct} · Всего: ${study.stats.answered}` : 'Теория изучена'}
+                            </div>
+                            <div class="flashcard-study-buttons">
+                                <button class="profile-link-btn" onclick="restartCourseLesson()">Пройти снова</button>
+                                <button class="module-action-btn secondary" onclick="goBackToCourseFolder()">К курсу</button>
+                            </div>
+                        </div>
+                    </div>
+                `, 'learning', 'compact-shell');
+            }
+
+            if (study.stage === 'theory') {
+                return renderShell(`
+                    ${header}
+                    <div class="course-theory-card">
+                        <div class="course-theory-kicker">Теория</div>
+                        ${renderCourseTheoryHtml(lesson.theory)}
+                        <button class="complete-btn-course" onclick="handleTheoryContinue()">${lesson.tasks.length ? 'Начать задания →' : 'Завершить урок'}</button>
+                    </div>
+                `, 'learning', 'compact-shell');
+            }
+
+            if (!lesson.tasks.length) {
+                return renderShell(`
+                    ${header}
+                    <div class="course-theory-card">
+                        <div class="course-theory-kicker">Задания</div>
+                        <p>В этом уроке заданий нет.</p>
+                        <button class="complete-btn-course" onclick="handleTheoryContinue()">Завершить урок</button>
+                    </div>
+                `, 'learning', 'compact-shell');
+            }
+
+            const task = lesson.tasks[study.taskIndex];
+            const progressDots = lesson.tasks.map((_, i) => `<div class="course-progress-dot ${i < study.taskIndex ? 'done' : (i === study.taskIndex ? 'current' : '')}"></div>`).join('');
+
+            return renderShell(`
+                ${header}
+                <div class="course-progress-row">${progressDots}</div>
+                <div class="course-task-card">
+                    <div class="course-task-tag">Вопрос ${study.taskIndex + 1} из ${lesson.tasks.length}</div>
+                    <h3>${escapeHtml(task.q)}</h3>
+                    ${task.type === 'match' ? renderCourseMatchBody(task, study) : renderCourseQuizBody(task, study)}
+                    ${study.answered && task.explain ? `<div class="course-explain">${escapeHtml(task.explain)}</div>` : ''}
+                </div>
+            `, 'learning', 'compact-shell');
+        }
+
+        /* ---- course editor modals ---- */
+
+        function showCourseFolderModal() {
+            state.folderModalMode = 'course_root';
+            document.getElementById('folderModalTitle').textContent = 'Новый курс';
+            document.getElementById('folderName').value = '';
+            document.getElementById('folderName').placeholder = 'Название курса';
+            document.getElementById('folderModal').classList.add('show');
+            setTimeout(() => document.getElementById('folderName').focus(), 100);
+        }
+
+        function showCourseLessonModal() {
+            const folder = getCurrentCourseFolder();
+            if (!folder) return;
+            state.editingCourseLessonMode = 'create';
+            document.getElementById('courseLessonModalTitle').textContent = 'Новый урок';
+            document.getElementById('courseLessonEmoji').value = '📘';
+            document.getElementById('courseLessonTitleInput').value = '';
+            document.getElementById('courseLessonSub').value = '';
+            document.getElementById('courseLessonTheory').value = '';
+            document.getElementById('courseLessonModal').classList.add('show');
+            setTimeout(() => document.getElementById('courseLessonTitleInput').focus(), 100);
+        }
+
+        function showEditCourseLessonModal(index) {
+            const folder = getCurrentCourseFolder();
+            const lesson = folder && folder.lessons[index];
+            if (!lesson) return;
+            state.editingCourseLessonMode = 'edit';
+            state.currentCourseLesson = index;
+            document.getElementById('courseLessonModalTitle').textContent = 'Редактировать урок';
+            document.getElementById('courseLessonEmoji').value = lesson.emoji || '📘';
+            document.getElementById('courseLessonTitleInput').value = lesson.title || '';
+            document.getElementById('courseLessonSub').value = lesson.sub || '';
+            document.getElementById('courseLessonTheory').value = lesson.theory || '';
+            document.getElementById('courseLessonModal').classList.add('show');
+        }
+
+        function saveCourseLesson() {
+            const folder = getCurrentCourseFolder();
+            if (!folder) return;
+            const title = document.getElementById('courseLessonTitleInput').value.trim();
+            if (!title) return;
+            const emoji = document.getElementById('courseLessonEmoji').value.trim() || '📘';
+            const sub = document.getElementById('courseLessonSub').value.trim();
+            const theory = document.getElementById('courseLessonTheory').value.trim();
+
+            if (state.editingCourseLessonMode === 'edit' && state.currentCourseLesson !== null && folder.lessons[state.currentCourseLesson]) {
+                const lesson = folder.lessons[state.currentCourseLesson];
+                lesson.emoji = emoji;
+                lesson.title = title;
+                lesson.sub = sub;
+                lesson.theory = theory;
+                saveData();
+                closeModal('courseLessonModal');
+                render();
+                return;
+            }
+
+            const newLesson = {
+                id: 'lesson_' + Math.random().toString(36).slice(2),
+                emoji: emoji,
+                title: title,
+                sub: sub,
+                theory: theory,
+                tasks: []
+            };
+            folder.lessons.push(newLesson);
+            state.currentCourseLesson = folder.lessons.length - 1;
+            saveData();
+            closeModal('courseLessonModal');
+            state.view = 'course_lesson_edit';
+            render();
+        }
+
+        function setCourseTaskType(type) {
+            state.courseTaskTypeDraft = type;
+            const quizSection = document.getElementById('courseTaskQuizFields');
+            const matchSection = document.getElementById('courseTaskMatchFields');
+            const quizBtn = document.getElementById('courseTaskTypeQuizBtn');
+            const matchBtn = document.getElementById('courseTaskTypeMatchBtn');
+            if (quizSection) quizSection.style.display = type === 'quiz' ? 'block' : 'none';
+            if (matchSection) matchSection.style.display = type === 'match' ? 'block' : 'none';
+            if (quizBtn) quizBtn.classList.toggle('active', type === 'quiz');
+            if (matchBtn) matchBtn.classList.toggle('active', type === 'match');
+        }
+
+        function showCourseTaskModal() {
+            const lesson = getCurrentCourseLesson();
+            if (!lesson) return;
+            state.editingCourseTaskIndex = null;
+            document.getElementById('courseTaskModalTitle').textContent = 'Новое задание';
+            document.getElementById('courseTaskQuestion').value = '';
+            document.getElementById('courseTaskExplain').value = '';
+            for (let i = 0; i < 4; i++) {
+                document.getElementById('courseTaskOption' + i).value = '';
+                document.getElementById('courseTaskCorrect' + i).checked = false;
+                document.getElementById('courseTaskPairLeft' + i).value = '';
+                document.getElementById('courseTaskPairRight' + i).value = '';
+            }
+            setCourseTaskType('quiz');
+            document.getElementById('courseTaskModal').classList.add('show');
+            setTimeout(() => document.getElementById('courseTaskQuestion').focus(), 100);
+        }
+
+        function showEditCourseTaskModal(index) {
+            const lesson = getCurrentCourseLesson();
+            const task = lesson && lesson.tasks[index];
+            if (!task) return;
+            state.editingCourseTaskIndex = index;
+            document.getElementById('courseTaskModalTitle').textContent = 'Редактировать задание';
+            document.getElementById('courseTaskQuestion').value = task.q || '';
+            document.getElementById('courseTaskExplain').value = task.explain || '';
+            for (let i = 0; i < 4; i++) {
+                document.getElementById('courseTaskOption' + i).value = (task.type === 'quiz' && task.options[i]) ? task.options[i] : '';
+                document.getElementById('courseTaskCorrect' + i).checked = Boolean(task.type === 'quiz' && task.correct.includes(i));
+                const pair = task.type === 'match' ? task.pairs[i] : null;
+                document.getElementById('courseTaskPairLeft' + i).value = pair ? pair[0] : '';
+                document.getElementById('courseTaskPairRight' + i).value = pair ? pair[1] : '';
+            }
+            setCourseTaskType(task.type);
+            document.getElementById('courseTaskModal').classList.add('show');
+        }
+
+        function closeCourseTaskModal() {
+            state.editingCourseTaskIndex = null;
+            closeModal('courseTaskModal');
+        }
+
+        function saveCourseTask() {
+            const lesson = getCurrentCourseLesson();
+            if (!lesson) return;
+            const q = document.getElementById('courseTaskQuestion').value.trim();
+            const explain = document.getElementById('courseTaskExplain').value.trim();
+            const type = state.courseTaskTypeDraft;
+            let draft;
+            if (type === 'match') {
+                const pairs = [];
+                for (let i = 0; i < 4; i++) {
+                    pairs.push([
+                        document.getElementById('courseTaskPairLeft' + i).value,
+                        document.getElementById('courseTaskPairRight' + i).value
+                    ]);
+                }
+                draft = { type: 'match', q: q, pairs: pairs, explain: explain };
+            } else {
+                const options = [];
+                const correct = [];
+                for (let i = 0; i < 4; i++) {
+                    options.push(document.getElementById('courseTaskOption' + i).value);
+                    if (document.getElementById('courseTaskCorrect' + i).checked) correct.push(i);
+                }
+                draft = { type: 'quiz', q: q, options: options, correct: correct, explain: explain };
+            }
+            const task = normalizeCourseTask(draft);
+            if (!task) {
+                alert(type === 'match'
+                    ? 'Заполните вопрос и хотя бы 2 полные пары «термин — определение».'
+                    : 'Заполните вопрос, минимум 2 варианта ответа и отметьте хотя бы один правильный.');
+                return;
+            }
+            if (state.editingCourseTaskIndex !== null && lesson.tasks[state.editingCourseTaskIndex]) {
+                lesson.tasks[state.editingCourseTaskIndex] = task;
+            } else {
+                lesson.tasks.push(task);
+            }
+            saveData();
+            closeCourseTaskModal();
+            render();
         }
 
         function renderFlashcardModeToolbar(folder, study) {
@@ -9497,7 +10794,7 @@ function getFirstLastLetters(word) {
             }
             const folderName = state.currentFolder !== null
                 ? (getCurrentFolder()?.name || '')
-                : (state.currentFlashcardFolder !== null ? (getCurrentFlashcardFolder()?.name || '') : '');
+                : (state.currentFlashcardFolder !== null ? (getCurrentFlashcardFolder()?.name || '') : (state.currentCourseFolder !== null ? (getCurrentCourseFolder()?.name || '') : ''));
             stats.sessions.push({
                 date: new Date().toISOString().split('T')[0],
                 mode,
@@ -11188,6 +12485,8 @@ function getFirstLastLetters(word) {
                     cancelHint();
                 } else if (openModal.id === 'flashcardModal') {
                     closeFlashcardModal();
+                } else if (openModal.id === 'courseTaskModal') {
+                    closeCourseTaskModal();
                 } else {
                     closeModal(openModal.id);
                 }
@@ -11210,6 +12509,18 @@ function getFirstLastLetters(word) {
                 goBackToFlashcardFolders();
                 return true;
             }
+            if (state.view === 'course_lesson') {
+                goBackToCourseFolder();
+                return true;
+            }
+            if (state.view === 'course_lesson_edit') {
+                goBackToCourseFolder();
+                return true;
+            }
+            if (state.view === 'course_folder') {
+                goBackToCourseFolders();
+                return true;
+            }
             if (state.view === 'texts') {
                 if (state.matchingMode) {
                     exitMatchingGame();
@@ -11220,7 +12531,7 @@ function getFirstLastLetters(word) {
                 }
                 return true;
             }
-            if (state.view === 'shared' || state.view === 'profile' || state.view === 'stats' || state.view === 'folders' || state.view === 'card_folders' || state.view === 'learning') {
+            if (state.view === 'shared' || state.view === 'profile' || state.view === 'stats' || state.view === 'folders' || state.view === 'card_folders' || state.view === 'course_folders' || state.view === 'learning') {
                 if (state.view !== 'home') {
                     setPrimaryView('home');
                     return true;
@@ -11251,6 +12562,15 @@ function getFirstLastLetters(word) {
                 state.learningBranch = 'cards';
                 state.currentFlashcardFolder = state.flashcardFolders.length - 1;
                 state.view = 'card_folder';
+            } else if (state.folderModalMode === 'course_root') {
+                state.courseFolders.push({
+                    name: name,
+                    lessons: [],
+                    doneLessonIds: []
+                });
+                state.learningBranch = 'courses';
+                state.currentCourseFolder = state.courseFolders.length - 1;
+                state.view = 'course_folder';
             } else {
                 state.folders.push(newFolder);
                 if (state.view === 'home' || state.view === 'learning' || state.view === 'shared' || state.view === 'profile' || state.view === 'stats') {
