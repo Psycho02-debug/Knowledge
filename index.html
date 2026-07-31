@@ -1248,23 +1248,115 @@
             gap: 10px;
         }
 
-        .practice-dock .action-buttons {
-            margin-top: 0;
-        }
-
-        .practice-dock-row {
+        .practice-meta-row {
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 12px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
         }
 
-        .practice-dock .term-nav-inline {
-            position: static;
-            bottom: auto;
-            left: auto;
-            right: auto;
-            gap: 10px;
+        .practice-progress {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            min-width: 0;
+            justify-content: flex-end;
+        }
+
+        .practice-progress-track {
+            width: 70px;
+            height: 6px;
+            border-radius: 4px;
+            background: var(--bg-badge);
+            overflow: hidden;
+            flex: 0 0 auto;
+        }
+
+        .practice-progress-fill {
+            height: 100%;
+            background: var(--gradient-primary);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .practice-progress-label {
+            font-size: 12.5px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            font-weight: 600;
+        }
+
+        .practice-nav-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+        }
+
+        .practice-nav-btn {
+            background: var(--gradient-primary);
+            border: none;
+            color: var(--accent-on-strong);
+            width: 48px;
+            height: 48px;
+            flex: 0 0 auto;
+            border-radius: 50%;
+            font-size: 22px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow-accent-sm);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .practice-nav-btn:active {
+            transform: scale(0.92);
+        }
+
+        .practice-nav-btn:disabled {
+            opacity: 0.35;
+            box-shadow: none;
+            cursor: default;
+        }
+
+        .practice-nav-counter {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-primary);
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .practice-primary-btn {
+            width: 100%;
+            padding: 17px;
+            border: none;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+            background: var(--gradient-primary);
+            color: var(--accent-on-strong);
+            box-shadow: var(--shadow-accent-md);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .practice-primary-btn:active {
+            transform: scale(0.98);
+        }
+
+        .practice-primary-btn:disabled {
+            opacity: 0.5;
+            box-shadow: none;
+            cursor: not-allowed;
+            background: var(--bg-badge);
+            color: var(--text-tertiary);
         }
 
         .practice-attention-btn {
@@ -1325,17 +1417,24 @@
                 max-width: 900px;
             }
 
-            .practice-dock-inner .action-buttons {
-                flex: 1;
-            }
-
-            .practice-dock-row {
+            .practice-nav-row {
                 flex: 0 0 auto;
-                gap: 10px;
+                gap: 12px;
             }
 
-            .practice-dock .action-btn {
-                padding: 11px 14px;
+            .practice-nav-btn {
+                width: 40px;
+                height: 40px;
+                font-size: 18px;
+            }
+
+            .practice-primary-btn {
+                flex: 1;
+                padding: 13px;
+            }
+
+            .practice-meta-row {
+                margin-bottom: 6px;
             }
         }
 
@@ -6006,6 +6105,12 @@
             return count + ' карточек';
         }
 
+        function getWordGenitiveText(count) {
+            const mod10 = count % 10;
+            const mod100 = count % 100;
+            return (mod10 === 1 && mod100 !== 11) ? 'слова' : 'слов';
+        }
+
         function getLessonCountText(count) {
             if (count === 0) return '0 уроков';
             const mod10 = count % 10;
@@ -9890,7 +9995,7 @@ function getFirstLastLetters(word) {
             const className = ['word', 'hidden-word', extraClassName, isPracticeFocusWord ? 'practice-focus-active' : '']
                 .filter(Boolean)
                 .join(' ');
-            return `<span class="${className}" onclick="revealWord(${wordIndex})"><span class="word-hidden-label">${escapeHtml(String(displayText))}</span></span>`;
+            return `<span class="${className}" data-widx="${wordIndex}" onclick="revealWord(${wordIndex})"><span class="word-hidden-label">${escapeHtml(String(displayText))}</span></span>`;
         }
 
         function renderPracticeView() {
@@ -10036,9 +10141,31 @@ function getFirstLastLetters(word) {
             const wordWidthEm = (longestWord * 0.62 + 1.3).toFixed(2);
             const fitStyle = `--fit-w: calc((100vw - 76px) * ${lineShare} / ${wordWidthEm});`;
 
+            const progress = isPracticeLayout ? getPracticeProgress(text) : null;
+            const nav = isPracticeLayout ? getStudyNavigationMeta() : null;
+            const primaryLabel = !progress || progress.total === 0
+                ? 'Нет скрытых слов'
+                : (progress.allRevealed ? '↺ Скрыть все слова' : '👉 Открыть следующее слово');
+            const primaryAction = !progress || progress.total === 0
+                ? ''
+                : (progress.allRevealed ? 'toggleAllWordsReveal()' : 'revealNextWordAndScroll()');
+
             return `
                 ${getTermNavHeader(text)}
                 <div class="container${isPracticeLayout ? ' practice-shell' : ''}">
+                    ${isPracticeLayout ? `
+                        <div class="practice-meta-row">
+                            <button class="practice-attention-btn ${text.attention ? 'active' : ''}" onclick="toggleAttention(state.currentText)">
+                                ${text.attention ? '★ Сложный' : '☆ Сложный'}
+                            </button>
+                            ${progress.total > 0 ? `
+                                <div class="practice-progress">
+                                    <div class="practice-progress-track"><div class="practice-progress-fill" style="width:${Math.round(progress.revealed / progress.total * 100)}%"></div></div>
+                                    <div class="practice-progress-label">${progress.revealed} из ${progress.total} ${getWordGenitiveText(progress.total)}</div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    ` : ''}
                     ${state.mode === 'edit' ? `
                         <div class="help-text">
                             Нажмите на слова, затем: ??? скрыть, П_Т подсказка, ? вопрос
@@ -10048,10 +10175,10 @@ function getFirstLastLetters(word) {
                             Нажимайте на скрытые слова чтобы открыть их
                         </div>
                     `}
-                    
+
                     ${text.image ? `<div style="text-align:center;margin-bottom:12px;"><img src="${text.image}" loading="lazy" decoding="async" style="max-width:100%;max-height:150px;border-radius:12px;object-fit:cover;"></div>` : ''}
                     <div class="text-display-row"><div class="text-display ${sizeClass}${isPracticeFocusActive ? ' practice-focus-mode' : ''}" style="${fitStyle}"><div class="text-display-inner">${practiceParts.join('')}</div></div></div>
-                    
+
                     ${state.pendingWords.length > 0 ? `
                         <div class="batch-actions">
                             <div class="batch-info">Выбрано: ${state.pendingWords.length}</div>
@@ -10063,7 +10190,7 @@ function getFirstLastLetters(word) {
                             </div>
                         </div>
                     ` : ''}
-                    
+
                     ${isPracticeLayout ? '' : `
                         <div class="action-buttons">
                             ${state.mode === 'edit' ? `
@@ -10101,16 +10228,12 @@ function getFirstLastLetters(word) {
                 ${isPracticeLayout ? `
                     <div class="practice-dock">
                         <div class="practice-dock-inner">
-                            <div class="action-buttons">
-                                <button class="action-btn btn-reset" onclick="resetReveal()">Скрыть всё</button>
-                                <button class="action-btn btn-save" onclick="showAllWords()">Показать всё</button>
+                            <div class="practice-nav-row">
+                                <button class="practice-nav-btn" onclick="navigateToTerm(-1)" ${!nav.hasPrev ? 'disabled' : ''}>‹</button>
+                                <span class="practice-nav-counter">${nav.current + 1}/${nav.total}</span>
+                                <button class="practice-nav-btn" onclick="navigateToTerm(1)" ${!nav.hasNext ? 'disabled' : ''}>›</button>
                             </div>
-                            <div class="practice-dock-row">
-                                <button class="practice-attention-btn ${text.attention ? 'active' : ''}" onclick="toggleAttention(state.currentText)">
-                                    ${text.attention ? '★ Сложный' : '☆ Сложный'}
-                                </button>
-                                ${getTermNavInline()}
-                            </div>
+                            <button class="practice-primary-btn" ${primaryAction ? `onclick="${primaryAction}"` : 'disabled'}>${primaryLabel}</button>
                         </div>
                     </div>
                 ` : ''}
@@ -13141,7 +13264,38 @@ function getFirstLastLetters(word) {
                 }
             }
         }
-        
+
+        function getPracticeProgress(text) {
+            const total = (text.hiddenWords || []).length;
+            const revealedSet = new Set(text.revealedWords || []);
+            const revealed = (text.hiddenWords || []).filter(i => revealedSet.has(i)).length;
+            return { total: total, revealed: revealed, allRevealed: total > 0 && revealed >= total };
+        }
+
+        function scrollToUpcomingHiddenWord() {
+            requestAnimationFrame(() => {
+                const folder = getCurrentFolder();
+                if (!folder || state.currentText === null) return;
+                const text = ensureTextStudyData(folder.texts[state.currentText]);
+                const sorted = getRenderableHiddenIndices(text);
+                const nextIdx = sorted.find(idx => !text.revealedWords.includes(idx));
+                if (nextIdx === undefined) return;
+                const el = document.querySelector('[data-widx="' + nextIdx + '"]');
+                if (!el) return;
+                const dock = document.querySelector('.practice-dock');
+                const dockTop = dock ? dock.getBoundingClientRect().top : window.innerHeight;
+                const rect = el.getBoundingClientRect();
+                if (rect.top < 0 || rect.bottom > dockTop - 12) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
+        }
+
+        function revealNextWordAndScroll() {
+            revealNextWord();
+            scrollToUpcomingHiddenWord();
+        }
+
         function resetReveal() {
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             text.revealedWords = [];
@@ -13358,7 +13512,7 @@ function getFirstLastLetters(word) {
                 toggleAttention(state.currentText);
             } else if (e.key === ' ' && state.mode === 'practice') {
                 e.preventDefault();
-                revealNextWord();
+                revealNextWordAndScroll();
             }
         });
 
