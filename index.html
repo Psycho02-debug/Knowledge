@@ -10145,7 +10145,7 @@ function getFirstLastLetters(word) {
             const nav = isPracticeLayout ? getStudyNavigationMeta() : null;
             const primaryLabel = !progress || progress.total === 0
                 ? 'Нет скрытых слов'
-                : (progress.allRevealed ? '↺ Скрыть все слова' : '👉 Открыть следующее слово');
+                : (progress.allRevealed ? '↺ Скрыть все слова' : 'Открыть следующее слово');
             const primaryAction = !progress || progress.total === 0
                 ? ''
                 : (progress.allRevealed ? 'toggleAllWordsReveal()' : 'revealNextWordAndScroll()');
@@ -10228,12 +10228,12 @@ function getFirstLastLetters(word) {
                 ${isPracticeLayout ? `
                     <div class="practice-dock">
                         <div class="practice-dock-inner">
+                            <button class="practice-primary-btn" ${primaryAction ? `onclick="${primaryAction}"` : 'disabled'}>${primaryLabel}</button>
                             <div class="practice-nav-row">
                                 <button class="practice-nav-btn" onclick="navigateToTerm(-1)" ${!nav.hasPrev ? 'disabled' : ''}>‹</button>
                                 <span class="practice-nav-counter">${nav.current + 1}/${nav.total}</span>
                                 <button class="practice-nav-btn" onclick="navigateToTerm(1)" ${!nav.hasNext ? 'disabled' : ''}>›</button>
                             </div>
-                            <button class="practice-primary-btn" ${primaryAction ? `onclick="${primaryAction}"` : 'disabled'}>${primaryLabel}</button>
                         </div>
                     </div>
                 ` : ''}
