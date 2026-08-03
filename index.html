@@ -1193,7 +1193,7 @@
         }
 
         .practice-shell .text-display {
-            font-size: max(1rem, min(var(--size-max, 1rem), var(--fit-w, 99rem), var(--fit-h, 99rem)));
+            font-size: calc(max(1rem, min(var(--size-max, 1rem), var(--fit-w, 99rem), var(--fit-h, 99rem))) * var(--user-text-scale, 1));
         }
 
         .text-display.size-xl {
@@ -1255,6 +1255,68 @@
             gap: 12px;
             margin-bottom: 10px;
             flex-wrap: wrap;
+        }
+
+        .practice-meta-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .practice-textsize-btn {
+            background: none;
+            border: 1px solid var(--border-color);
+            color: var(--text-tertiary);
+            font-size: 13px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            padding: 9px 14px;
+            border-radius: 20px;
+            transition: border-color 0.2s, color 0.2s;
+        }
+
+        .practice-textsize-btn.active {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+        }
+
+        .practice-textsize-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 2px 0 12px;
+            padding: 10px 14px;
+            border-radius: 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+        }
+
+        .practice-textsize-icon {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            flex: 0 0 auto;
+        }
+
+        .practice-textsize-icon.big {
+            font-size: 18px;
+            color: var(--text-secondary);
+        }
+
+        .practice-textsize-slider {
+            flex: 1;
+            accent-color: var(--accent-primary);
+            height: 20px;
+            margin: 0;
+        }
+
+        .practice-textsize-label {
+            font-size: 12.5px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            min-width: 42px;
+            text-align: right;
+            flex: 0 0 auto;
         }
 
         .practice-progress {
@@ -5631,6 +5693,13 @@
             }
         }
 
+        function loadPracticeTextScale() {
+            const saved = Number(localStorage.getItem('practiceTextScale'));
+            state.practiceTextScale = Number.isFinite(saved) && saved > 0
+                ? Math.max(0.85, Math.min(1.5, saved / 100))
+                : 1;
+        }
+
         function restoreTextsSearchFocus(selectionStart, selectionEnd) {
             setTimeout(() => {
                 if (state.view !== 'texts') return;
@@ -6676,7 +6745,9 @@
             },
             flashcardSessionConfig: getDefaultFlashcardSessionConfig(),
             flashcardStudyState: getDefaultFlashcardStudyState(),
-            courseStudyState: getDefaultCourseStudyState()
+            courseStudyState: getDefaultCourseStudyState(),
+            practiceTextScale: 1,
+            practiceSizeControlOpen: false
         };
         
         let serverVersion = null;
@@ -10134,12 +10205,15 @@ function getFirstLastLetters(word) {
                 : plainLength <= 180 ? 'size-lg'
                 : plainLength <= 400 ? 'size-md' : 'size-sm';
             // Кегль ограничиваем шириной строки: самое длинное слово не должно
-            // занимать больше доли строки, иначе слова встают столбцом.
+            // занимать больше доли строки, иначе слова встают столбцом. Слова умеют
+            // переноситься внутри чипа (overflow-wrap), так что доля может быть щедрой —
+            // это только защита от одного экстремально длинного слова, а не от обычных.
             const plainWords = text.content.split(/\s+/).filter(Boolean);
             const longestWord = plainWords.reduce((max, word) => Math.max(max, word.length), 1);
-            const lineShare = plainWords.length <= 1 ? 0.92 : 0.52;
+            const lineShare = plainWords.length <= 1 ? 0.92 : 0.85;
             const wordWidthEm = (longestWord * 0.62 + 1.3).toFixed(2);
-            const fitStyle = `--fit-w: calc((100vw - 76px) * ${lineShare} / ${wordWidthEm});`;
+            const userScale = (state.practiceTextScale || 1).toFixed(2);
+            const fitStyle = `--fit-w: calc((100vw - 76px) * ${lineShare} / ${wordWidthEm}); --user-text-scale: ${userScale};`;
 
             const progress = isPracticeLayout ? getPracticeProgress(text) : null;
             const nav = isPracticeLayout ? getStudyNavigationMeta() : null;
@@ -10155,9 +10229,12 @@ function getFirstLastLetters(word) {
                 <div class="container${isPracticeLayout ? ' practice-shell' : ''}">
                     ${isPracticeLayout ? `
                         <div class="practice-meta-row">
-                            <button class="practice-attention-btn ${text.attention ? 'active' : ''}" onclick="toggleAttention(state.currentText)">
-                                ${text.attention ? '★ Сложный' : '☆ Сложный'}
-                            </button>
+                            <div class="practice-meta-left">
+                                <button class="practice-attention-btn ${text.attention ? 'active' : ''}" onclick="toggleAttention(state.currentText)">
+                                    ${text.attention ? '★ Сложный' : '☆ Сложный'}
+                                </button>
+                                <button class="practice-textsize-btn ${state.practiceSizeControlOpen ? 'active' : ''}" onclick="togglePracticeSizeControl()" aria-label="Размер текста" title="Размер текста">Aa</button>
+                            </div>
                             ${progress.total > 0 ? `
                                 <div class="practice-progress">
                                     <div class="practice-progress-track"><div class="practice-progress-fill" style="width:${Math.round(progress.revealed / progress.total * 100)}%"></div></div>
@@ -10165,6 +10242,14 @@ function getFirstLastLetters(word) {
                                 </div>
                             ` : ''}
                         </div>
+                        ${state.practiceSizeControlOpen ? `
+                            <div class="practice-textsize-row">
+                                <span class="practice-textsize-icon">A</span>
+                                <input type="range" class="practice-textsize-slider" min="85" max="150" step="5" value="${Math.round((state.practiceTextScale || 1) * 100)}" oninput="setPracticeTextScale(this.value)">
+                                <span class="practice-textsize-icon big">A</span>
+                                <span class="practice-textsize-label" id="practiceTextScaleLabel">${Math.round((state.practiceTextScale || 1) * 100)}%</span>
+                            </div>
+                        ` : ''}
                     ` : ''}
                     ${state.mode === 'edit' ? `
                         <div class="help-text">
@@ -13272,6 +13357,21 @@ function getFirstLastLetters(word) {
             return { total: total, revealed: revealed, allRevealed: total > 0 && revealed >= total };
         }
 
+        function togglePracticeSizeControl() {
+            state.practiceSizeControlOpen = !state.practiceSizeControlOpen;
+            render();
+        }
+
+        function setPracticeTextScale(value) {
+            const scale = Math.max(0.85, Math.min(1.5, Number(value) / 100 || 1));
+            state.practiceTextScale = scale;
+            localStorage.setItem('practiceTextScale', String(Math.round(scale * 100)));
+            const card = document.querySelector('.practice-shell .text-display');
+            if (card) card.style.setProperty('--user-text-scale', String(scale));
+            const label = document.getElementById('practiceTextScaleLabel');
+            if (label) label.textContent = Math.round(scale * 100) + '%';
+        }
+
         function scrollToUpcomingHiddenWord() {
             requestAnimationFrame(() => {
                 const folder = getCurrentFolder();
@@ -13341,6 +13441,7 @@ function getFirstLastLetters(word) {
         }
         
         loadTheme();
+        loadPracticeTextScale();
         document.addEventListener('keydown', function(e) {
             const batchHintModal = document.getElementById('batchHintModal');
             const isBatchHintOpen = batchHintModal && batchHintModal.classList.contains('show');
