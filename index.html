@@ -6704,6 +6704,7 @@
             typeInputPreference: 'single',
             hintsRevealMode: 'full',
             practiceFocusWordIndex: null,
+            practiceFocusEnabled: true,
             studyQueue: [],
             studyQueueIndex: -1,
             studyQueueOriginSubfolder: null,
@@ -10014,14 +10015,14 @@ function getFirstLastLetters(word) {
                     <button class="back-btn" onclick="goBackToChooser()">← Назад</button>
                     <h1>${text.title}</h1>
                     ${isPracticeFocusModeEnabled() ? `
-                        <button onclick="cyclePracticeFocus()" title="Режим фокуса"
+                        <button onclick="togglePracticeFocusMode()" title="${state.practiceFocusEnabled ? 'Выйти из режима фокуса' : 'Включить режим фокуса'}"
                             style="width:36px;height:36px;border-radius:50%;flex-shrink:0;
-                                   background:${state.practiceFocusWordIndex !== null ? 'rgba(181,204,113,0.15)' : 'none'};
-                                   border:1px solid ${state.practiceFocusWordIndex !== null ? 'var(--accent-primary)' : 'transparent'};
+                                   background:${state.practiceFocusEnabled ? 'rgba(181,204,113,0.15)' : 'none'};
+                                   border:1px solid ${state.practiceFocusEnabled ? 'var(--accent-primary)' : 'transparent'};
                                    font-size:20px;cursor:pointer;
                                    display:inline-flex;align-items:center;justify-content:center;
                                    transition:border-color 0.2s,background 0.2s;
-                                   box-shadow:${state.practiceFocusWordIndex !== null ? '0 0 0 3px rgba(181,204,113,0.2)' : 'none'};">
+                                   box-shadow:${state.practiceFocusEnabled ? '0 0 0 3px rgba(181,204,113,0.2)' : 'none'};">
                             👁️
                         </button>
                     ` : `<div style="width:36px;"></div>`}
@@ -10048,10 +10049,32 @@ function getFirstLastLetters(word) {
 
         function clearPracticeFocus() {
             state.practiceFocusWordIndex = null;
+            state.practiceFocusEnabled = true;
+        }
+
+        function exitPracticeFocusMode() {
+            state.practiceFocusEnabled = false;
+            state.practiceFocusWordIndex = null;
+        }
+
+        function togglePracticeFocusMode() {
+            if (state.practiceFocusEnabled) {
+                exitPracticeFocusMode();
+            } else {
+                state.practiceFocusEnabled = true;
+                state.practiceFocusWordIndex = null;
+            }
+            render();
+        }
+
+        function isFocusTargetFullyRevealed(text, index) {
+            const group = state.practiceMode === 'hints' ? getHiddenWordGroupByIndex(text, index) : null;
+            const targetIndexes = group ? group.indices : [index];
+            return targetIndexes.every(t => text.revealedWords.includes(t));
         }
 
         function cyclePracticeFocus() {
-            if (!isPracticeFocusModeEnabled() || state.currentText === null || state.currentFolder === null) return false;
+            if (!isPracticeFocusModeEnabled() || !state.practiceFocusEnabled || state.currentText === null || state.currentFolder === null) return false;
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             const hiddenSorted = getRenderableHiddenIndices(text);
             if (!hiddenSorted.length) return false;
@@ -10091,6 +10114,17 @@ function getFirstLastLetters(word) {
             const words = text.content.split(/(\s+)/);
             const hiddenSorted = [...(text.hiddenWords || [])].sort((a, b) => a - b);
             const focusableHiddenSorted = getRenderableHiddenIndices(text);
+            if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled) {
+                const isCurrentFocusStillValid = state.practiceFocusWordIndex !== null &&
+                    focusableHiddenSorted.includes(state.practiceFocusWordIndex) &&
+                    !isFocusTargetFullyRevealed(text, state.practiceFocusWordIndex);
+                if (!isCurrentFocusStillValid) {
+                    const nextTarget = focusableHiddenSorted.find(idx => !isFocusTargetFullyRevealed(text, idx));
+                    state.practiceFocusWordIndex = nextTarget === undefined ? null : nextTarget;
+                }
+            } else if (isPracticeFocusModeEnabled() && !state.practiceFocusEnabled) {
+                state.practiceFocusWordIndex = null;
+            }
             const isPracticeFocusActive = isPracticeFocusModeEnabled() && focusableHiddenSorted.includes(state.practiceFocusWordIndex);
             const practiceParts = [];
             const suppressedIndexes = new Set();
@@ -10295,17 +10329,6 @@ function getFirstLastLetters(word) {
                                 <button class="hint-reveal-btn ${state.hintsRevealMode === 'full' ? 'active' : ''}" onclick="setHintsRevealMode('full')">Показать слово</button>
                                 <button class="hint-reveal-btn ${state.hintsRevealMode === 'letters' ? 'active' : ''}" onclick="setHintsRevealMode('letters')">Показать П_Т</button>
                             </div>
-                        </div>
-                    ` : ''}
-                    ${isPracticeFocusModeEnabled() && state.practiceFocusWordIndex !== null ? `
-                        <div style="text-align:center;margin:20px 0 10px;">
-                            <button onclick="clearPracticeFocus();render();"
-                                title="Выйти из режима фокуса"
-                                style="background:none;border:1px solid var(--border-color);border-radius:20px;
-                                       padding:8px 18px;font-size:13px;color:var(--text-secondary);cursor:pointer;
-                                       font-family:inherit;transition:border-color 0.2s,color 0.2s;">
-                                Выйти из фокуса
-                            </button>
                         </div>
                     ` : ''}
                     ${isPracticeLayout ? '' : getTermNavInline()}
@@ -13575,13 +13598,13 @@ function getFirstLastLetters(word) {
                 }
             }
             if (state.view === 'practice' && state.mode === 'practice') {
-                if ((e.key === 'Delete' || e.key === 'Backspace') && !e.repeat && isPracticeFocusModeEnabled() && state.practiceFocusWordIndex !== null) {
+                if ((e.key === 'Delete' || e.key === 'Backspace') && !e.repeat && isPracticeFocusModeEnabled() && state.practiceFocusEnabled) {
                     e.preventDefault();
-                    clearPracticeFocus();
+                    exitPracticeFocusMode();
                     render();
                     return;
                 }
-                if (e.key === 'ArrowDown' && !e.repeat && isPracticeFocusModeEnabled()) {
+                if (e.key === 'ArrowDown' && !e.repeat && isPracticeFocusModeEnabled() && state.practiceFocusEnabled) {
                     e.preventDefault();
                     if (cyclePracticeFocus()) return;
                 }
