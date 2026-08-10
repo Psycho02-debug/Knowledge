@@ -10499,7 +10499,7 @@ function getFirstLastLetters(word) {
                 </div>
             `;
 
-            if (lineCards.length < 2) {
+            if (lineCards.length < 1) {
                 return `
                     ${getTermNavHeader(text)}
                     <div class="container">
@@ -10507,8 +10507,8 @@ function getFirstLastLetters(word) {
                         <div class="quiz-area">
                             <div class="quiz-message">
                                 <div class="quiz-message-icon">🗂</div>
-                                <p>Для этого режима нужно минимум две смысловые строки.</p>
-                                <p>Разделите материал переносами строк (Enter) в редакторе — например, по одной мысли на строку.</p>
+                                <p>В материале пока нет текста для карточки.</p>
+                                <p>Добавьте текст в редакторе — этого достаточно, даже если это одна строка.</p>
                                 <button class="quiz-message-btn" onclick="showEditTextModal()">Редактировать материал</button>
                             </div>
                         </div>
