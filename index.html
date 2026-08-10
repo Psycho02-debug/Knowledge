@@ -4270,6 +4270,45 @@
             font-size: 2.4rem;
         }
 
+        .linecards-card {
+            min-height: 320px;
+        }
+
+        .linecards-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+            text-align: left;
+        }
+
+        .linecards-row {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+        }
+
+        .linecards-num {
+            flex: 0 0 auto;
+            min-width: 22px;
+            font-weight: 800;
+            color: var(--accent-primary);
+            font-size: 0.95rem;
+        }
+
+        .linecards-cue {
+            font-family: 'Space Grotesk', 'Inter', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .linecards-line {
+            font-size: 1.05rem;
+            line-height: 1.5;
+            color: var(--text-primary);
+        }
+
         .flashcard-complete-title {
             font-family: 'Space Grotesk', 'Inter', sans-serif;
             font-size: 2rem;
@@ -6705,6 +6744,8 @@
             hintsRevealMode: 'full',
             practiceFocusWordIndex: null,
             practiceFocusEnabled: true,
+            lineCardFlipped: false,
+            lineCardCueMode: 'letter',
             studyQueue: [],
             studyQueueIndex: -1,
             studyQueueOriginSubfolder: null,
@@ -7272,6 +7313,7 @@ function getFirstLastLetters(word) {
                     <button class="mode-btn active" onclick="setMode('type')"><span class="mode-icon">⌨</span>Вписать</button>
                     <button class="mode-btn" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
                     <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
+                    <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
                     <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
                 </div>
             `;
@@ -7580,7 +7622,11 @@ function getFirstLastLetters(word) {
             if (mode === 'quiz') {
                 initQuiz();
             }
-            
+
+            if (mode === 'linecards') {
+                state.lineCardFlipped = false;
+            }
+
             render();
             if (mode === 'type') {
                 focusPreferredTypeField();
@@ -9986,8 +10032,13 @@ function getFirstLastLetters(word) {
                             <div class="chooser-card-title">Тест</div>
                             <div class="chooser-card-desc">Выбери верное определение</div>
                         </div>
+                        <div class="chooser-card chooser-card-accent" onclick="openTermInMode(state.currentText, 'linecards')">
+                            <div class="chooser-card-icon">🗂</div>
+                            <div class="chooser-card-title">Карточка по строкам</div>
+                            <div class="chooser-card-desc">Лицевая — первая буква или слово каждой строки, оборотная — полный текст</div>
+                        </div>
                     </div>
-                    
+
                     ${text.example ? `
                         <div class="chooser-section-label">Дополнительно</div>
                         <div class="chooser-grid chooser-grid-1">
@@ -10110,7 +10161,11 @@ function getFirstLastLetters(word) {
             if (state.mode === 'example') {
                 return renderExampleView(text);
             }
-            
+
+            if (state.mode === 'linecards') {
+                return renderLineCardsView(text);
+            }
+
             const words = text.content.split(/(\s+)/);
             const hiddenSorted = [...(text.hiddenWords || [])].sort((a, b) => a - b);
             const focusableHiddenSorted = getRenderableHiddenIndices(text);
@@ -10365,6 +10420,9 @@ function getFirstLastLetters(word) {
                         <button class="mode-btn" onclick="setMode('quiz')">
                             <span class="mode-icon">✓</span>Тест
                         </button>
+                        <button class="mode-btn" onclick="setMode('linecards')">
+                            <span class="mode-icon">🗂</span>Строки
+                        </button>
                         <button class="mode-btn active" onclick="setMode('example')">
                             <span class="mode-icon">💡</span>Пример
                         </button>
@@ -10389,7 +10447,114 @@ function getFirstLastLetters(word) {
                 </div>
             `;
         }
-        
+
+        function getTextManualLines(content) {
+            return String(content || '')
+                .split(/\n+/)
+                .map(line => line.trim())
+                .filter(Boolean);
+        }
+
+        function extractFirstWordOfLine(line) {
+            const match = String(line || '').match(/[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё-]*/);
+            return match ? match[0] : '';
+        }
+
+        function buildLineCards(text) {
+            return getTextManualLines(text.content).map((line, index) => {
+                const word = extractFirstWordOfLine(line);
+                return {
+                    num: index + 1,
+                    line: line,
+                    word: word,
+                    letter: word ? (word.charAt(0).toUpperCase() + '.') : ''
+                };
+            });
+        }
+
+        function flipLineCard() {
+            state.lineCardFlipped = !state.lineCardFlipped;
+            render();
+        }
+
+        function setLineCardCueMode(mode) {
+            state.lineCardCueMode = mode;
+            render();
+        }
+
+        function renderLineCardsView(text) {
+            const lineCards = buildLineCards(text);
+            const flipped = state.lineCardFlipped;
+            const cueMode = state.lineCardCueMode;
+
+            const modeButtons = `
+                <div class="mode-toggle">
+                    <button class="mode-btn" onclick="setMode('edit')"><span class="mode-icon">✎</span>Выбор</button>
+                    <button class="mode-btn" onclick="setMode('practice')"><span class="mode-icon">👁</span>Практика</button>
+                    <button class="mode-btn" onclick="setMode('type')"><span class="mode-icon">⌨</span>Вписать</button>
+                    <button class="mode-btn" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
+                    <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
+                    <button class="mode-btn active" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
+                    <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
+                </div>
+            `;
+
+            if (lineCards.length < 2) {
+                return `
+                    ${getTermNavHeader(text)}
+                    <div class="container">
+                        ${modeButtons}
+                        <div class="quiz-area">
+                            <div class="quiz-message">
+                                <div class="quiz-message-icon">🗂</div>
+                                <p>Для этого режима нужно минимум две смысловые строки.</p>
+                                <p>Разделите материал переносами строк (Enter) в редакторе — например, по одной мысли на строку.</p>
+                                <button class="quiz-message-btn" onclick="showEditTextModal()">Редактировать материал</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            const frontRows = lineCards.map(card => `
+                <div class="linecards-row">
+                    <span class="linecards-num">${card.num}</span>
+                    <span class="linecards-cue">${escapeHtml((cueMode === 'word' ? card.word : card.letter) || card.line)}</span>
+                </div>
+            `).join('');
+
+            const backRows = lineCards.map(card => `
+                <div class="linecards-row">
+                    <span class="linecards-num">${card.num}</span>
+                    <span class="linecards-line">${escapeHtml(card.line)}</span>
+                </div>
+            `).join('');
+
+            return `
+                ${getTermNavHeader(text)}
+                <div class="container">
+                    ${modeButtons}
+                    <div class="hint-reveal-toggle" style="margin-bottom:14px;">
+                        <button class="hint-reveal-btn ${cueMode === 'letter' ? 'active' : ''}" onclick="setLineCardCueMode('letter')">По первой букве</button>
+                        <button class="hint-reveal-btn ${cueMode === 'word' ? 'active' : ''}" onclick="setLineCardCueMode('word')">По первому слову</button>
+                    </div>
+                    <div class="flashcard-study-layout">
+                        <button class="flashcard-study-card linecards-card ${flipped ? 'is-flipped' : ''}" onclick="flipLineCard()">
+                            <div class="flashcard-study-face-label">${flipped ? 'Полный текст' : 'Подсказка по строкам'}</div>
+                            <div class="linecards-list">${flipped ? backRows : frontRows}</div>
+                            <div class="flashcard-study-hint">${flipped ? 'Нажмите, чтобы скрыть текст' : 'Нажмите, чтобы увидеть полный текст'}</div>
+                        </button>
+                        <div class="flashcard-study-buttons">
+                            <button class="profile-link-btn" onclick="flipLineCard()">Перевернуть</button>
+                        </div>
+                    </div>
+                    <div class="text-display-row">
+                        ${getTermNavInline()}
+                    </div>
+                </div>
+            `;
+        }
+
         function renderGameView(text) {
             const gs = state.gameState;
             
@@ -10402,6 +10567,7 @@ function getFirstLastLetters(word) {
                             <button class="mode-btn" onclick="setMode('practice')"><span class="mode-icon">👁</span>Практика</button>
                             <button class="mode-btn active" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
                             <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
+                            <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
                             <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
                         </div>
                         
@@ -10426,6 +10592,7 @@ function getFirstLastLetters(word) {
                         <button class="mode-btn" onclick="setMode('practice')"><span class="mode-icon">👁</span>Практика</button>
                         <button class="mode-btn active" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
                         <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
+                        <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
                         <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
                     </div>
                     
@@ -10485,10 +10652,11 @@ function getFirstLastLetters(word) {
                     <button class="mode-btn" onclick="setMode('type')"><span class="mode-icon">⌨</span>Вписать</button>
                     <button class="mode-btn" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
                     <button class="mode-btn active" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
+                    <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
                     <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
                 </div>
             `;
-            
+
             if (qs.notEnoughTerms) {
                 return `
                     ${getTermNavHeader(text)}
@@ -12147,6 +12315,7 @@ function getFirstLastLetters(word) {
             if (mode === 'game') initGame();
             if (mode === 'quiz') initQuiz();
             if (mode === 'type') initTypeMode();
+            if (mode === 'linecards') state.lineCardFlipped = false;
             render();
             if (mode === 'type') focusPreferredTypeField();
         }
@@ -12502,12 +12671,15 @@ function getFirstLastLetters(word) {
             if (currentMode === 'quiz') {
                 initQuiz();
             }
+            if (currentMode === 'linecards') {
+                state.lineCardFlipped = false;
+            }
             render();
             if (currentMode === 'type') {
                 focusPreferredTypeField();
             }
         }
-        
+
         function handleTextModalKeys(e, fieldId) {
             const fields = ['textTitle', 'textContent', 'textExample'];
             const idx = fields.indexOf(fieldId);
