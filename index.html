@@ -5492,7 +5492,7 @@
         <div class="modal-content">
             <h3 id="textModalTitle">Новый материал</h3>
             <input type="text" id="textTitle" placeholder="Материал (например: CSAT)" onkeydown="handleTextModalKeys(event, &#39;textTitle&#39;)">
-            <textarea id="textContent" placeholder="Описание материала..." onkeydown="handleTextModalKeys(event, &#39;textContent&#39;)"></textarea>
+            <textarea id="textContent" placeholder="Описание материала..." onkeydown="handleTextModalKeys(event, &#39;textContent&#39;)" onfocus="handleDescriptionFocus(this)"></textarea>
             <textarea id="textExample" placeholder="Пример (необязательно)..." style="min-height: 60px;" onkeydown="handleTextModalKeys(event, &#39;textExample&#39;)"></textarea>
             <div id="imageUploadArea" style="margin-top:8px;">
                 <div id="imagePreview" style="display:none;margin-bottom:8px;text-align:center;">
@@ -12680,9 +12680,53 @@ function getFirstLastLetters(word) {
             }
         }
 
+        function handleDescriptionFocus(el) {
+            if (!el.value) {
+                el.value = '1. ';
+                const len = el.value.length;
+                el.setSelectionRange(len, len);
+            }
+        }
+
+        function getNextListNumber(textBeforeCursor) {
+            const lines = textBeforeCursor.split('\n');
+            for (let i = lines.length - 1; i >= 0; i--) {
+                const match = lines[i].match(/^(\d+)\./);
+                if (match) return parseInt(match[1], 10) + 1;
+            }
+            return 1;
+        }
+
+        function insertNextListNumber(el) {
+            const value = el.value;
+            const selStart = el.selectionStart;
+            const selEnd = el.selectionEnd;
+            const beforeCursor = value.slice(0, selStart);
+            const afterCursor = value.slice(selEnd);
+            const insertion = '\n' + getNextListNumber(beforeCursor) + '. ';
+            el.value = beforeCursor + insertion + afterCursor;
+            const newPos = beforeCursor.length + insertion.length;
+            el.setSelectionRange(newPos, newPos);
+        }
+
         function handleTextModalKeys(e, fieldId) {
             const fields = ['textTitle', 'textContent', 'textExample'];
             const idx = fields.indexOf(fieldId);
+            if (e.key === 'Enter' && e.metaKey) {
+                e.preventDefault();
+                saveText();
+                return;
+            }
+            if (e.key === 'Enter' && fieldId === 'textTitle') {
+                e.preventDefault();
+                document.getElementById('textContent').focus();
+                return;
+            }
+            if (e.key === 'Enter' && fieldId === 'textContent') {
+                e.preventDefault();
+                insertNextListNumber(e.target);
+                return;
+            }
             if (e.key === 'ArrowDown') {
                 if (idx < fields.length - 1) {
                     e.preventDefault();
@@ -12693,11 +12737,6 @@ function getFirstLastLetters(word) {
                     e.preventDefault();
                     document.getElementById(fields[idx - 1]).focus();
                 }
-            } else if (e.key === 'Enter' && fieldId === 'textTitle') {
-                e.preventDefault();
-                document.getElementById('textContent').focus();
-            } else if (e.key === 'Enter' && e.metaKey) {
-                saveText();
             }
         }
         
