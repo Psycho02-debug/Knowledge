@@ -12703,6 +12703,25 @@ function getFirstLastLetters(word) {
             const selEnd = el.selectionEnd;
             const beforeCursor = value.slice(0, selStart);
             const afterCursor = value.slice(selEnd);
+
+            const lineStart = beforeCursor.lastIndexOf('\n') + 1;
+            const currentLineBefore = beforeCursor.slice(lineStart);
+            const nextNewlineIdx = afterCursor.indexOf('\n');
+            const currentLineAfter = nextNewlineIdx === -1 ? afterCursor : afterCursor.slice(0, nextNewlineIdx);
+            const emptyNumberedMatch = currentLineBefore.match(/^(\d+)\.\s*$/);
+
+            if (lineStart > 0 && emptyNumberedMatch && currentLineAfter.trim() === '') {
+                // Строка уже содержит пустой номер без текста после него — второй Enter подряд
+                // не переходит к следующему номеру, а просто отодвигает этот же номер ещё на
+                // строку вниз, добавляя пустую строку-отступ перед ним.
+                const restAfterLine = value.slice(lineStart + currentLineBefore.length + currentLineAfter.length);
+                const insertion = '\n' + emptyNumberedMatch[1] + '. ';
+                el.value = value.slice(0, lineStart) + insertion + restAfterLine;
+                const newPos = lineStart + insertion.length;
+                el.setSelectionRange(newPos, newPos);
+                return;
+            }
+
             const insertion = '\n' + getNextListNumber(beforeCursor) + '. ';
             el.value = beforeCursor + insertion + afterCursor;
             const newPos = beforeCursor.length + insertion.length;
