@@ -5492,7 +5492,7 @@
         <div class="modal-content">
             <h3 id="textModalTitle">Новый материал</h3>
             <input type="text" id="textTitle" placeholder="Материал (например: CSAT)" onkeydown="handleTextModalKeys(event, &#39;textTitle&#39;)">
-            <textarea id="textContent" placeholder="Описание материала..." onkeydown="handleTextModalKeys(event, &#39;textContent&#39;)" onfocus="handleDescriptionFocus(this)"></textarea>
+            <textarea id="textContent" placeholder="Описание материала..." onkeydown="handleTextModalKeys(event, &#39;textContent&#39;)" onfocus="handleDescriptionFocus(this)" onbeforeinput="handleDescriptionBeforeInput(event)" onpaste="handleDescriptionPaste(event)"></textarea>
             <textarea id="textExample" placeholder="Пример (необязательно)..." style="min-height: 60px;" onkeydown="handleTextModalKeys(event, &#39;textExample&#39;)"></textarea>
             <div id="imageUploadArea" style="margin-top:8px;">
                 <div id="imagePreview" style="display:none;margin-bottom:8px;text-align:center;">
@@ -5824,6 +5824,10 @@
 
         function isSlashSeparatorToken(token) {
             return typeof token === 'string' && token.trim() === '/';
+        }
+
+        function isNumericListMarkerToken(token) {
+            return typeof token === 'string' && /^\d+\.?$/.test(token.trim());
         }
 
         function getGroupedWordsLabel(words, indices) {
@@ -6746,6 +6750,7 @@
             practiceFocusEnabled: true,
             lineCardFlipped: false,
             lineCardCueMode: 'letter',
+            pendingDescriptionImport: null,
             studyQueue: [],
             studyQueueIndex: -1,
             studyQueueOriginSubfolder: null,
@@ -10369,6 +10374,9 @@ function getFirstLastLetters(word) {
                         <div class="action-buttons">
                             ${state.mode === 'edit' ? `
                                 <button class="action-btn btn-reset" onclick="clearMarks()">Сбросить выбор</button>
+                                ${(text.hiddenWords || []).length ? `
+                                    <button class="action-btn btn-save" onclick="copyProcessedDescription()">Скопировать разметку</button>
+                                ` : ''}
                             ` : ''}
                         </div>
                         <div style="text-align:center;margin-top:12px;">
@@ -11385,6 +11393,7 @@ function getFirstLastLetters(word) {
             state.editingText = true;
             state.editingTermIndex = location.textIndex;
             state.editingTermSubfolder = location.subfolderIndex ?? state.currentSubfolder;
+            state.pendingDescriptionImport = null;
             const term = location.text;
             document.getElementById('textModalTitle').textContent = 'Редактировать материал';
             document.getElementById('textTitle').value = term.title;
@@ -12728,6 +12737,140 @@ function getFirstLastLetters(word) {
             el.setSelectionRange(newPos, newPos);
         }
 
+        function handleDescriptionBeforeInput(event) {
+            // Резервный путь для случаев, когда клавиатура (в частности iOS с активной
+            // подсказкой автокоррекции) не даёт надёжно перехватить именно keydown у Enter.
+            // beforeinput с insertLineBreak/insertParagraph срабатывает независимо от
+            // источника ввода. Если keydown уже обработал перенос и вызвал preventDefault,
+            // это событие вообще не долетит — двойной вставки номера не будет.
+            if (event.inputType !== 'insertLineBreak' && event.inputType !== 'insertParagraph') return;
+            event.preventDefault();
+            insertNextListNumber(event.target);
+        }
+
+        function buildProcessedDescriptionExport(text) {
+            const words = text.content.split(/(\s+)/);
+            const hiddenSet = new Set(text.hiddenWords || []);
+            const hints = text.wordHints || {};
+            return words.map((token, i) => {
+                if (token.trim() === '' || !hiddenSet.has(i)) return token;
+                const hint = hints[i];
+                return hint ? ('{{' + token + '::' + hint + '}}') : ('{{' + token + '}}');
+            }).join('');
+        }
+
+        async function copyPlainTextToClipboard(str) {
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(str);
+                    return true;
+                }
+            } catch (e) {
+                // переходим к резервному варианту ниже
+            }
+            try {
+                const temp = document.createElement('textarea');
+                temp.value = str;
+                temp.style.position = 'fixed';
+                temp.style.opacity = '0';
+                temp.style.left = '-9999px';
+                document.body.appendChild(temp);
+                temp.focus();
+                temp.select();
+                const ok = document.execCommand('copy');
+                document.body.removeChild(temp);
+                return ok;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        async function copyProcessedDescription() {
+            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+            if (!text.hiddenWords || !text.hiddenWords.length) {
+                alert('В этом материале пока нет скрытых слов — сначала выделите слова для скрытия.');
+                return;
+            }
+            const exported = buildProcessedDescriptionExport(text);
+            const ok = await copyPlainTextToClipboard(exported);
+            if (ok) {
+                alert('Текст с разметкой скопирован. Вставьте его в поле описания на другом устройстве — скрытые слова восстановятся автоматически.');
+            } else {
+                prompt('Не удалось скопировать автоматически. Скопируйте текст вручную:', exported);
+            }
+        }
+
+        function parseProcessedDescriptionImport(rawText) {
+            const regex = /\{\{([^{}]+)\}\}/g;
+            let lastEnd = 0;
+            let plainText = '';
+            const hiddenWords = [];
+            const wordHints = {};
+            let match;
+            while ((match = regex.exec(rawText)) !== null) {
+                plainText += rawText.slice(lastEnd, match.index);
+                const inner = match[1];
+                const sepIdx = inner.indexOf('::');
+                const word = sepIdx === -1 ? inner : inner.slice(0, sepIdx);
+                const hint = sepIdx === -1 ? '' : inner.slice(sepIdx + 2).trim();
+                // Считаем токены через match, а не split: split с захватывающей группой
+                // добавляет лишний пустой хвостовой элемент, если строка кончается на
+                // пробельный символ, что сдвигало бы индекс слова на единицу.
+                const tokensBeforeWord = plainText.match(/\S+|\s+/g) || [];
+                const wordTokenIndex = tokensBeforeWord.length;
+                plainText += word;
+                hiddenWords.push(wordTokenIndex);
+                if (hint) wordHints[wordTokenIndex] = hint;
+                lastEnd = regex.lastIndex;
+            }
+            plainText += rawText.slice(lastEnd);
+            return { plainText: plainText, hiddenWords: hiddenWords, wordHints: wordHints };
+        }
+
+        function handleDescriptionPaste(event) {
+            const clipboardData = event.clipboardData || window.clipboardData;
+            const rawText = clipboardData ? clipboardData.getData('text') : '';
+            if (!rawText || !/\{\{[^{}]+\}\}/.test(rawText)) return;
+            event.preventDefault();
+
+            const el = event.target;
+            const parsed = parseProcessedDescriptionImport(rawText);
+            const selStart = el.selectionStart;
+            const selEnd = el.selectionEnd;
+            const beforeCursor = el.value.slice(0, selStart);
+            const afterCursor = el.value.slice(selEnd);
+            const beforeTokens = beforeCursor.match(/\S+|\s+/g) || [];
+            const offset = beforeTokens.length;
+
+            el.value = beforeCursor + parsed.plainText + afterCursor;
+            const newCursorPos = beforeCursor.length + parsed.plainText.length;
+            el.setSelectionRange(newCursorPos, newCursorPos);
+
+            if (!state.pendingDescriptionImport) {
+                state.pendingDescriptionImport = { hiddenWords: [], wordHints: {} };
+            }
+            parsed.hiddenWords.forEach(i => state.pendingDescriptionImport.hiddenWords.push(i + offset));
+            Object.entries(parsed.wordHints).forEach(([i, hint]) => {
+                state.pendingDescriptionImport.wordHints[Number(i) + offset] = hint;
+            });
+        }
+
+        function applyDescriptionImportToText(text, pendingImport) {
+            ensureTextStudyData(text);
+            const totalTokens = text.content.split(/(\s+)/).length;
+            const validHidden = [...new Set(pendingImport.hiddenWords)].filter(i => i >= 0 && i < totalTokens).sort((a, b) => a - b);
+            text.hiddenWords = validHidden;
+            text.revealedWords = [];
+            text.halfRevealedWords = [];
+            text.wordHints = {};
+            Object.entries(pendingImport.wordHints || {}).forEach(([i, hint]) => {
+                const idx = Number(i);
+                if (validHidden.includes(idx)) text.wordHints[idx] = hint;
+            });
+            text.hintTypes = {};
+            text.hiddenWordGroups = {};
+        }
+
         function handleTextModalKeys(e, fieldId) {
             const fields = ['textTitle', 'textContent', 'textExample'];
             const idx = fields.indexOf(fieldId);
@@ -12882,6 +13025,7 @@ function getFirstLastLetters(word) {
             state.editingText = false;
             state.editingTermIndex = null;
             state.editingTermSubfolder = null;
+            state.pendingDescriptionImport = null;
             document.getElementById('textModalTitle').textContent = 'Новый материал';
             document.getElementById('textTitle').value = '';
             document.getElementById('textContent').value = '';
@@ -12925,6 +13069,7 @@ function getFirstLastLetters(word) {
             state.editingText = true;
             state.editingTermIndex = null;
             state.editingTermSubfolder = null;
+            state.pendingDescriptionImport = null;
             document.getElementById('textModalTitle').textContent = 'Редактировать материал';
             document.getElementById('textTitle').value = text.title;
             document.getElementById('textContent').value = text.content;
@@ -13083,6 +13228,8 @@ function getFirstLastLetters(word) {
             const imageUrl = document.getElementById('termImageUrl').value.trim();
             if (!title || !content.trim()) return;
             
+            const pendingImport = state.pendingDescriptionImport;
+
             if (state.editingTermIndex !== null) {
                 const root = getTopFolder();
                 const editingFolder = state.editingTermSubfolder === null
@@ -13091,11 +13238,13 @@ function getFirstLastLetters(word) {
                 const term = editingFolder ? editingFolder.texts[state.editingTermIndex] : null;
                 if (!term) return;
                 updateMaterialContentPreservingProcessing(term, title, content, example, imageUrl);
+                if (pendingImport) applyDescriptionImportToText(term, pendingImport);
             } else if (state.editingText) {
                 const text = getCurrentFolder().texts[state.currentText];
                 updateMaterialContentPreservingProcessing(text, title, content, example, imageUrl);
+                if (pendingImport) applyDescriptionImportToText(text, pendingImport);
             } else {
-                getCurrentFolder().texts.push({
+                const newText = {
                     title: title,
                     content: content,
                     example: example,
@@ -13105,11 +13254,14 @@ function getFirstLastLetters(word) {
                     wordHints: {},
                     hintTypes: {},
                     hiddenWordGroups: {}
-                });
+                };
+                getCurrentFolder().texts.push(newText);
+                if (pendingImport) applyDescriptionImportToText(newText, pendingImport);
             }
             state.editingText = false;
             state.editingTermIndex = null;
             state.editingTermSubfolder = null;
+            state.pendingDescriptionImport = null;
             saveData();
             closeModal('textModal');
             render();
@@ -13313,6 +13465,7 @@ function getFirstLastLetters(word) {
             for (let i = 0; i < words.length; i++) {
                 if (words[i].trim() === '') continue;
                 if (isSlashSeparatorToken(words[i])) continue;
+                if (isNumericListMarkerToken(words[i])) continue;
                 if (hiddenWords.has(i)) continue;
                 allAvailableWordIndexes.push(i);
             }
@@ -13776,6 +13929,7 @@ function getFirstLastLetters(word) {
                 for (let i = lastIdx + 1; i < words.length; i++) {
                     if (words[i].trim() === '') continue;
                     if (isSlashSeparatorToken(words[i])) continue;
+                    if (isNumericListMarkerToken(words[i])) continue;
                     nextIdx = i;
                     break;
                 }
