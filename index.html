@@ -5492,7 +5492,7 @@
         <div class="modal-content">
             <h3 id="textModalTitle">Новый материал</h3>
             <input type="text" id="textTitle" placeholder="Материал (например: CSAT)" onkeydown="handleTextModalKeys(event, &#39;textTitle&#39;)">
-            <textarea id="textContent" placeholder="Описание материала..." onkeydown="handleTextModalKeys(event, &#39;textContent&#39;)" onfocus="handleDescriptionFocus(this)"></textarea>
+            <textarea id="textContent" placeholder="Описание материала..." onkeydown="handleTextModalKeys(event, &#39;textContent&#39;)" onfocus="handleDescriptionFocus(this)" onbeforeinput="handleDescriptionBeforeInput(event)"></textarea>
             <textarea id="textExample" placeholder="Пример (необязательно)..." style="min-height: 60px;" onkeydown="handleTextModalKeys(event, &#39;textExample&#39;)"></textarea>
             <div id="imageUploadArea" style="margin-top:8px;">
                 <div id="imagePreview" style="display:none;margin-bottom:8px;text-align:center;">
@@ -12726,6 +12726,17 @@ function getFirstLastLetters(word) {
             el.value = beforeCursor + insertion + afterCursor;
             const newPos = beforeCursor.length + insertion.length;
             el.setSelectionRange(newPos, newPos);
+        }
+
+        function handleDescriptionBeforeInput(event) {
+            // Резервный путь для случаев, когда клавиатура (в частности iOS с активной
+            // подсказкой автокоррекции) не даёт надёжно перехватить именно keydown у Enter.
+            // beforeinput с insertLineBreak/insertParagraph срабатывает независимо от
+            // источника ввода. Если keydown уже обработал перенос и вызвал preventDefault,
+            // это событие вообще не долетит — двойной вставки номера не будет.
+            if (event.inputType !== 'insertLineBreak' && event.inputType !== 'insertParagraph') return;
+            event.preventDefault();
+            insertNextListNumber(event.target);
         }
 
         function handleTextModalKeys(e, fieldId) {
