@@ -5491,7 +5491,7 @@
     <div class="modal" id="textModal">
         <div class="modal-content">
             <h3 id="textModalTitle">Новый материал</h3>
-            <input type="text" id="textTitle" placeholder="Материал (например: CSAT)" onkeydown="handleTextModalKeys(event, &#39;textTitle&#39;)">
+            <input type="text" id="textTitle" placeholder="Материал (например: CSAT)" onkeydown="handleTextModalKeys(event, &#39;textTitle&#39;)" onpaste="handleTitleFieldPaste(event)">
             <textarea id="textContent" placeholder="Описание материала..." onkeydown="handleTextModalKeys(event, &#39;textContent&#39;)" onfocus="handleDescriptionFocus(this)" onbeforeinput="handleDescriptionBeforeInput(event)" onpaste="handleDescriptionPaste(event)"></textarea>
             <textarea id="textExample" placeholder="Пример (необязательно)..." style="min-height: 60px;" onkeydown="handleTextModalKeys(event, &#39;textExample&#39;)"></textarea>
             <div id="imageUploadArea" style="margin-top:8px;">
@@ -10375,7 +10375,7 @@ function getFirstLastLetters(word) {
                             ${state.mode === 'edit' ? `
                                 <button class="action-btn btn-reset" onclick="clearMarks()">Сбросить выбор</button>
                                 ${(text.hiddenWords || []).length ? `
-                                    <button class="action-btn btn-save" onclick="copyProcessedDescription()">Скопировать разметку</button>
+                                    <button class="action-btn btn-save" onclick="copyProcessedMaterial()">Скопировать материал</button>
                                 ` : ''}
                             ` : ''}
                         </div>
@@ -12759,6 +12759,10 @@ function getFirstLastLetters(word) {
             }).join('');
         }
 
+        function buildProcessedMaterialExport(text) {
+            return 'Название: ' + text.title + '\nОписание:\n' + buildProcessedDescriptionExport(text);
+        }
+
         async function copyPlainTextToClipboard(str) {
             try {
                 if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -12785,16 +12789,16 @@ function getFirstLastLetters(word) {
             }
         }
 
-        async function copyProcessedDescription() {
+        async function copyProcessedMaterial() {
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             if (!text.hiddenWords || !text.hiddenWords.length) {
                 alert('В этом материале пока нет скрытых слов — сначала выделите слова для скрытия.');
                 return;
             }
-            const exported = buildProcessedDescriptionExport(text);
+            const exported = buildProcessedMaterialExport(text);
             const ok = await copyPlainTextToClipboard(exported);
             if (ok) {
-                alert('Текст с разметкой скопирован. Вставьте его в поле описания на другом устройстве — скрытые слова восстановятся автоматически.');
+                alert('Материал скопирован целиком — название и обработанное описание. Отправьте этот текст (например, через Telegram) и вставьте его в поле «Название материала» или «Описание материала» на другом устройстве — всё распределится по нужным полям автоматически.');
             } else {
                 prompt('Не удалось скопировать автоматически. Скопируйте текст вручную:', exported);
             }
@@ -12827,10 +12831,69 @@ function getFirstLastLetters(word) {
             return { plainText: plainText, hiddenWords: hiddenWords, wordHints: wordHints };
         }
 
+        function parseCombinedMaterialImport(rawText) {
+            const lines = rawText.split('\n');
+            let title = null;
+            let descStartLine = -1;
+            for (let i = 0; i < lines.length; i++) {
+                const titleMatch = lines[i].match(/^\s*Название\s*:\s*(.*)$/i);
+                if (titleMatch && title === null) {
+                    title = titleMatch[1].trim();
+                    continue;
+                }
+                if (/^\s*Описание\s*:\s*$/i.test(lines[i])) {
+                    descStartLine = i + 1;
+                    break;
+                }
+            }
+            const description = descStartLine === -1 ? rawText : lines.slice(descStartLine).join('\n');
+            return { title: title, description: description };
+        }
+
+        function isCombinedMaterialImportText(rawText) {
+            if (!rawText) return false;
+            return /^\s*Название\s*:/im.test(rawText) ||
+                /^\s*Описание\s*:\s*$/im.test(rawText) ||
+                /\{\{[^{}]+\}\}/.test(rawText);
+        }
+
+        function applyCombinedMaterialImport(rawText) {
+            const parsed = parseCombinedMaterialImport(rawText);
+            if (parsed.title !== null) {
+                document.getElementById('textTitle').value = parsed.title;
+            }
+            const contentParsed = parseProcessedDescriptionImport(parsed.description);
+            document.getElementById('textContent').value = contentParsed.plainText;
+            state.pendingDescriptionImport = {
+                hiddenWords: contentParsed.hiddenWords.slice(),
+                wordHints: Object.assign({}, contentParsed.wordHints)
+            };
+        }
+
+        function handleTitleFieldPaste(event) {
+            const clipboardData = event.clipboardData || window.clipboardData;
+            const rawText = clipboardData ? clipboardData.getData('text') : '';
+            if (!isCombinedMaterialImportText(rawText)) return;
+            event.preventDefault();
+            applyCombinedMaterialImport(rawText);
+            document.getElementById('textContent').focus();
+        }
+
         function handleDescriptionPaste(event) {
             const clipboardData = event.clipboardData || window.clipboardData;
             const rawText = clipboardData ? clipboardData.getData('text') : '';
-            if (!rawText || !/\{\{[^{}]+\}\}/.test(rawText)) return;
+            if (!rawText) return;
+
+            const hasHeaders = /^\s*Название\s*:/im.test(rawText) || /^\s*Описание\s*:\s*$/im.test(rawText);
+            if (hasHeaders) {
+                // Это цельный экспорт материала (название + описание) — заменяем оба поля
+                // целиком, вставка «в позицию курсора» здесь не имеет смысла.
+                event.preventDefault();
+                applyCombinedMaterialImport(rawText);
+                return;
+            }
+
+            if (!/\{\{[^{}]+\}\}/.test(rawText)) return;
             event.preventDefault();
 
             const el = event.target;
