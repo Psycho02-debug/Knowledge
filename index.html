@@ -1085,10 +1085,13 @@
             animation: fadeInUp 0.3s ease both;
             transition: background 0.35s;
             gap: 2px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         .mode-btn {
-            flex: 1;
+            flex: 1 0 auto;
+            min-width: 46px;
             padding: 8px 2px;
             border: none;
             background: transparent;
@@ -5469,6 +5472,17 @@
         </div>
     </div>
 
+    <div class="modal" id="questionModal">
+        <div class="modal-content">
+            <h3 id="questionModalTitle">Новый вопрос</h3>
+            <textarea id="questionText" placeholder="Например: Что такое CSAT?" style="min-height:90px;"></textarea>
+            <div class="modal-buttons">
+                <button class="modal-cancel" onclick="closeQuestionModal()">Отмена</button>
+                <button class="modal-save" onclick="saveQuestionEntry()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="learningCreateModal">
         <div class="modal-content">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -5491,7 +5505,7 @@
     <div class="modal" id="textModal">
         <div class="modal-content">
             <h3 id="textModalTitle">Новый материал</h3>
-            <input type="text" id="textTitle" placeholder="Материал (например: CSAT)" onkeydown="handleTextModalKeys(event, &#39;textTitle&#39;)">
+            <input type="text" id="textTitle" placeholder="Материал (например: CSAT)" onkeydown="handleTextModalKeys(event, &#39;textTitle&#39;)" onpaste="handleTitleFieldPaste(event)">
             <textarea id="textContent" placeholder="Описание материала..." onkeydown="handleTextModalKeys(event, &#39;textContent&#39;)" onfocus="handleDescriptionFocus(this)" onbeforeinput="handleDescriptionBeforeInput(event)" onpaste="handleDescriptionPaste(event)"></textarea>
             <textarea id="textExample" placeholder="Пример (необязательно)..." style="min-height: 60px;" onkeydown="handleTextModalKeys(event, &#39;textExample&#39;)"></textarea>
             <div id="imageUploadArea" style="margin-top:8px;">
@@ -5762,6 +5776,7 @@
             if (!text.hiddenWordGroups || typeof text.hiddenWordGroups !== 'object' || Array.isArray(text.hiddenWordGroups)) {
                 text.hiddenWordGroups = {};
             }
+            if (!Array.isArray(text.questions)) text.questions = [];
             return text;
         }
 
@@ -6751,6 +6766,8 @@
             lineCardFlipped: false,
             lineCardCueMode: 'letter',
             pendingDescriptionImport: null,
+            questionsCardFlipped: false,
+            editingQuestionIndex: null,
             studyQueue: [],
             studyQueueIndex: -1,
             studyQueueOriginSubfolder: null,
@@ -7319,6 +7336,7 @@ function getFirstLastLetters(word) {
                     <button class="mode-btn" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
                     <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
                     <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
+                    <button class="mode-btn" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
                     <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
                 </div>
             `;
@@ -7630,6 +7648,10 @@ function getFirstLastLetters(word) {
 
             if (mode === 'linecards') {
                 state.lineCardFlipped = false;
+            }
+
+            if (mode === 'questions') {
+                state.questionsCardFlipped = false;
             }
 
             render();
@@ -10042,6 +10064,11 @@ function getFirstLastLetters(word) {
                             <div class="chooser-card-title">Карточка по строкам</div>
                             <div class="chooser-card-desc">Лицевая — первая буква или слово каждой строки, оборотная — полный текст</div>
                         </div>
+                        <div class="chooser-card chooser-card-accent" onclick="openTermInMode(state.currentText, 'questions')">
+                            <div class="chooser-card-icon">❓</div>
+                            <div class="chooser-card-title">Вопросы к термину</div>
+                            <div class="chooser-card-desc">Лицевая — ваши вопросы к термину, оборотная — сам термин целиком</div>
+                        </div>
                     </div>
 
                     ${text.example ? `
@@ -10169,6 +10196,10 @@ function getFirstLastLetters(word) {
 
             if (state.mode === 'linecards') {
                 return renderLineCardsView(text);
+            }
+
+            if (state.mode === 'questions') {
+                return renderQuestionsView(text);
             }
 
             const words = text.content.split(/(\s+)/);
@@ -10375,7 +10406,7 @@ function getFirstLastLetters(word) {
                             ${state.mode === 'edit' ? `
                                 <button class="action-btn btn-reset" onclick="clearMarks()">Сбросить выбор</button>
                                 ${(text.hiddenWords || []).length ? `
-                                    <button class="action-btn btn-save" onclick="copyProcessedDescription()">Скопировать разметку</button>
+                                    <button class="action-btn btn-save" onclick="copyProcessedMaterial()">Скопировать материал</button>
                                 ` : ''}
                             ` : ''}
                         </div>
@@ -10503,6 +10534,7 @@ function getFirstLastLetters(word) {
                     <button class="mode-btn" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
                     <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
                     <button class="mode-btn active" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
+                    <button class="mode-btn" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
                     <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
                 </div>
             `;
@@ -10563,6 +10595,143 @@ function getFirstLastLetters(word) {
             `;
         }
 
+        function flipQuestionsCard() {
+            state.questionsCardFlipped = !state.questionsCardFlipped;
+            render();
+        }
+
+        function showQuestionModal() {
+            state.editingQuestionIndex = null;
+            document.getElementById('questionModalTitle').textContent = 'Новый вопрос';
+            document.getElementById('questionText').value = '';
+            document.getElementById('questionModal').classList.add('show');
+            setTimeout(() => document.getElementById('questionText').focus(), 100);
+        }
+
+        function closeQuestionModal() {
+            state.editingQuestionIndex = null;
+            closeModal('questionModal');
+        }
+
+        function showEditQuestionModal(index) {
+            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+            const question = text.questions[index];
+            if (question === undefined) return;
+            state.editingQuestionIndex = index;
+            document.getElementById('questionModalTitle').textContent = 'Редактировать вопрос';
+            document.getElementById('questionText').value = question;
+            document.getElementById('questionModal').classList.add('show');
+            setTimeout(() => document.getElementById('questionText').focus(), 100);
+        }
+
+        function saveQuestionEntry() {
+            const value = document.getElementById('questionText').value.trim();
+            if (!value) return;
+            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+            if (state.editingQuestionIndex !== null && text.questions[state.editingQuestionIndex] !== undefined) {
+                text.questions[state.editingQuestionIndex] = value;
+            } else {
+                text.questions.push(value);
+            }
+            state.editingQuestionIndex = null;
+            saveData();
+            closeModal('questionModal');
+            render();
+        }
+
+        function deleteQuestionEntry(index) {
+            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+            if (text.questions[index] === undefined) return;
+            if (!confirm('Удалить этот вопрос?')) return;
+            text.questions.splice(index, 1);
+            state.questionsCardFlipped = false;
+            saveData();
+            render();
+        }
+
+        function renderQuestionsView(text) {
+            const questions = text.questions || [];
+            const flipped = state.questionsCardFlipped;
+
+            const modeButtons = `
+                <div class="mode-toggle">
+                    <button class="mode-btn" onclick="setMode('edit')"><span class="mode-icon">✎</span>Выбор</button>
+                    <button class="mode-btn" onclick="setMode('practice')"><span class="mode-icon">👁</span>Практика</button>
+                    <button class="mode-btn" onclick="setMode('type')"><span class="mode-icon">⌨</span>Вписать</button>
+                    <button class="mode-btn" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
+                    <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
+                    <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
+                    <button class="mode-btn active" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
+                    <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
+                </div>
+            `;
+
+            const questionsList = questions.length ? `
+                <div class="course-task-list">
+                    ${questions.map((q, i) => `
+                        <div class="course-task-row">
+                            <div class="course-task-row-q">${escapeHtml(q)}</div>
+                            <div class="course-task-row-actions">
+                                <button class="folder-mini-action" onclick="showEditQuestionModal(${i})" title="Редактировать">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                </button>
+                                <button class="folder-mini-action" onclick="deleteQuestionEntry(${i})" title="Удалить">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : '';
+
+            const frontRows = questions.map((q, i) => `
+                <div class="linecards-row">
+                    <span class="linecards-num">${i + 1}</span>
+                    <span class="linecards-cue">${escapeHtml(q)}</span>
+                </div>
+            `).join('');
+
+            return `
+                ${getTermNavHeader(text)}
+                <div class="container">
+                    ${modeButtons}
+
+                    <div class="home-section-header" style="margin-top:4px;">
+                        <div class="home-section-title" style="font-size:1.1rem;">Вопросы к термину</div>
+                    </div>
+                    ${questionsList}
+                    <button class="module-action-btn secondary" style="width:100%;margin:10px 0 18px;" onclick="showQuestionModal()">+ Добавить вопрос</button>
+
+                    ${questions.length ? `
+                        <div class="flashcard-study-layout">
+                            <button class="flashcard-study-card linecards-card ${flipped ? 'is-flipped' : ''}" onclick="flipQuestionsCard()">
+                                <div class="flashcard-study-face-label">${flipped ? 'Термин' : 'Вопросы'}</div>
+                                <div class="linecards-list">
+                                    ${flipped ? `
+                                        <div class="linecards-row"><span class="linecards-line" style="white-space:pre-wrap;">${escapeHtml(text.content)}</span></div>
+                                    ` : frontRows}
+                                </div>
+                                <div class="flashcard-study-hint">${flipped ? 'Нажмите, чтобы увидеть вопросы' : 'Нажмите, чтобы увидеть термин'}</div>
+                            </button>
+                            <div class="flashcard-study-buttons">
+                                <button class="profile-link-btn" onclick="flipQuestionsCard()">Перевернуть</button>
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="quiz-area">
+                            <div class="quiz-message">
+                                <div class="quiz-message-icon">❓</div>
+                                <p>Добавьте хотя бы один вопрос, чтобы начать изучение в формате карточки.</p>
+                            </div>
+                        </div>
+                    `}
+                    <div class="text-display-row">
+                        ${getTermNavInline()}
+                    </div>
+                </div>
+            `;
+        }
+
         function renderGameView(text) {
             const gs = state.gameState;
             
@@ -10576,6 +10745,7 @@ function getFirstLastLetters(word) {
                             <button class="mode-btn active" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
                             <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
                             <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
+                            <button class="mode-btn" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
                             <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
                         </div>
                         
@@ -10601,6 +10771,7 @@ function getFirstLastLetters(word) {
                         <button class="mode-btn active" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
                         <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
                         <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
+                        <button class="mode-btn" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
                         <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
                     </div>
                     
@@ -10661,6 +10832,7 @@ function getFirstLastLetters(word) {
                     <button class="mode-btn" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
                     <button class="mode-btn active" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
                     <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
+                    <button class="mode-btn" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
                     <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
                 </div>
             `;
@@ -12325,6 +12497,7 @@ function getFirstLastLetters(word) {
             if (mode === 'quiz') initQuiz();
             if (mode === 'type') initTypeMode();
             if (mode === 'linecards') state.lineCardFlipped = false;
+            if (mode === 'questions') state.questionsCardFlipped = false;
             render();
             if (mode === 'type') focusPreferredTypeField();
         }
@@ -12683,6 +12856,9 @@ function getFirstLastLetters(word) {
             if (currentMode === 'linecards') {
                 state.lineCardFlipped = false;
             }
+            if (currentMode === 'questions') {
+                state.questionsCardFlipped = false;
+            }
             render();
             if (currentMode === 'type') {
                 focusPreferredTypeField();
@@ -12759,6 +12935,10 @@ function getFirstLastLetters(word) {
             }).join('');
         }
 
+        function buildProcessedMaterialExport(text) {
+            return 'Название: ' + text.title + '\nОписание:\n' + buildProcessedDescriptionExport(text);
+        }
+
         async function copyPlainTextToClipboard(str) {
             try {
                 if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -12785,16 +12965,16 @@ function getFirstLastLetters(word) {
             }
         }
 
-        async function copyProcessedDescription() {
+        async function copyProcessedMaterial() {
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             if (!text.hiddenWords || !text.hiddenWords.length) {
                 alert('В этом материале пока нет скрытых слов — сначала выделите слова для скрытия.');
                 return;
             }
-            const exported = buildProcessedDescriptionExport(text);
+            const exported = buildProcessedMaterialExport(text);
             const ok = await copyPlainTextToClipboard(exported);
             if (ok) {
-                alert('Текст с разметкой скопирован. Вставьте его в поле описания на другом устройстве — скрытые слова восстановятся автоматически.');
+                alert('Материал скопирован целиком — название и обработанное описание. Отправьте этот текст (например, через Telegram) и вставьте его в поле «Название материала» или «Описание материала» на другом устройстве — всё распределится по нужным полям автоматически.');
             } else {
                 prompt('Не удалось скопировать автоматически. Скопируйте текст вручную:', exported);
             }
@@ -12827,10 +13007,69 @@ function getFirstLastLetters(word) {
             return { plainText: plainText, hiddenWords: hiddenWords, wordHints: wordHints };
         }
 
+        function parseCombinedMaterialImport(rawText) {
+            const lines = rawText.split('\n');
+            let title = null;
+            let descStartLine = -1;
+            for (let i = 0; i < lines.length; i++) {
+                const titleMatch = lines[i].match(/^\s*Название\s*:\s*(.*)$/i);
+                if (titleMatch && title === null) {
+                    title = titleMatch[1].trim();
+                    continue;
+                }
+                if (/^\s*Описание\s*:\s*$/i.test(lines[i])) {
+                    descStartLine = i + 1;
+                    break;
+                }
+            }
+            const description = descStartLine === -1 ? rawText : lines.slice(descStartLine).join('\n');
+            return { title: title, description: description };
+        }
+
+        function isCombinedMaterialImportText(rawText) {
+            if (!rawText) return false;
+            return /^\s*Название\s*:/im.test(rawText) ||
+                /^\s*Описание\s*:\s*$/im.test(rawText) ||
+                /\{\{[^{}]+\}\}/.test(rawText);
+        }
+
+        function applyCombinedMaterialImport(rawText) {
+            const parsed = parseCombinedMaterialImport(rawText);
+            if (parsed.title !== null) {
+                document.getElementById('textTitle').value = parsed.title;
+            }
+            const contentParsed = parseProcessedDescriptionImport(parsed.description);
+            document.getElementById('textContent').value = contentParsed.plainText;
+            state.pendingDescriptionImport = {
+                hiddenWords: contentParsed.hiddenWords.slice(),
+                wordHints: Object.assign({}, contentParsed.wordHints)
+            };
+        }
+
+        function handleTitleFieldPaste(event) {
+            const clipboardData = event.clipboardData || window.clipboardData;
+            const rawText = clipboardData ? clipboardData.getData('text') : '';
+            if (!isCombinedMaterialImportText(rawText)) return;
+            event.preventDefault();
+            applyCombinedMaterialImport(rawText);
+            document.getElementById('textContent').focus();
+        }
+
         function handleDescriptionPaste(event) {
             const clipboardData = event.clipboardData || window.clipboardData;
             const rawText = clipboardData ? clipboardData.getData('text') : '';
-            if (!rawText || !/\{\{[^{}]+\}\}/.test(rawText)) return;
+            if (!rawText) return;
+
+            const hasHeaders = /^\s*Название\s*:/im.test(rawText) || /^\s*Описание\s*:\s*$/im.test(rawText);
+            if (hasHeaders) {
+                // Это цельный экспорт материала (название + описание) — заменяем оба поля
+                // целиком, вставка «в позицию курсора» здесь не имеет смысла.
+                event.preventDefault();
+                applyCombinedMaterialImport(rawText);
+                return;
+            }
+
+            if (!/\{\{[^{}]+\}\}/.test(rawText)) return;
             event.preventDefault();
 
             const el = event.target;
@@ -13093,6 +13332,8 @@ function getFirstLastLetters(word) {
                     closeFlashcardModal();
                 } else if (openModal.id === 'courseTaskModal') {
                     closeCourseTaskModal();
+                } else if (openModal.id === 'questionModal') {
+                    closeQuestionModal();
                 } else {
                     closeModal(openModal.id);
                 }
