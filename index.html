@@ -428,6 +428,7 @@
             --game-result-bg: rgba(181, 204, 113, 0.12);
             --input-focus-border: #92a957;
             --bg-app: rgba(18, 18, 18, 0.96);
+            --bg-app-solid: rgb(18, 18, 18);
         }
 
         body.dark-theme {
@@ -469,6 +470,7 @@
             --game-result-bg: rgba(181, 204, 113, 0.1);
             --input-focus-border: #92a957;
             --bg-app: rgba(10, 10, 10, 0.98);
+            --bg-app-solid: rgb(10, 10, 10);
         }
 
         * {
@@ -679,6 +681,21 @@
                 animation-iteration-count: 1 !important;
                 transition-duration: 0.01ms !important;
             }
+        }
+
+        /* Обновление внутри уже открытого экрана: гасим анимации появления, чтобы
+           каждое касание не перезапускало десятки анимаций. Переходы (hover, нажатие)
+           не трогаем — они реагируют на действие пользователя, а не на перерисовку.
+           Классы в :not() — это обратная связь на действие пользователя (верно/неверно,
+           выезд панели выбора), она обязана играть и при обновлении внутри экрана.
+           Исключения сделаны именно через :not(), а не через отдельное правило с
+           animation: revert — revert возвращает к значению браузера, то есть к
+           отсутствию анимации, и потому обратную связь не восстанавливает.
+           Модальные окна лежат вне #app и этим правилом не затрагиваются. */
+        #app.no-entry-anim *:not(.wrong):not(.correct):not(.edit-dock-batch),
+        #app.no-entry-anim *::before,
+        #app.no-entry-anim *::after {
+            animation: none !important;
         }
 
         .folder-list {
@@ -1233,9 +1250,10 @@
             bottom: 0;
             z-index: 90;
             padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-            background: var(--bg-app);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            /* Фон непрозрачный: backdrop-filter здесь давал незаметную разницу
+               (подложка и так на 96–98%), но заставлял GPU пересчитывать размытие
+               на каждом кадре прокрутки — заметная трата батареи на телефоне. */
+            background: var(--bg-app-solid);
             border-top: 1px solid var(--border-color);
             display: flex;
             flex-direction: column;
@@ -1623,9 +1641,7 @@
             display: flex;
             justify-content: center;
             padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-            background: var(--bg-app);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            background: var(--bg-app-solid);
             border-top: 1px solid var(--border-color);
         }
 
@@ -4971,7 +4987,7 @@
             bottom: 18px;
             transform: translateX(-50%);
             width: min(620px, calc(100% - 24px));
-            background: rgba(28, 28, 28, 0.96);
+            background: rgb(28, 28, 28);
             border: 1px solid rgba(255, 255, 255, 0.04);
             border-radius: 30px;
             padding: 10px 12px 12px;
@@ -4980,7 +4996,6 @@
             align-items: end;
             gap: 4px;
             box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
-            backdrop-filter: blur(16px);
             z-index: 120;
         }
 
@@ -5813,9 +5828,18 @@
         
         function loadTheme() {
             const saved = localStorage.getItem('darkTheme');
-            if (saved === '1') {
-                document.body.classList.add('dark-theme');
+            if (saved === '1' || saved === '0') {
+                // Пользователь выбирал тему сам — его выбор всегда важнее системного.
+                document.body.classList.toggle('dark-theme', saved === '1');
+                return;
             }
+            // Выбора ещё не было: следуем системной настройке телефона. Обе палитры
+            // приложения тёмные, .dark-theme — просто более глубокий вариант, поэтому
+            // выигрыш по заряду на OLED здесь небольшой; главное тут — вести себя
+            // ожидаемо и совпадать с системной темой, а не экономия сама по себе.
+            const prefersDark = typeof window.matchMedia === 'function' &&
+                window.matchMedia('(prefers-color-scheme: dark)').matches;
+            document.body.classList.toggle('dark-theme', prefersDark);
         }
 
         function loadPracticeTextScale() {
@@ -6889,6 +6913,7 @@
         let serverVersion = null;
         let lastSavedData = '';
         let renderQueuedWhileHidden = false;
+        let lastRenderSignature = '';
         let saveDataTimer = null;
         let saveDataIdleId = null;
         let hasPendingSaveData = false;
@@ -7028,12 +7053,17 @@
 
         document.addEventListener('visibilitychange', function() {
             if (document.hidden) {
+                // Гасим таймер и сбрасываем несохранённое, чтобы в фоне
+                // приложение не будило процессор вообще.
+                clearFlashcardTimer();
                 flushPendingPersistence();
                 return;
             }
-            if (!document.hidden && renderQueuedWhileHidden) {
+            if (renderQueuedWhileHidden) {
                 renderQueuedWhileHidden = false;
                 render();
+            } else {
+                syncFlashcardTimer();
             }
         });
 
@@ -7346,6 +7376,14 @@ function getFirstLastLetters(word) {
             const app = document.getElementById('app');
             if (!app) return;
             document.body.classList.toggle('practice-layout', state.view === 'practice' && state.mode === 'practice');
+
+            // Анимации появления должны играть при входе на экран, а не при каждом
+            // обновлении внутри него. Приложение перерисовывает DOM целиком на любое
+            // касание, поэтому без этой отсечки список из 25 терминов заново
+            // проигрывал бы 25 анимаций на каждый тап — заметная работа GPU впустую.
+            const renderSignature = state.view + '|' + state.mode;
+            app.classList.toggle('no-entry-anim', renderSignature === lastRenderSignature);
+            lastRenderSignature = renderSignature;
 
             if (state.view === 'home') {
                 app.innerHTML = renderHomeView();
@@ -9651,7 +9689,7 @@ function getFirstLastLetters(word) {
             }
 
             const chips = [
-                study.timerEnabled && study.deadlineAt ? `<div class="flashcard-session-chip timer">${getCurrentFlashcardRemainingSeconds()} сек</div>` : '',
+                study.timerEnabled && study.deadlineAt ? `<div class="flashcard-session-chip timer" id="flashcardTimerChip">${getCurrentFlashcardRemainingSeconds()} сек</div>` : '',
                 study.mode === 'browse' ? `<div class="flashcard-session-chip">Карточек ${folder.cards.length}</div>` : '',
                 study.mode === 'browse' ? `<div class="flashcard-session-chip">Сложных ${folder.cards.filter(card => card.attention).length}</div>` : '',
                 study.mode === 'learn' ? `<div class="flashcard-session-chip">Освоено ${study.stats.mastered}/${folder.cards.length}</div>` : '',
@@ -11937,7 +11975,7 @@ function getFirstLastLetters(word) {
 
         function clearFlashcardTimer() {
             if (flashcardTimerInterval !== null) {
-                clearInterval(flashcardTimerInterval);
+                clearTimeout(flashcardTimerInterval);
                 flashcardTimerInterval = null;
             }
             flashcardTimerLastSecond = null;
@@ -11958,13 +11996,16 @@ function getFirstLastLetters(word) {
         function syncFlashcardTimer() {
             const study = state.flashcardStudyState;
             const needsTimer = state.view === 'card_study' && study && study.timerEnabled && !study.completed && study.deadlineAt;
-            if (!needsTimer) {
+            // Пока вкладка скрыта, будить процессор незачем: при возврате таймер
+            // пересчитается от абсолютного deadlineAt, поэтому время не «уплывёт».
+            if (!needsTimer || document.hidden) {
                 clearFlashcardTimer();
                 return;
             }
             if (flashcardTimerInterval !== null) return;
-            flashcardTimerInterval = setInterval(() => {
-                if (state.view !== 'card_study') {
+
+            const tick = () => {
+                if (state.view !== 'card_study' || document.hidden) {
                     clearFlashcardTimer();
                     return;
                 }
@@ -11976,9 +12017,25 @@ function getFirstLastLetters(word) {
                 }
                 if (seconds !== flashcardTimerLastSecond) {
                     flashcardTimerLastSecond = seconds;
-                    render();
+                    // Точечно обновляем только текст счётчика. Полный render() здесь
+                    // перестраивал бы весь DOM каждую секунду — самый дорогой по
+                    // батарее сценарий во всём приложении.
+                    const chip = document.getElementById('flashcardTimerChip');
+                    if (chip) {
+                        chip.textContent = seconds + ' сек';
+                    } else {
+                        render();
+                    }
                 }
-            }, 250);
+                // Просыпаемся ровно на границе следующей секунды: одно пробуждение
+                // в секунду вместо четырёх у прежнего опроса каждые 250 мс.
+                const msToNextSecond = study.deadlineAt - Date.now() - (seconds - 1) * 1000;
+                flashcardTimerInterval = setTimeout(tick, Math.max(50, Math.min(1000, msToNextSecond)));
+            };
+
+            const initialSeconds = getCurrentFlashcardRemainingSeconds();
+            const initialDelay = study.deadlineAt - Date.now() - (initialSeconds - 1) * 1000;
+            flashcardTimerInterval = setTimeout(tick, Math.max(50, Math.min(1000, initialDelay)));
         }
 
         function getFlashcardSessionTimeText(study) {
