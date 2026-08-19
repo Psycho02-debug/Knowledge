@@ -1598,24 +1598,32 @@
             letter-spacing: inherit;
         }
 
+        /* Фон в режиме фокуса гасим сильнее прежнего — так активное слово читается
+           мгновенно. Здесь раньше стоял ещё и filter: saturate()/brightness(), но
+           filter — это отдельный проход отрисовки на КАЖДОЕ слово (а их в тексте
+           бывает под сотню). Одной opacity достаточно, и она в разы дешевле. */
         .text-display.practice-focus-mode .word {
-            opacity: 0.46;
-            filter: saturate(0.58) brightness(0.82);
+            opacity: 0.24;
         }
 
+        /* Кольцо с нулевым размытием: даёт резкую границу и стоит почти ничего,
+           в отличие от размытой тени, которую GPU считает отдельно. */
         .text-display.practice-focus-mode .word.practice-focus-active {
             opacity: 1;
-            filter: none;
-            box-shadow: 0 0 0 2px rgba(181, 204, 113, 0.24), 0 10px 22px rgba(15, 23, 42, 0.16);
+            box-shadow: 0 0 0 3px var(--accent-primary);
         }
 
         .text-display.practice-focus-mode .word.practice-focus-active.hidden-word {
+            background: var(--accent-primary);
+            color: #232b12;
+            font-weight: 800;
             transform: translateY(-1px);
         }
 
         .text-display.practice-focus-mode .word.practice-focus-active.revealed {
-            background: rgba(181, 204, 113, 0.18);
-            color: var(--text-primary);
+            background: var(--accent-primary);
+            color: #232b12;
+            font-weight: 800;
         }
 
         .word.has-letters-edit {
