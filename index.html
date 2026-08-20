@@ -1415,7 +1415,42 @@
             text-align: center;
         }
 
+        .practice-primary-row {
+            display: flex;
+            align-items: stretch;
+            gap: 8px;
+            width: 100%;
+        }
+
+        /* Вторичное действие: рамка вместо заливки, чтобы главная кнопка
+           оставалась главной. Стили статичные — ничего не анимируется. */
+        .practice-skip-btn {
+            flex: 0 0 auto;
+            padding: 17px 18px;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            background: none;
+            color: var(--text-secondary);
+            font-size: 15px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+        }
+
+        .practice-skip-btn:active {
+            transform: scale(0.98);
+        }
+
+        .practice-skip-btn:hover {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+        }
+
         .practice-primary-btn {
+            flex: 1;
+            min-width: 0;
             width: 100%;
             padding: 17px;
             border: none;
@@ -10286,6 +10321,41 @@ function getFirstLastLetters(word) {
             return true;
         }
 
+        function getUnrevealedFocusTargets(text) {
+            return getRenderableHiddenIndices(text).filter(idx => !isFocusTargetFullyRevealed(text, idx));
+        }
+
+        // Перевести фокус на следующее ЕЩЁ НЕ ОТКРЫТОЕ слово, не раскрывая текущее.
+        // Отличается от cyclePracticeFocus (стрелка вниз), который идёт по всем
+        // скрытым словам подряд, включая уже открытые: для кнопки полезнее
+        // пропускать пройденное и вести к тому, что осталось вспомнить.
+        function focusNextHiddenWord() {
+            if (!isPracticeFocusModeEnabled() || !state.practiceFocusEnabled) return false;
+            if (state.currentText === null || state.currentFolder === null) return false;
+            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+            const targets = getUnrevealedFocusTargets(text);
+            if (targets.length < 2) return false;
+            const currentPos = targets.indexOf(state.practiceFocusWordIndex);
+            const nextPos = currentPos === -1 ? 0 : (currentPos + 1) % targets.length;
+            state.practiceFocusWordIndex = targets[nextPos];
+            render();
+            scrollToFocusedWord();
+            return true;
+        }
+
+        function scrollToFocusedWord() {
+            requestAnimationFrame(() => {
+                const el = document.querySelector('.word.practice-focus-active');
+                if (!el) return;
+                const dock = document.querySelector('.practice-dock');
+                const dockTop = dock ? dock.getBoundingClientRect().top : window.innerHeight;
+                const rect = el.getBoundingClientRect();
+                if (rect.top < 0 || rect.bottom > dockTop - 12) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
+        }
+
         function renderPracticeHiddenWord(displayText, extraClassName, wordIndex, isPracticeFocusWord) {
             const className = ['word', 'hidden-word', extraClassName, isPracticeFocusWord ? 'practice-focus-active' : '']
                 .filter(Boolean)
@@ -10328,7 +10398,12 @@ function getFirstLastLetters(word) {
                     focusableHiddenSorted.includes(state.practiceFocusWordIndex) &&
                     !isFocusTargetFullyRevealed(text, state.practiceFocusWordIndex);
                 if (!isCurrentFocusStillValid) {
-                    const nextTarget = focusableHiddenSorted.find(idx => !isFocusTargetFullyRevealed(text, idx));
+                    // Идём вперёд от последней позиции, а не всегда с начала: иначе
+                    // после «Пропустить» фокус тут же возвращался бы на пропущенное
+                    // слово. К пропущенному вернёмся, когда дойдём до конца текста.
+                    const targets = focusableHiddenSorted.filter(idx => !isFocusTargetFullyRevealed(text, idx));
+                    const from = state.practiceFocusWordIndex;
+                    const nextTarget = (from === null ? undefined : targets.find(idx => idx > from)) ?? targets[0];
                     state.practiceFocusWordIndex = nextTarget === undefined ? null : nextTarget;
                 }
             } else if (isPracticeFocusModeEnabled() && !state.practiceFocusEnabled) {
@@ -10460,12 +10535,22 @@ function getFirstLastLetters(word) {
 
             const progress = isPracticeLayout ? getPracticeProgress(text) : null;
             const nav = isPracticeLayout ? getStudyNavigationMeta() : null;
-            const primaryLabel = !progress || progress.total === 0
-                ? 'Нет скрытых слов'
-                : (progress.allRevealed ? '↺ Скрыть все слова' : 'Открыть следующее слово');
             const primaryAction = !progress || progress.total === 0
                 ? ''
                 : (progress.allRevealed ? 'toggleAllWordsReveal()' : 'revealNextWordAndScroll()');
+            // Кнопка нужна, только когда фокус включён и есть куда переходить:
+            // минимум два ещё не открытых слова, иначе перескакивать не на что.
+            const canFocusNext = isPracticeLayout &&
+                state.practiceFocusEnabled &&
+                isPracticeFocusModeEnabled() &&
+                getUnrevealedFocusTargets(text).length > 1;
+            // Рядом с «Пропустить» места меньше, поэтому подпись короче — иначе
+            // главная кнопка переносится на две строки и док растёт по высоте.
+            const primaryLabel = !progress || progress.total === 0
+                ? 'Нет скрытых слов'
+                : (progress.allRevealed
+                    ? '↺ Скрыть все слова'
+                    : (canFocusNext ? 'Открыть слово' : 'Открыть следующее слово'));
 
             return `
                 ${getTermNavHeader(text)}
@@ -10535,7 +10620,12 @@ function getFirstLastLetters(word) {
                 ${isPracticeLayout ? `
                     <div class="practice-dock">
                         <div class="practice-dock-inner">
-                            <button class="practice-primary-btn" ${primaryAction ? `onclick="${primaryAction}"` : 'disabled'}>${primaryLabel}</button>
+                            <div class="practice-primary-row">
+                                <button class="practice-primary-btn" ${primaryAction ? `onclick="${primaryAction}"` : 'disabled'}>${primaryLabel}</button>
+                                ${canFocusNext ? `
+                                    <button class="practice-skip-btn" onclick="focusNextHiddenWord()" title="Фокус на следующем слове" aria-label="Фокус на следующем слове">Пропустить</button>
+                                ` : ''}
+                            </div>
                             <div class="practice-nav-row">
                                 <button class="practice-nav-btn" onclick="navigateToTerm(-1)" ${!nav.hasPrev ? 'disabled' : ''}>‹</button>
                                 <span class="practice-nav-counter">${nav.current + 1}/${nav.total}</span>
@@ -14119,8 +14209,22 @@ function getFirstLastLetters(word) {
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             if (!text.hiddenWords || text.hiddenWords.length === 0) return;
             const sorted = getRenderableHiddenIndices(text);
-            for (let i = 0; i < sorted.length; i++) {
-                const idx = sorted[i];
+
+            // Если слово подсвечено фокусом — открываем именно его, а не первое по
+            // порядку. Иначе после «Пропустить» кнопка открывала бы пропущенное
+            // слово, и подсветка расходилась бы с тем, что реально происходит.
+            const focused = state.practiceFocusWordIndex;
+            const focusIsActive = isPracticeFocusModeEnabled() &&
+                state.practiceFocusEnabled &&
+                focused !== null &&
+                sorted.includes(focused) &&
+                !isFocusTargetFullyRevealed(text, focused);
+            const order = focusIsActive
+                ? [focused, ...sorted.filter(idx => idx !== focused)]
+                : sorted;
+
+            for (let i = 0; i < order.length; i++) {
+                const idx = order[i];
                 const group = state.practiceMode === 'hints' ? getHiddenWordGroupByIndex(text, idx) : null;
                 const targetIndexes = group ? group.indices : [idx];
                 const isAlreadyRevealed = targetIndexes.every(targetIndex => text.revealedWords.includes(targetIndex));
