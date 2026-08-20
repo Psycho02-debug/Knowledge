@@ -1777,11 +1777,13 @@
             display: flex;
             gap: 6px;
             justify-content: center;
+            align-items: stretch;
             flex-wrap: nowrap;
+            width: 100%;
         }
 
         .batch-btn {
-            padding: 10px 16px;
+            padding: 12px 10px;
             border: none;
             border-radius: 16px;
             font-size: 13px;
@@ -1789,7 +1791,19 @@
             cursor: pointer;
             transition: background 0.2s, transform 0.2s;
             font-family: 'Inter', sans-serif;
-            white-space: nowrap;
+            line-height: 1.25;
+        }
+
+        /* Два способа скрытия делят ширину поровну, отмена — узкой иконкой сбоку. */
+        .batch-btn.batch-default,
+        .batch-btn.batch-hint {
+            flex: 1 1 0;
+            min-width: 0;
+        }
+
+        .batch-btn.batch-cancel {
+            flex: 0 0 auto;
+            padding: 12px 14px;
         }
 
         .batch-btn:active {
@@ -1798,11 +1812,6 @@
 
         .batch-default {
             background: var(--gradient-primary);
-            color: var(--accent-on-strong);
-        }
-
-        .batch-letters {
-            background: var(--gradient-green);
             color: var(--accent-on-strong);
         }
 
@@ -7115,6 +7124,18 @@
         window.addEventListener('pagehide', flushPendingPersistence);
         window.addEventListener('beforeunload', flushPendingPersistence);
 
+        // При повороте экрана панель меняет высоту (в альбомной она в один ряд),
+        // поэтому отступ надо пересчитать. Событие редкое, но на всякий случай
+        // не выполняем работу чаще одного кадра.
+        let dockSpacingRaf = null;
+        window.addEventListener('resize', function() {
+            if (dockSpacingRaf !== null) return;
+            dockSpacingRaf = requestAnimationFrame(function() {
+                dockSpacingRaf = null;
+                syncDockSpacing();
+            });
+        }, { passive: true });
+
         function ensureFolderShape(folder) {
             if (!folder || typeof folder !== 'object') return null;
             if (!Array.isArray(folder.texts)) folder.texts = [];
@@ -7338,7 +7359,13 @@
             };
         }
 
-function getFirstLastLetters(word) {
+function getFirstLetterOnly(word) {
+            const cleanWord = word.replace(/[^a-zA-Zа-яА-ЯёЁ0-9]/g, '');
+            if (cleanWord.length === 0) return word.length <= 1 ? '_' : word[0] + '_';
+            return cleanWord[0].toUpperCase() + '_';
+        }
+
+        function getFirstLastLetters(word) {
             const cleanWord = word.replace(/[^a-zA-Zа-яА-ЯёЁ0-9]/g, '');
             if (cleanWord.length === 0) {
                 if (word.length <= 1) return '_';
@@ -7474,6 +7501,20 @@ function getFirstLastLetters(word) {
                 app.innerHTML = renderChooserView();
             }
             syncFlashcardTimer();
+            syncDockSpacing();
+        }
+
+        // Нижние панели закреплены поверх контента, поэтому контейнер должен
+        // отступать ровно на их высоту. Высота плавающая: у панели практики
+        // появляется кнопка фокуса и ползунок размера, у панели выбора — блок
+        // «Выбрано: N». Раньше отступ был фиксированным, и часть текста
+        // оставалась под панелью навсегда — её нельзя было доскроллить.
+        function syncDockSpacing() {
+            const shell = document.querySelector('.container.practice-shell, .container.edit-shell');
+            if (!shell) return;
+            const dock = document.querySelector('.practice-dock, .edit-dock');
+            if (!dock) return;
+            shell.style.paddingBottom = (dock.offsetHeight + 16) + 'px';
         }
 
         function renderTypeView() {
@@ -10196,6 +10237,9 @@ function getFirstLastLetters(word) {
                         <div class="chooser-card" onclick="openTermInMode(state.currentText, 'practice', 'letters')">
                             <div class="chooser-card-title">Первая и последняя буква слов</div>
                         </div>
+                        <div class="chooser-card" onclick="openTermInMode(state.currentText, 'practice', 'firstletter')">
+                            <div class="chooser-card-title">Только первая буква слов</div>
+                        </div>
                         <div class="chooser-card" onclick="openTermInMode(state.currentText, 'practice', 'hints')">
                             <div class="chooser-card-title">Вопросы к выбранным словам</div>
                         </div>
@@ -10282,7 +10326,8 @@ function getFirstLastLetters(word) {
         function isPracticeFocusModeEnabled() {
             return state.view === 'practice' &&
                 state.mode === 'practice' &&
-                (state.practiceMode === 'default' || state.practiceMode === 'letters' || state.practiceMode === 'hints');
+                (state.practiceMode === 'default' || state.practiceMode === 'letters' ||
+                 state.practiceMode === 'firstletter' || state.practiceMode === 'hints');
         }
 
         function clearPracticeFocus() {
@@ -10501,6 +10546,9 @@ function getFirstLastLetters(word) {
                     if (state.practiceMode === 'letters') {
                         displayHint = getFirstLastLetters(word);
                         hintClass = 'has-letters';
+                    } else if (state.practiceMode === 'firstletter') {
+                        displayHint = getFirstLetterOnly(word);
+                        hintClass = 'has-letters';
                     } else if (state.practiceMode === 'hints') {
                         displayHint = (hint && hint !== '') ? hint : seqNum;
                         hintClass = (hint && hint !== '') ? 'has-custom-hint' : '';
@@ -10579,7 +10627,7 @@ function getFirstLastLetters(word) {
                     ` : ''}
                     ${state.mode === 'edit' ? `
                         <div class="help-text">
-                            Нажмите на слова, затем: ??? скрыть, П_Т подсказка, ? вопрос
+                            Нажмите на слова, затем выберите, как их скрыть
                         </div>
                     ` : `
                         <div class="help-text">
@@ -10637,10 +10685,9 @@ function getFirstLastLetters(word) {
                                 <div class="edit-dock-batch">
                                     <div class="batch-info">Выбрано: ${state.pendingWords.length}</div>
                                     <div class="batch-buttons">
-                                        <button class="batch-btn batch-default" onclick="applyBatchHide()">???</button>
-                                        <button class="batch-btn batch-letters" onclick="applyBatchHideLetters()">П_Т</button>
-                                        <button class="batch-btn batch-hint" onclick="showBatchHintModal()">?</button>
-                                        <button class="batch-btn batch-cancel" onclick="cancelBatch()">✕</button>
+                                        <button class="batch-btn batch-default" onclick="applyBatchHide()">Скрыть слова</button>
+                                        <button class="batch-btn batch-hint" onclick="showBatchHintModal()">Скрыть через вопросы</button>
+                                        <button class="batch-btn batch-cancel" onclick="cancelBatch()" title="Отменить выбор" aria-label="Отменить выбор">✕</button>
                                     </div>
                                 </div>
                             ` : ''}
@@ -13881,23 +13928,6 @@ function getFirstLastLetters(word) {
             render();
         }
         
-        function applyBatchHideLetters() {
-            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
-            const words = text.content.split(/(\s+)/);
-            state.pendingWords.forEach(index => {
-                if (isSlashSeparatorToken(words[index])) return;
-                if (!text.hiddenWords.includes(index)) {
-                    text.hiddenWords.push(index);
-                    if (!text.wordHints[index]) text.wordHints[index] = '';
-                }
-                text.hintTypes[index] = 'letters';
-            });
-            state.pendingWords = [];
-            state.pendingHintGroups = [];
-            saveData();
-            render();
-        }
-        
         function setPracticeMode(mode) {
             state.practiceMode = mode;
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
@@ -14373,11 +14403,10 @@ function getFirstLastLetters(word) {
             const isStudyModeHotkey =
                 e.key === '1' || e.key === '2' || e.key === '3' ||
                 e.key === '4' || e.key === '6';
-            if ((e.key === '1' || e.key === '2' || e.key === '3') && state.view === 'practice' && state.mode === 'edit' && state.pendingWords.length > 0) {
+            if ((e.key === '1' || e.key === '2') && state.view === 'practice' && state.mode === 'edit' && state.pendingWords.length > 0) {
                 e.preventDefault();
                 if (e.key === '1') applyBatchHide();
-                else if (e.key === '2') applyBatchHideLetters();
-                else if (e.key === '3') showBatchHintModal();
+                else showBatchHintModal();
                 return;
             }
             if (e.key === '6' && state.view === 'practice' && state.mode === 'edit') {
