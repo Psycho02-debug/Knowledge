@@ -1415,18 +1415,11 @@
             text-align: center;
         }
 
-        .practice-primary-row {
-            display: flex;
-            align-items: stretch;
-            gap: 8px;
-            width: 100%;
-        }
-
-        /* Вторичное действие: рамка вместо заливки, чтобы главная кнопка
-           оставалась главной. Стили статичные — ничего не анимируется. */
+        /* Та же форма и размер, что у главной кнопки, но рамка вместо заливки —
+           чтобы главное действие осталось главным. Стили статичные, без анимаций. */
         .practice-skip-btn {
-            flex: 0 0 auto;
-            padding: 17px 18px;
+            width: 100%;
+            padding: 16px;
             border: 1px solid var(--border-color);
             border-radius: 16px;
             background: none;
@@ -1435,7 +1428,6 @@
             font-weight: 700;
             font-family: inherit;
             cursor: pointer;
-            white-space: nowrap;
             transition: border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
         }
 
@@ -1449,8 +1441,6 @@
         }
 
         .practice-primary-btn {
-            flex: 1;
-            min-width: 0;
             width: 100%;
             padding: 17px;
             border: none;
@@ -1509,7 +1499,7 @@
                 padding-top: 10px;
                 padding-left: max(16px, env(safe-area-inset-left));
                 padding-right: max(16px, env(safe-area-inset-right));
-                padding-bottom: calc(74px + env(safe-area-inset-bottom));
+                padding-bottom: calc(88px + env(safe-area-inset-bottom));
                 max-width: 900px;
             }
 
@@ -1549,6 +1539,18 @@
             .practice-primary-btn {
                 flex: 1;
                 padding: 13px;
+            }
+
+            /* В альбомной ориентации все три кнопки встают в один ряд, иначе док
+               занимал бы больше четверти невысокого экрана. */
+            .practice-skip-btn {
+                flex: 0 1 auto;
+                width: auto;
+                padding: 13px 14px;
+                font-size: 14px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
 
             .practice-meta-row {
@@ -10544,13 +10546,9 @@ function getFirstLastLetters(word) {
                 state.practiceFocusEnabled &&
                 isPracticeFocusModeEnabled() &&
                 getUnrevealedFocusTargets(text).length > 1;
-            // Рядом с «Пропустить» места меньше, поэтому подпись короче — иначе
-            // главная кнопка переносится на две строки и док растёт по высоте.
             const primaryLabel = !progress || progress.total === 0
                 ? 'Нет скрытых слов'
-                : (progress.allRevealed
-                    ? '↺ Скрыть все слова'
-                    : (canFocusNext ? 'Открыть слово' : 'Открыть следующее слово'));
+                : (progress.allRevealed ? '↺ Скрыть все слова' : 'Открыть следующее слово');
 
             return `
                 ${getTermNavHeader(text)}
@@ -10620,12 +10618,10 @@ function getFirstLastLetters(word) {
                 ${isPracticeLayout ? `
                     <div class="practice-dock">
                         <div class="practice-dock-inner">
-                            <div class="practice-primary-row">
-                                <button class="practice-primary-btn" ${primaryAction ? `onclick="${primaryAction}"` : 'disabled'}>${primaryLabel}</button>
-                                ${canFocusNext ? `
-                                    <button class="practice-skip-btn" onclick="focusNextHiddenWord()" title="Фокус на следующем слове" aria-label="Фокус на следующем слове">Пропустить</button>
-                                ` : ''}
-                            </div>
+                            ${canFocusNext ? `
+                                <button class="practice-skip-btn" onclick="focusNextHiddenWord()" title="Перевести фокус на следующее слово, не открывая текущее">Фокус на следующем слове</button>
+                            ` : ''}
+                            <button class="practice-primary-btn" ${primaryAction ? `onclick="${primaryAction}"` : 'disabled'}>${primaryLabel}</button>
                             <div class="practice-nav-row">
                                 <button class="practice-nav-btn" onclick="navigateToTerm(-1)" ${!nav.hasPrev ? 'disabled' : ''}>‹</button>
                                 <span class="practice-nav-counter">${nav.current + 1}/${nav.total}</span>
