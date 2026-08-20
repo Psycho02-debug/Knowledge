@@ -6912,7 +6912,7 @@
             typeInputPreference: 'single',
             hintsRevealMode: 'full',
             practiceFocusWordIndex: null,
-            practiceFocusEnabled: true,
+            practiceFocusEnabled: false,
             lineCardFlipped: false,
             lineCardCueMode: 'letter',
             pendingDescriptionImport: null,
@@ -7454,8 +7454,15 @@ function getFirstLetterOnly(word) {
             // касание, поэтому без этой отсечки список из 25 терминов заново
             // проигрывал бы 25 анимаций на каждый тап — заметная работа GPU впустую.
             const renderSignature = state.view + '|' + state.mode;
-            app.classList.toggle('no-entry-anim', renderSignature === lastRenderSignature);
+            const isSameScreenUpdate = renderSignature === lastRenderSignature;
+            app.classList.toggle('no-entry-anim', isSameScreenUpdate);
             lastRenderSignature = renderSignature;
+
+            // DOM пересобирается целиком, из-за чего страница на миг становится
+            // короче и браузер сам сбрасывает прокрутку. Для обновления внутри
+            // того же экрана позицию нужно вернуть, иначе на длинном тексте
+            // после каждого открытого слова экран уезжал вверх.
+            const scrollBeforeRender = isSameScreenUpdate ? window.scrollY : 0;
 
             if (state.view === 'home') {
                 app.innerHTML = renderHomeView();
@@ -7502,6 +7509,12 @@ function getFirstLetterOnly(word) {
             }
             syncFlashcardTimer();
             syncDockSpacing();
+
+            // Возвращаем позицию сразу после пересборки DOM, до отрисовки кадра,
+            // чтобы возврат не был заметен глазу.
+            if (isSameScreenUpdate && scrollBeforeRender > 0 && window.scrollY !== scrollBeforeRender) {
+                window.scrollTo(0, scrollBeforeRender);
+            }
         }
 
         // Нижние панели закреплены поверх контента, поэтому контейнер должен
@@ -10296,18 +10309,7 @@ function getFirstLetterOnly(word) {
                 <div class="header">
                     <button class="back-btn" onclick="goBackToChooser()">← Назад</button>
                     <h1>${text.title}</h1>
-                    ${isPracticeFocusModeEnabled() ? `
-                        <button onclick="togglePracticeFocusMode()" title="${state.practiceFocusEnabled ? 'Выйти из режима фокуса' : 'Включить режим фокуса'}"
-                            style="width:36px;height:36px;border-radius:50%;flex-shrink:0;
-                                   background:${state.practiceFocusEnabled ? 'rgba(181,204,113,0.15)' : 'none'};
-                                   border:1px solid ${state.practiceFocusEnabled ? 'var(--accent-primary)' : 'transparent'};
-                                   font-size:20px;cursor:pointer;
-                                   display:inline-flex;align-items:center;justify-content:center;
-                                   transition:border-color 0.2s,background 0.2s;
-                                   box-shadow:${state.practiceFocusEnabled ? '0 0 0 3px rgba(181,204,113,0.2)' : 'none'};">
-                            👁️
-                        </button>
-                    ` : `<div style="width:36px;"></div>`}
+                    <div style="width:36px;"></div>
                 </div>
             `;
         }
@@ -10330,24 +10332,17 @@ function getFirstLetterOnly(word) {
                  state.practiceMode === 'firstletter' || state.practiceMode === 'hints');
         }
 
+        // Фокус выключен, пока пользователь сам не включит его кнопкой
+        // «Фокус на следующем слове». При смене материала или режима
+        // возвращаемся в это же исходное состояние.
         function clearPracticeFocus() {
             state.practiceFocusWordIndex = null;
-            state.practiceFocusEnabled = true;
+            state.practiceFocusEnabled = false;
         }
 
         function exitPracticeFocusMode() {
             state.practiceFocusEnabled = false;
             state.practiceFocusWordIndex = null;
-        }
-
-        function togglePracticeFocusMode() {
-            if (state.practiceFocusEnabled) {
-                exitPracticeFocusMode();
-            } else {
-                state.practiceFocusEnabled = true;
-                state.practiceFocusWordIndex = null;
-            }
-            render();
         }
 
         function isFocusTargetFullyRevealed(text, index) {
@@ -10356,50 +10351,54 @@ function getFirstLetterOnly(word) {
             return targetIndexes.every(t => text.revealedWords.includes(t));
         }
 
-        function cyclePracticeFocus() {
-            if (!isPracticeFocusModeEnabled() || !state.practiceFocusEnabled || state.currentText === null || state.currentFolder === null) return false;
-            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
-            const hiddenSorted = getRenderableHiddenIndices(text);
-            if (!hiddenSorted.length) return false;
-            const currentPos = hiddenSorted.indexOf(state.practiceFocusWordIndex);
-            const nextPos = currentPos === -1 ? 0 : (currentPos + 1) % hiddenSorted.length;
-            state.practiceFocusWordIndex = hiddenSorted[nextPos];
-            render();
-            return true;
-        }
-
         function getUnrevealedFocusTargets(text) {
             return getRenderableHiddenIndices(text).filter(idx => !isFocusTargetFullyRevealed(text, idx));
         }
 
-        // Перевести фокус на следующее ЕЩЁ НЕ ОТКРЫТОЕ слово, не раскрывая текущее.
-        // Отличается от cyclePracticeFocus (стрелка вниз), который идёт по всем
-        // скрытым словам подряд, включая уже открытые: для кнопки полезнее
-        // пропускать пройденное и вести к тому, что осталось вспомнить.
+        // Включает режим фокуса (если он выключен) и ведёт по ещё не открытым
+        // словам по порядку, не раскрывая их. Уже пройденные слова пропускаются:
+        // фокус нужен для того, что осталось вспомнить.
         function focusNextHiddenWord() {
-            if (!isPracticeFocusModeEnabled() || !state.practiceFocusEnabled) return false;
+            if (!isPracticeFocusModeEnabled()) return false;
             if (state.currentText === null || state.currentFolder === null) return false;
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             const targets = getUnrevealedFocusTargets(text);
-            if (targets.length < 2) return false;
-            const currentPos = targets.indexOf(state.practiceFocusWordIndex);
-            const nextPos = currentPos === -1 ? 0 : (currentPos + 1) % targets.length;
-            state.practiceFocusWordIndex = targets[nextPos];
+            if (!targets.length) return false;
+
+            // Первое нажатие включает режим фокуса и подсвечивает первое ещё не
+            // открытое слово; дальше кнопка ведёт по словам по порядку.
+            if (!state.practiceFocusEnabled) {
+                state.practiceFocusEnabled = true;
+                state.practiceFocusWordIndex = targets[0];
+            } else {
+                if (targets.length < 2) return false;
+                const currentPos = targets.indexOf(state.practiceFocusWordIndex);
+                const nextPos = currentPos === -1 ? 0 : (currentPos + 1) % targets.length;
+                state.practiceFocusWordIndex = targets[nextPos];
+            }
             render();
             scrollToFocusedWord();
             return true;
         }
 
+        // Подтягиваем экран к слову ТОЛЬКО вниз и только если слово скрылось за
+        // нижней панелью. Вверх не двигаем никогда: раньше здесь был
+        // scrollIntoView({block:'center'}), из-за которого экран уезжал вверх —
+        // например, когда фокус после последнего слова возвращался к началу текста.
+        function scrollWordIntoViewIfBelow(el) {
+            if (!el) return;
+            const dock = document.querySelector('.practice-dock');
+            const dockTop = dock ? dock.getBoundingClientRect().top : window.innerHeight;
+            const rect = el.getBoundingClientRect();
+            const safeBottom = dockTop - 12;
+            if (rect.bottom <= safeBottom) return;
+            const delta = rect.bottom - safeBottom;
+            window.scrollBy({ top: delta, behavior: 'smooth' });
+        }
+
         function scrollToFocusedWord() {
             requestAnimationFrame(() => {
-                const el = document.querySelector('.word.practice-focus-active');
-                if (!el) return;
-                const dock = document.querySelector('.practice-dock');
-                const dockTop = dock ? dock.getBoundingClientRect().top : window.innerHeight;
-                const rect = el.getBoundingClientRect();
-                if (rect.top < 0 || rect.bottom > dockTop - 12) {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
+                scrollWordIntoViewIfBelow(document.querySelector('.word.practice-focus-active'));
             });
         }
 
@@ -10590,10 +10589,13 @@ function getFirstLetterOnly(word) {
                 : (progress.allRevealed ? 'toggleAllWordsReveal()' : 'revealNextWordAndScroll()');
             // Кнопка нужна, только когда фокус включён и есть куда переходить:
             // минимум два ещё не открытых слова, иначе перескакивать не на что.
+            // Пока фокус выключен, кнопка нужна, чтобы его включить — хватает одного
+            // неоткрытого слова. Когда включён, она ведёт дальше по списку, поэтому
+            // осмысленна только если есть куда переходить.
+            const unrevealedCount = isPracticeLayout ? getUnrevealedFocusTargets(text).length : 0;
             const canFocusNext = isPracticeLayout &&
-                state.practiceFocusEnabled &&
                 isPracticeFocusModeEnabled() &&
-                getUnrevealedFocusTargets(text).length > 1;
+                (state.practiceFocusEnabled ? unrevealedCount > 1 : unrevealedCount > 0);
             const primaryLabel = !progress || progress.total === 0
                 ? 'Нет скрытых слов'
                 : (progress.allRevealed ? '↺ Скрыть все слова' : 'Открыть следующее слово');
@@ -12751,6 +12753,8 @@ function getFirstLetterOnly(word) {
             state.mode = mode;
             state.pendingWords = [];
             state.pendingHintGroups = [];
+            // Открывая материал, начинаем без фокуса — включит кнопка.
+            clearPracticeFocus();
             if (practiceSubMode === 'combined') {
                 practiceSubMode = 'default';
             }
@@ -13134,6 +13138,8 @@ function getFirstLetterOnly(word) {
                 state.questionsCardFlipped = false;
             }
             render();
+            // Это другой материал, а не обновление текущего: начинаем сверху.
+            window.scrollTo(0, 0);
             if (currentMode === 'type') {
                 focusPreferredTypeField();
             }
@@ -14298,14 +14304,7 @@ function getFirstLetterOnly(word) {
                 const sorted = getRenderableHiddenIndices(text);
                 const nextIdx = sorted.find(idx => !text.revealedWords.includes(idx));
                 if (nextIdx === undefined) return;
-                const el = document.querySelector('[data-widx="' + nextIdx + '"]');
-                if (!el) return;
-                const dock = document.querySelector('.practice-dock');
-                const dockTop = dock ? dock.getBoundingClientRect().top : window.innerHeight;
-                const rect = el.getBoundingClientRect();
-                if (rect.top < 0 || rect.bottom > dockTop - 12) {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
+                scrollWordIntoViewIfBelow(document.querySelector('[data-widx="' + nextIdx + '"]'));
             });
         }
 
@@ -14499,9 +14498,9 @@ function getFirstLetterOnly(word) {
                     render();
                     return;
                 }
-                if (e.key === 'ArrowDown' && !e.repeat && isPracticeFocusModeEnabled() && state.practiceFocusEnabled) {
+                if (e.key === 'ArrowDown' && !e.repeat && isPracticeFocusModeEnabled()) {
                     e.preventDefault();
-                    if (cyclePracticeFocus()) return;
+                    if (focusNextHiddenWord()) return;
                 }
                 if (e.key === 'Shift' && !e.repeat && isPracticeFocusModeEnabled() && state.practiceFocusWordIndex !== null) {
                     e.preventDefault();
