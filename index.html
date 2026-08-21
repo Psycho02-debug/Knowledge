@@ -1958,6 +1958,12 @@
             box-shadow: var(--shadow-accent-sm);
         }
 
+        /* Подтверждение копирования: статичная смена цвета, без анимаций. */
+        .btn-save.is-done {
+            background: var(--accent-primary);
+            color: #232b12;
+        }
+
         .btn-save:hover {
             box-shadow: var(--shadow-accent-md);
         }
@@ -13254,10 +13260,30 @@ function getFirstLetterOnly(word) {
             const exported = buildProcessedMaterialExport(text);
             const ok = await copyPlainTextToClipboard(exported);
             if (ok) {
-                alert('Материал скопирован целиком — название и обработанное описание. Отправьте этот текст (например, через Telegram) и вставьте его в поле «Название материала» или «Описание материала» на другом устройстве — всё распределится по нужным полям автоматически.');
+                // Подтверждаем прямо на кнопке, а не модальным окном: оно перекрывало
+                // текст и требовало лишнего нажатия «Закрыть» на каждое копирование.
+                flashCopyButtonDone();
             } else {
+                // Здесь окно оправдано: копирование не удалось, и текст нужно
+                // показать, чтобы его можно было выделить и скопировать вручную.
                 prompt('Не удалось скопировать автоматически. Скопируйте текст вручную:', exported);
             }
+        }
+
+        let copyButtonResetTimer = null;
+        function flashCopyButtonDone() {
+            const btn = document.querySelector('.action-btn.btn-save');
+            if (!btn) return;
+            if (copyButtonResetTimer !== null) clearTimeout(copyButtonResetTimer);
+            btn.textContent = '✓ Скопировано';
+            btn.classList.add('is-done');
+            copyButtonResetTimer = setTimeout(() => {
+                copyButtonResetTimer = null;
+                const liveBtn = document.querySelector('.action-btn.btn-save.is-done');
+                if (!liveBtn) return;
+                liveBtn.textContent = 'Скопировать материал';
+                liveBtn.classList.remove('is-done');
+            }, 1800);
         }
 
         function parseProcessedDescriptionImport(rawText) {
