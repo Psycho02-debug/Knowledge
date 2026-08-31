@@ -1617,6 +1617,15 @@
             text-align: center;
         }
 
+        /* Слово, которое нужно вписать прямо сейчас. Класс проставлялся, но стиля
+           у него не было — на экране никак не было видно, на каком ты слове. */
+        .word.hidden-word.focused {
+            background: var(--accent-primary);
+            color: #232b12;
+            font-weight: 800;
+            box-shadow: 0 0 0 3px var(--accent-primary);
+        }
+
         .word.hidden-word.has-custom-hint {
             background: var(--gradient-orange);
             font-style: italic;
@@ -1703,11 +1712,16 @@
             gap: 10px;
         }
 
+        /* Внутри дока пейджер — обычный блок, собственный фон и рамка ему не нужны:
+           фон уже даёт сам док. */
         .edit-dock .term-nav-inline {
             position: static;
             bottom: auto;
             left: auto;
             right: auto;
+            padding: 0;
+            background: none;
+            border-top: none;
         }
 
         .edit-dock-batch {
@@ -2514,9 +2528,15 @@
             justify-content: center;
             gap: 12px;
             position: fixed;
-            bottom: 30px;
+            bottom: 0;
             left: 0;
             right: 0;
+            /* Пейджер закреплён поверх контента; без фона текст просвечивал
+               сквозь него и читался как каша. Фон непрозрачный — размытие
+               подложки стоило бы постоянной работы GPU при прокрутке. */
+            padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+            background: var(--bg-app-solid);
+            border-top: 1px solid var(--border-color);
         }
 
         .term-nav-btn-inline {
@@ -2633,6 +2653,16 @@
             margin-bottom: 12px;
             display: flex;
             justify-content: space-between;
+            align-items: baseline;
+            gap: 12px;
+        }
+
+        /* Счётчик не должен слипаться с длинной подписью слева. */
+        .type-input-label > span:last-child {
+            flex: 0 0 auto;
+            white-space: nowrap;
+            color: var(--text-tertiary);
+            font-weight: 600;
         }
         .type-input-field {
             width: 100%;
@@ -2687,6 +2717,84 @@
             font-size: 13px;
             color: var(--text-tertiary);
         }
+
+        /* Полоса прогресса ввода — та же логика, что в режиме практики. */
+        .type-progress-track {
+            height: 6px;
+            border-radius: 4px;
+            background: var(--bg-badge);
+            overflow: hidden;
+            margin-bottom: 14px;
+        }
+
+        .type-progress-fill {
+            height: 100%;
+            background: var(--gradient-primary);
+            border-radius: 4px;
+            transition: width 0.25s ease;
+        }
+
+        /* Подсказка «какое слово вводить сейчас» — сразу над полем, чтобы
+           не приходилось искать нужное место в карточке глазами. */
+        .type-current-hint {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .type-current-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .type-current-chip {
+            padding: 6px 12px;
+            border-radius: 10px;
+            background: var(--accent-primary);
+            color: #232b12;
+            font-size: 15px;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+
+        .type-feedback {
+            margin-bottom: 12px;
+            font-size: 13.5px;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        .type-feedback.wrong {
+            color: var(--accent-wrong-text);
+        }
+
+        .type-check-btn {
+            width: 100%;
+            margin-top: 10px;
+            padding: 14px;
+            border: none;
+            border-radius: 14px;
+            background: var(--gradient-primary);
+            color: var(--accent-on-strong);
+            font-size: 15px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            transition: transform 0.15s ease;
+        }
+
+        .type-check-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* Пейджер закреплён внизу поверх контента и перекрывал поле ввода —
+           оставляем под него место. */
+        .container.type-shell {
+            padding-bottom: calc(150px + env(safe-area-inset-bottom));
+        }
         .type-word-num {
             background: var(--accent-strong);
             color: var(--accent-on-strong);
@@ -2721,6 +2829,16 @@
             margin-bottom: 12px;
             display: flex;
             justify-content: space-between;
+            align-items: baseline;
+            gap: 12px;
+        }
+
+        /* Счётчик не должен слипаться с длинной подписью слева. */
+        .type-input-label > span:last-child {
+            flex: 0 0 auto;
+            white-space: nowrap;
+            color: var(--text-tertiary);
+            font-weight: 600;
         }
         .type-input-field {
             width: 100%;
@@ -7609,22 +7727,22 @@ function getFirstLetterOnly(word) {
                 return '<span class="word">' + escapeHtml(word) + '</span>';
             }).join('');
 
-            const confirmedWords = hiddenSorted
-                .slice(0, Math.min(ts.currentIndex, hiddenSorted.length))
-                .map(index => words[index]);
-            const singleTokensHtml = confirmedWords.length > 0 || ts.singleWrongWord
-                ? `
-                    <div class="type-token-list">
-                        ${confirmedWords.map(word => `<span class="type-token correct">${escapeHtml(word)}</span>`).join('')}
-                        ${ts.singleWrongWord ? `<span class="type-token wrong">${escapeHtml(ts.singleWrongWord)}</span>` : ''}
-                    </div>
-                `
-                : '<div class="type-token-empty">Можно вводить по одному слову или сразу несколько по порядку.</div>';
+            // Список уже введённых слов убран: он дословно повторял зелёные слова
+            // в карточке выше и занимал под 200px, из-за чего второе поле ввода
+            // уходило за нижний край экрана. Вместо него — подсказка, какое слово
+            // вводить сейчас, и сообщение об ошибке, если слово не совпало.
+            const currentTargetIndex = hiddenSorted[ts.currentIndex];
+            const currentHintText = currentTargetIndex !== undefined
+                ? String(getTypeModeHiddenWordDisplay(text, words, currentTargetIndex).text)
+                : '';
+            const singleTokensHtml = ts.singleWrongWord
+                ? `<div class="type-feedback wrong">Не совпало: «${escapeHtml(ts.singleWrongWord)}». Попробуйте ещё раз.</div>`
+                : '';
             const bulkInputClass = 'type-input-field' + (ts.bulkAnswered ? (ts.bulkIsCorrect ? ' correct' : ' wrong') : '');
 
             return `
                 ${getTermNavHeader(text)}
-                <div class="container">
+                <div class="container type-shell">
                     ${modeButtons}
                     <div class="practice-mode-toggle">
                         <button class="practice-mode-btn ${state.typeDisplayMode === 'default' ? 'active' : ''}" onclick="setTypeDisplayMode('default')">???</button>
@@ -7638,17 +7756,28 @@ function getFirstLetterOnly(word) {
                             <span>Ввод по порядку</span>
                             <span>${ts.currentIndex} / ${hiddenSorted.length}</span>
                         </div>
+                        <div class="type-progress-track"><div class="type-progress-fill" style="width:${hiddenSorted.length ? Math.round(ts.currentIndex / hiddenSorted.length * 100) : 0}%"></div></div>
+                        ${currentTargetIndex !== undefined ? `
+                            <div class="type-current-hint">
+                                <span class="type-current-label">Сейчас слово ${ts.currentIndex + 1}</span>
+                                <span class="type-current-chip">${escapeHtml(currentHintText)}</span>
+                            </div>
+                        ` : ''}
                         ${singleTokensHtml}
-                        <input type="text" 
-                            class="type-input-field" 
+                        <input type="text"
+                            class="type-input-field"
                             id="typeInputField"
-                            placeholder="Введите одно или несколько скрытых слов по порядку..."
+                            placeholder="Введите слово и нажмите Enter"
                             value="${escapeHtmlAttr(ts.value)}"
                             onfocus="rememberTypeInputMode('single')"
                             oninput="handleTypeSequenceInput(this.value)"
                             onkeydown="if(event.key==='Enter') checkTypeWord()"
                             autocomplete="off"
+                            autocapitalize="off"
+                            autocorrect="off"
+                            spellcheck="false"
                             >
+                        <button class="type-check-btn" onclick="checkTypeWord()">Проверить</button>
                     </div>
 
                     <div class="type-input-wrap active">
@@ -7754,15 +7883,21 @@ function getFirstLetterOnly(word) {
             rememberTypeInputMode('single');
             const targetWords = hiddenSorted.map(index => normalizeTypeWord(words[index]));
             const userWords = rawInput.split(/\s+/);
+            // Проверяем ПРОДОЛЖЕНИЕ с уже достигнутой позиции, а не весь список
+            // с начала. Раньше сравнение всегда шло от нулевого слова, поэтому
+            // приходилось держать в поле все ранее введённые слова — из-за этого
+            // строка и разрасталась до нечитаемой.
+            const startIndex = ts.currentIndex;
             let matchedCount = 0;
             let wrongWord = '';
 
             for (let i = 0; i < userWords.length; i++) {
-                if (i >= targetWords.length) {
+                const targetPos = startIndex + i;
+                if (targetPos >= targetWords.length) {
                     wrongWord = userWords[i];
                     break;
                 }
-                if (normalizeTypeWord(userWords[i]) === targetWords[i]) {
+                if (normalizeTypeWord(userWords[i]) === targetWords[targetPos]) {
                     matchedCount++;
                 } else {
                     wrongWord = userWords[i];
@@ -7770,11 +7905,11 @@ function getFirstLetterOnly(word) {
                 }
             }
 
-            ts.currentIndex = matchedCount;
+            ts.currentIndex = startIndex + matchedCount;
             ts.singleWrongWord = wrongWord;
-            if (!wrongWord && matchedCount > 0 && matchedCount < hiddenSorted.length) {
-                ts.value = userWords.slice(0, matchedCount).join(' ') + ' ';
-            }
+            // В поле оставляем только то, что не засчитано: подтверждённые слова
+            // и так видны в карточке зелёными, дублировать их незачем.
+            ts.value = wrongWord ? wrongWord : '';
             ts.answered = false;
             ts.isCorrect = false;
             ts.bulkAnswered = false;
