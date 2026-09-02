@@ -1648,6 +1648,17 @@
            мгновенно. Здесь раньше стоял ещё и filter: saturate()/brightness(), но
            filter — это отдельный проход отрисовки на КАЖДОЕ слово (а их в тексте
            бывает под сотню). Одной opacity достаточно, и она в разы дешевле. */
+        /* Слово, которое откроется следующим по кнопке. Видно всегда, даже когда
+           режим фокуса выключен, — иначе после каждого открытого слова непонятно,
+           какое из оставшихся будет следующим. Подсветка статичная: цвет и кольцо,
+           без пульсации, которая означала бы непрерывную работу GPU. */
+        .word.hidden-word.next-reveal {
+            background: var(--accent-primary);
+            color: #232b12;
+            font-weight: 800;
+            box-shadow: 0 0 0 3px var(--accent-primary);
+        }
+
         /* Приглушаем ТОЛЬКО ещё не открытые чипы. Обычный текст и уже открытые
            слова остаются в полную яркость — иначе по мере раскрытия читать
            становилось нечего, весь смысл терялся. Активное слово выделяется не
@@ -10548,8 +10559,10 @@ function getFirstLetterOnly(word) {
             });
         }
 
-        function renderPracticeHiddenWord(displayText, extraClassName, wordIndex, isPracticeFocusWord) {
-            const className = ['word', 'hidden-word', extraClassName, isPracticeFocusWord ? 'practice-focus-active' : '']
+        function renderPracticeHiddenWord(displayText, extraClassName, wordIndex, isPracticeFocusWord, isNextReveal) {
+            const className = ['word', 'hidden-word', extraClassName,
+                isPracticeFocusWord ? 'practice-focus-active' : '',
+                isNextReveal ? 'next-reveal' : '']
                 .filter(Boolean)
                 .join(' ');
             return `<span class="${className}" data-widx="${wordIndex}" onclick="revealWord(${wordIndex})"><span class="word-hidden-label">${escapeHtml(String(displayText))}</span></span>`;
@@ -10602,6 +10615,13 @@ function getFirstLetterOnly(word) {
                 state.practiceFocusWordIndex = null;
             }
             const isPracticeFocusActive = isPracticeFocusModeEnabled() && focusableHiddenSorted.includes(state.practiceFocusWordIndex);
+            // Слово, которое откроется следующим по кнопке. Подсвечиваем его всегда,
+            // а не только в режиме фокуса: иначе после открытия очередного слова
+            // было непонятно, какое из оставшихся будет следующим. Если режим фокуса
+            // включён, ведущим считается он — двух подсветок сразу быть не должно.
+            const nextRevealIndex = state.mode === 'practice' && !isPracticeFocusActive
+                ? focusableHiddenSorted.find(idx => !isFocusTargetFullyRevealed(text, idx))
+                : undefined;
             const practiceParts = [];
             const suppressedIndexes = new Set();
 
@@ -10701,9 +10721,9 @@ function getFirstLetterOnly(word) {
                         displayHint = seqNum;
                         hintClass = '';
                     }
-                    practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass, i, isPracticeFocusWord));
+                    practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass, i, isPracticeFocusWord, i === nextRevealIndex));
                 } else if (isMarked && isHalfRevealed && !isRevealed) {
-                    practiceParts.push(renderPracticeHiddenWord(getFirstLastLetters(word), 'has-letters', i, isPracticeFocusWord));
+                    practiceParts.push(renderPracticeHiddenWord(getFirstLastLetters(word), 'has-letters', i, isPracticeFocusWord, i === nextRevealIndex));
                 } else if (isMarked && isRevealed) {
                     practiceParts.push(`<span class="word revealed${isPracticeFocusWord ? ' practice-focus-active' : ''}" onclick="hideWordAgain(${i})">${escapeHtml(word)}</span>`);
                 } else {
