@@ -14642,7 +14642,8 @@ function getFirstLetterOnly(word) {
                 shuffleVisibleTexts();
                 return;
             }
-            if (e.key === ']' || e.key === 'х' || e.key === 'Х' || e.key === 'ъ' || e.key === 'Ъ') {
+            if (e.key === ']' || e.key === 'х' || e.key === 'Х' || e.key === 'ъ' || e.key === 'Ъ' ||
+                e.key === '`' || e.key === 'ё' || e.key === 'Ё') {
                 e.preventDefault();
                 if (state.view === 'folders') {
                     showFolderModal();
@@ -14650,8 +14651,14 @@ function getFirstLetterOnly(word) {
                     showFlashcardFolderModal();
                 } else if (state.view === 'card_folder' || state.view === 'card_study') {
                     showFlashcardModal();
-                } else if (state.view === 'texts' || state.view === 'term_chooser' || state.view === 'practice') {
+                } else if (state.view === 'texts') {
                     showTextModal();
+                } else if ((state.view === 'term_chooser' || state.view === 'practice' || state.view === 'type') &&
+                           state.currentText !== null) {
+                    // Мы уже внутри конкретного материала — логичнее открыть его на
+                    // редактирование, а не создавать новый. Создание осталось за
+                    // экраном списка материалов.
+                    showEditTextModal();
                 } else if (state.view === 'home' || state.view === 'learning' || state.view === 'stats' || state.view === 'profile' || state.view === 'shared') {
                     showLearningCreateModal();
                 }
