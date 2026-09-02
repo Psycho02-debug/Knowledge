@@ -1721,6 +1721,23 @@
                         0 0 1.2em rgba(255, 106, 0, 0.28);
         }
 
+        /* Пока подсветка следующего слова активна, остальные скрытые чипы слегка
+           уводим назад. Это НЕ режим фокуса: там соседи гасятся до 0.34, чтобы
+           остался ровно один читаемый чип. Здесь задача мягче — просто отделить
+           «следующее» от «всех прочих», поэтому затухание едва заметное и цифры
+           на чипах остаются спокойно читаемыми.
+
+           Класс висит на карточке, а не на каждом чипе: состояние появляется
+           только когда подсветке есть на что указывать. Когда все слова открыты,
+           гасить нечего и правило само перестаёт применяться.
+
+           Уже открытые слова (.revealed) под селектор не попадают намеренно —
+           по мере раскрытия текст должен оставаться в полную яркость, иначе
+           читать становится нечего. */
+        .text-display.next-highlight-mode .word.hidden-word:not(.next-reveal) {
+            opacity: 0.72;
+        }
+
         /* Приглушаем ТОЛЬКО ещё не открытые чипы. Обычный текст и уже открытые
            слова остаются в полную яркость — иначе по мере раскрытия читать
            становилось нечего, весь смысл терялся. Активное слово выделяется не
@@ -10965,7 +10982,7 @@ function getFirstLetterOnly(word) {
                     `}
 
                     ${text.image ? `<div style="text-align:center;margin-bottom:12px;"><img src="${text.image}" loading="lazy" decoding="async" style="max-width:100%;max-height:150px;border-radius:12px;object-fit:cover;"></div>` : ''}
-                    <div class="text-display-row"><div class="text-display ${sizeClass}${isPracticeFocusActive ? ' practice-focus-mode' : ''}" style="${fitStyle}"><div class="text-display-inner">${practiceParts.join('')}</div></div></div>
+                    <div class="text-display-row"><div class="text-display ${sizeClass}${isPracticeFocusActive ? ' practice-focus-mode' : ''}${nextRevealIndex !== undefined ? ' next-highlight-mode' : ''}" style="${fitStyle}"><div class="text-display-inner">${practiceParts.join('')}</div></div></div>
 
                     ${isPracticeLayout ? '' : `
                         <div class="action-buttons">
