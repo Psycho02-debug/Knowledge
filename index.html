@@ -1360,9 +1360,15 @@
 
         .practice-progress-fill {
             height: 100%;
+            width: 100%;
+            transform-origin: left center;
             background: var(--gradient-primary);
             border-radius: 4px;
-            transition: width 0.3s ease;
+            /* Полоса растягивается transform-ом, а не шириной: изменение width
+               заставляет браузер пересчитывать раскладку на каждом кадре анимации,
+               а transform выполняется видеокартой отдельным слоем и вёрстку не
+               трогает. Полоса практики обновляется на каждое открытое слово. */
+            transition: transform 0.3s ease;
         }
 
         .practice-progress-label {
@@ -2503,9 +2509,11 @@
 
         .quiz-progress-bar-fill {
             height: 100%;
+            width: 100%;
+            transform-origin: left center;
             background: var(--gradient-primary);
             border-radius: 3px;
-            transition: width 0.4s ease;
+            transition: transform 0.4s ease;
         }
 
         .quiz-progress {
@@ -2745,9 +2753,11 @@
 
         .type-progress-fill {
             height: 100%;
+            width: 100%;
+            transform-origin: left center;
             background: var(--gradient-primary);
             border-radius: 4px;
-            transition: width 0.25s ease;
+            transition: transform 0.25s ease;
         }
 
         /* Подсказка «какое слово вводить сейчас» — сразу над полем, чтобы
@@ -7579,6 +7589,87 @@ function getFirstLetterOnly(word) {
             };
         }
         
+        // ——— Точечное обновление DOM вместо полной пересборки ———
+        // Присваивание innerHTML уничтожает и заново создаёт каждый узел, поэтому
+        // браузер заново разрешает стили для всего поддерева. На длинном тексте это
+        // 600+ элементов и около 70% времени кадра, хотя при открытии одного слова
+        // реально меняются два-три чипа. Здесь новая разметка собирается в
+        // отсоединённом шаблоне — он не участвует в вёрстке и потому почти
+        // бесплатен, — а в живой документ переносятся только отличия.
+
+        function syncElementAttributes(oldEl, newEl) {
+            const incoming = newEl.attributes;
+            for (let i = 0; i < incoming.length; i++) {
+                const attr = incoming[i];
+                // Запись даже одинакового значения помечает элемент грязным и тянет
+                // за собой пересчёт стилей, поэтому пишем только при отличии.
+                if (oldEl.getAttribute(attr.name) !== attr.value) {
+                    oldEl.setAttribute(attr.name, attr.value);
+                }
+            }
+            const existing = oldEl.attributes;
+            for (let i = existing.length - 1; i >= 0; i--) {
+                const name = existing[i].name;
+                if (!newEl.hasAttribute(name)) oldEl.removeAttribute(name);
+            }
+            // У полей ввода значение живёт в свойстве, а не в атрибуте: после
+            // первого же ввода они расходятся, и правку атрибута пользователь бы
+            // не увидел.
+            const tag = oldEl.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+                if (oldEl.value !== newEl.value) oldEl.value = newEl.value;
+                if (tag === 'INPUT' && oldEl.checked !== newEl.checked) {
+                    oldEl.checked = newEl.checked;
+                }
+            }
+        }
+
+        function patchChildNodes(oldParent, newParent) {
+            const oldKids = oldParent.childNodes;
+            const newKids = newParent.childNodes;
+            // Разное число детей означает, что структура изменилась. Пересобрать
+            // это поддерево целиком дешевле и надёжнее, чем угадывать соответствие.
+            if (oldKids.length !== newKids.length) {
+                oldParent.innerHTML = newParent.innerHTML;
+                return;
+            }
+            for (let i = 0; i < oldKids.length; i++) {
+                const oldNode = oldKids[i];
+                const newNode = newKids[i];
+                if (oldNode.nodeType !== newNode.nodeType ||
+                    (oldNode.nodeType === 1 && oldNode.tagName !== newNode.tagName)) {
+                    oldParent.replaceChild(newNode.cloneNode(true), oldNode);
+                    continue;
+                }
+                if (oldNode.nodeType === 3 || oldNode.nodeType === 8) {
+                    if (oldNode.nodeValue !== newNode.nodeValue) {
+                        oldNode.nodeValue = newNode.nodeValue;
+                    }
+                    continue;
+                }
+                if (oldNode.nodeType !== 1) continue;
+                syncElementAttributes(oldNode, newNode);
+                patchChildNodes(oldNode, newNode);
+            }
+        }
+
+        // canPatch включаем только для повторной отрисовки того же экрана: при входе
+        // на экран разметка собирается начисто, так что сравнивать не с чем.
+        function setAppHtml(container, html, canPatch) {
+            if (!canPatch || !container.firstChild) {
+                container.innerHTML = html;
+                return;
+            }
+            try {
+                const staging = document.createElement('template');
+                staging.innerHTML = html;
+                patchChildNodes(container, staging.content);
+            } catch (err) {
+                // Любая неожиданность — возвращаемся к заведомо рабочему пути.
+                container.innerHTML = html;
+            }
+        }
+
         function render() {
             if (document.hidden) {
                 renderQueuedWhileHidden = true;
@@ -7604,48 +7695,54 @@ function getFirstLetterOnly(word) {
             // после каждого открытого слова экран уезжал вверх.
             const scrollBeforeRender = isSameScreenUpdate ? window.scrollY : 0;
 
+            // Экран «Материалы» после отрисовки навешивает обработчики свайпа и
+            // перетаскивания на конкретные узлы. Точечное обновление сохраняет узлы
+            // живыми, и обработчики навесились бы на них повторно, поэтому этот
+            // экран собираем по-старому. Остальные экраны — чистая разметка.
+            const canPatchDom = isSameScreenUpdate && state.view !== 'texts';
+
             if (state.view === 'home') {
-                app.innerHTML = renderHomeView();
+                setAppHtml(app, renderHomeView(), canPatchDom);
             } else if (state.view === 'learning') {
-                app.innerHTML = renderLearningHubView();
+                setAppHtml(app, renderLearningHubView(), canPatchDom);
             } else if (state.view === 'shared') {
-                app.innerHTML = renderSharedView();
+                setAppHtml(app, renderSharedView(), canPatchDom);
             } else if (state.view === 'profile') {
-                app.innerHTML = renderProfileView();
+                setAppHtml(app, renderProfileView(), canPatchDom);
             } else if (state.view === 'stats') {
-                app.innerHTML = renderStatsView();
+                setAppHtml(app, renderStatsView(), canPatchDom);
             } else if (state.view === 'folders') {
-                app.innerHTML = renderFoldersView();
+                setAppHtml(app, renderFoldersView(), canPatchDom);
             } else if (state.view === 'card_folders') {
-                app.innerHTML = renderFlashcardFoldersView();
+                setAppHtml(app, renderFlashcardFoldersView(), canPatchDom);
             } else if (state.view === 'card_folder') {
-                app.innerHTML = renderFlashcardFolderView();
+                setAppHtml(app, renderFlashcardFolderView(), canPatchDom);
             } else if (state.view === 'card_study') {
-                app.innerHTML = renderFlashcardStudyView();
+                setAppHtml(app, renderFlashcardStudyView(), canPatchDom);
             } else if (state.view === 'course_folders') {
-                app.innerHTML = renderCourseFoldersView();
+                setAppHtml(app, renderCourseFoldersView(), canPatchDom);
             } else if (state.view === 'course_folder') {
-                app.innerHTML = renderCourseFolderView();
+                setAppHtml(app, renderCourseFolderView(), canPatchDom);
             } else if (state.view === 'course_lesson_edit') {
-                app.innerHTML = renderCourseLessonEditView();
+                setAppHtml(app, renderCourseLessonEditView(), canPatchDom);
             } else if (state.view === 'course_lesson') {
-                app.innerHTML = renderCourseLessonView();
+                setAppHtml(app, renderCourseLessonView(), canPatchDom);
             } else if (state.view === 'texts') {
-                app.innerHTML = renderTextsView();
+                setAppHtml(app, renderTextsView(), canPatchDom);
                 if (HAS_TOUCH_INPUT) initTermCardSwipe();
                 if (textsViewEntriesCache.length > 1) initDragReorder();
             } else if (state.view === 'term_chooser') {
-                app.innerHTML = renderChooserView();
+                setAppHtml(app, renderChooserView(), canPatchDom);
             } else if (state.view === 'type') {
-                app.innerHTML = renderTypeView();
+                setAppHtml(app, renderTypeView(), canPatchDom);
             } else if (state.view === 'practice') {
-                app.innerHTML = renderPracticeView();
+                setAppHtml(app, renderPracticeView(), canPatchDom);
             } else if (state.view === 'keys_edit') {
                 state.view = 'term_chooser';
-                app.innerHTML = renderChooserView();
+                setAppHtml(app, renderChooserView(), canPatchDom);
             } else if (state.view === 'keys') {
                 state.view = 'term_chooser';
-                app.innerHTML = renderChooserView();
+                setAppHtml(app, renderChooserView(), canPatchDom);
             }
             syncFlashcardTimer();
             syncDockSpacing();
@@ -7667,7 +7764,15 @@ function getFirstLetterOnly(word) {
             if (!shell) return;
             const dock = document.querySelector('.practice-dock, .edit-dock');
             if (!dock) return;
-            shell.style.paddingBottom = (dock.offsetHeight + 16) + 'px';
+            // Запись стиля инвалидирует вёрстку, даже когда значение то же самое.
+            // Высота панели меняется редко (поворот экрана, появление кнопки
+            // фокуса), поэтому сравниваем и пишем только при реальном отличии —
+            // иначе каждая перерисовка заставляла бы браузер пересчитывать
+            // раскладку всего экрана впустую.
+            const next = (dock.offsetHeight + 16) + 'px';
+            if (shell.style.paddingBottom !== next) {
+                shell.style.paddingBottom = next;
+            }
         }
 
         function renderTypeView() {
@@ -7772,7 +7877,7 @@ function getFirstLetterOnly(word) {
                             <span>Ввод по порядку</span>
                             <span>${ts.currentIndex} / ${hiddenSorted.length}</span>
                         </div>
-                        <div class="type-progress-track"><div class="type-progress-fill" style="width:${hiddenSorted.length ? Math.round(ts.currentIndex / hiddenSorted.length * 100) : 0}%"></div></div>
+                        <div class="type-progress-track"><div class="type-progress-fill" style="transform:scaleX(${hiddenSorted.length ? (ts.currentIndex / hiddenSorted.length).toFixed(4) : 0})"></div></div>
                         ${currentTargetIndex !== undefined ? `
                             <div class="type-current-hint">
                                 <span class="type-current-label">Сейчас слово ${ts.currentIndex + 1}</span>
@@ -10779,7 +10884,7 @@ function getFirstLetterOnly(word) {
                             </div>
                             ${progress.total > 0 ? `
                                 <div class="practice-progress">
-                                    <div class="practice-progress-track"><div class="practice-progress-fill" style="width:${Math.round(progress.revealed / progress.total * 100)}%"></div></div>
+                                    <div class="practice-progress-track"><div class="practice-progress-fill" style="transform:scaleX(${(progress.revealed / progress.total).toFixed(4)})"></div></div>
                                     <div class="practice-progress-label">${progress.revealed} из ${progress.total} ${getWordGenitiveText(progress.total)}</div>
                                 </div>
                             ` : ''}
@@ -11386,7 +11491,7 @@ function getFirstLetterOnly(word) {
                     <div class="container">
                         <div class="quiz-area">
                             <div class="quiz-progress-bar-wrap">
-                                <div class="quiz-progress-bar-fill" style="width: 100%"></div>
+                                <div class="quiz-progress-bar-fill" style="transform:scaleX(1)"></div>
                             </div>
                             <div class="game-complete">
                                 <div class="confetti">🎉</div>
@@ -11402,7 +11507,7 @@ function getFirstLetterOnly(word) {
             }
             
             const currentQ = qs.questions[qs.currentIndex];
-            const progressPct = ((qs.currentIndex) / qs.questions.length) * 100;
+            const progressPct = qs.questions.length ? ((qs.currentIndex) / qs.questions.length) * 100 : 0;
             
             return `
                 <div class="header">
@@ -11412,7 +11517,7 @@ function getFirstLetterOnly(word) {
                 <div class="container">
                     <div class="quiz-area">
                         <div class="quiz-progress-bar-wrap">
-                            <div class="quiz-progress-bar-fill" style="width: ${progressPct}%"></div>
+                            <div class="quiz-progress-bar-fill" style="transform:scaleX(${(progressPct / 100).toFixed(4)})"></div>
                         </div>
                         <div class="quiz-progress">
                             Вопрос ${qs.currentIndex + 1} из ${qs.questions.length}
@@ -11874,7 +11979,7 @@ function getFirstLetterOnly(word) {
                     <div class="container">
                         <div class="quiz-area">
                             <div class="quiz-progress-bar-wrap">
-                                <div class="quiz-progress-bar-fill" style="width: 100%"></div>
+                                <div class="quiz-progress-bar-fill" style="transform:scaleX(1)"></div>
                             </div>
                             <div class="game-complete">
                                 <div class="confetti">🎉</div>
@@ -11894,7 +11999,7 @@ function getFirstLetterOnly(word) {
             if (!ms._shuffledDefs) ms._shuffledDefs = shuffledDefs;
             
             const cumulativeMatched = ms.currentRound * 4 + ms.matchedPairs.length;
-            const progressPct = (cumulativeMatched / ms.totalPairs) * 100;
+            const progressPct = ms.totalPairs ? (cumulativeMatched / ms.totalPairs) * 100 : 0;
             
             return `
                 <div class="header">
@@ -11904,7 +12009,7 @@ function getFirstLetterOnly(word) {
                 <div class="container">
                     <div class="matching-area">
                         <div class="quiz-progress-bar-wrap">
-                            <div class="quiz-progress-bar-fill" style="width: ${progressPct}%"></div>
+                            <div class="quiz-progress-bar-fill" style="transform:scaleX(${(progressPct / 100).toFixed(4)})"></div>
                         </div>
                         <div class="matching-round-info">
                             Раунд ${ms.currentRound + 1} из ${ms.rounds.length} · Ошибок: ${ms.errors}
