@@ -1437,6 +1437,69 @@
             transition: border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
         }
 
+        /* Кнопки-помощники стоят в один ряд, чтобы панель не росла в высоту:
+           на телефоне каждая лишняя строка панели съедает видимую часть текста.
+           Кнопка фокуса тянется, «Подсказка» занимает ровно свою ширину. */
+        .practice-assist-row {
+            display: flex;
+            gap: 8px;
+            align-items: stretch;
+        }
+
+        .practice-assist-row .practice-skip-btn {
+            width: auto;
+            flex: 1 1 auto;
+            padding: 16px 10px;
+            min-width: 0;
+            /* 13px — порог, на котором «Фокус на следующем слове» перестаёт
+               переноситься на вторую строку рядом с «Подсказкой». Это экономит
+               20px высоты панели, а на телефоне каждая строка панели съедает
+               видимую часть текста. */
+            font-size: 13px;
+        }
+
+        .practice-assist-row .practice-hint-btn {
+            flex: 0 0 auto;
+            padding: 16px 18px;
+        }
+
+        .practice-hint-btn.active {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+        }
+
+        /* Строка выбора появляется только когда вариантов два — при одном
+           подсказка применяется сразу, без лишнего касания. */
+        .practice-hint-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            background: var(--bg-input);
+        }
+
+        .practice-hint-option {
+            padding: 9px 14px;
+            border: 1px solid var(--border-input);
+            border-radius: 12px;
+            background: none;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            transition: border-color 0.15s ease, color 0.15s ease;
+        }
+
+        .practice-hint-option:hover {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+        }
+
         .practice-skip-btn:active {
             transform: scale(0.98);
         }
@@ -6058,7 +6121,6 @@
             <div class="modal-buttons" style="flex-wrap: wrap;">
                 <button class="modal-cancel" onclick="cancelHint()">Отмена</button>
                 <button class="modal-skip" onclick="saveHintAsDefault()">???</button>
-                <button class="modal-save" style="background: linear-gradient(135deg, #6d8532 0%, #556826 100%);" onclick="saveAsLetters()">П_Т</button>
                 <button class="modal-save" onclick="saveHint()">Вопрос</button>
             </div>
         </div>
@@ -6146,6 +6208,12 @@
             if (!text.wordHints) text.wordHints = {};
             if (!text.hintTypes) text.hintTypes = {};
             if (!text.halfRevealedWords) text.halfRevealedWords = [];
+            // Какая именно подсказка показана для слова: 'firstletter' или 'question'.
+            // Читается только для слов из halfRevealedWords, поэтому чистить эту карту
+            // не нужно — устаревшие записи просто никогда не попадают на экран.
+            if (!text.hintKind || typeof text.hintKind !== 'object' || Array.isArray(text.hintKind)) {
+                text.hintKind = {};
+            }
             if (!text.hiddenWordGroups || typeof text.hiddenWordGroups !== 'object' || Array.isArray(text.hiddenWordGroups)) {
                 text.hiddenWordGroups = {};
             }
@@ -7120,7 +7188,7 @@
             returnToRootTexts: false,
             folderModalMode: 'root',
             mode: 'chooser', // chooser, edit, practice, game, quiz, type, example
-            practiceMode: 'default', // default, letters, hints
+            practiceMode: 'default', // default, firstletter, hints
             typeDisplayMode: 'default', // default, letters, hints
             typeState: {
                 currentIndex: 0,
@@ -7133,9 +7201,9 @@
                 bulkIsCorrect: false
             },
             typeInputPreference: 'single',
-            hintsRevealMode: 'full',
             practiceFocusWordIndex: null,
             practiceFocusEnabled: false,
+            practiceHintOpen: false,
             lineCardFlipped: false,
             lineCardCueMode: 'letter',
             pendingDescriptionImport: null,
@@ -7588,16 +7656,6 @@ function getFirstLetterOnly(word) {
             return cleanWord[0].toUpperCase() + '_';
         }
 
-        function getFirstLastLetters(word) {
-            const cleanWord = word.replace(/[^a-zA-Zа-яА-ЯёЁ0-9]/g, '');
-            if (cleanWord.length === 0) {
-                if (word.length <= 1) return '_';
-                return word[0] + '_' + word[word.length - 1];
-            }
-            if (cleanWord.length <= 1) return cleanWord.toUpperCase();
-            return (cleanWord[0] + cleanWord[cleanWord.length - 1]).toUpperCase();
-        }
-        
         function shuffleArray(array) {
             const arr = [...array];
             for (let i = arr.length - 1; i > 0; i--) {
@@ -7940,7 +7998,7 @@ function getFirstLetterOnly(word) {
                     ${modeButtons}
                     <div class="practice-mode-toggle">
                         <button class="practice-mode-btn ${state.typeDisplayMode === 'default' ? 'active' : ''}" onclick="setTypeDisplayMode('default')">???</button>
-                        <button class="practice-mode-btn ${state.typeDisplayMode === 'letters' ? 'active' : ''}" onclick="setTypeDisplayMode('letters')">П_Т</button>
+                        <button class="practice-mode-btn ${state.typeDisplayMode === 'letters' ? 'active' : ''}" onclick="setTypeDisplayMode('letters')">П_</button>
                         <button class="practice-mode-btn ${state.typeDisplayMode === 'hints' ? 'active' : ''}" onclick="setTypeDisplayMode('hints')">?</button>
                     </div>
                     <div class="text-display" style="margin-bottom:24px;">${wordSpans}</div>
@@ -8005,7 +8063,7 @@ function getFirstLetterOnly(word) {
             const seqNum = hiddenSorted.indexOf(index) + 1;
 
             if (state.typeDisplayMode === 'letters') {
-                return { text: getFirstLastLetters(words[index]), className: 'has-letters' };
+                return { text: getFirstLetterOnly(words[index]), className: 'has-letters' };
             }
             if (state.typeDisplayMode === 'hints') {
                 if (hint && hint !== '') {
@@ -8766,13 +8824,6 @@ function getFirstLetterOnly(word) {
                                                         <div class="learning-text-mode-label">Полностью скрытые слова</div>
                                                     </div>
                                                     <div class="learning-text-mode-line">Нейрон — <span class="learning-inline-hidden default">1</span> клетка, <span class="learning-inline-hidden default">2</span> единица <span class="learning-inline-hidden default">4</span> системы</div>
-                                                </div>
-                                                <div class="learning-text-mode">
-                                                    <div class="learning-text-mode-head">
-                                                        <div class="learning-text-mode-badge">П_Т</div>
-                                                        <div class="learning-text-mode-label">Первая и последняя буква</div>
-                                                    </div>
-                                                    <div class="learning-text-mode-line">Нейрон — <span class="learning-inline-hidden letters">УЯ</span> клетка, <span class="learning-inline-hidden letters">ФЯ</span> единица <span class="learning-inline-hidden letters">НЙ</span> системы</div>
                                                 </div>
                                                 <div class="learning-text-mode">
                                                     <div class="learning-text-mode-head">
@@ -10582,9 +10633,6 @@ function getFirstLetterOnly(word) {
                         <div class="chooser-card" onclick="openTermInMode(state.currentText, 'practice', 'default')">
                             <div class="chooser-card-title">Полностью скрытые слова</div>
                         </div>
-                        <div class="chooser-card" onclick="openTermInMode(state.currentText, 'practice', 'letters')">
-                            <div class="chooser-card-title">Первая и последняя буква слов</div>
-                        </div>
                         <div class="chooser-card" onclick="openTermInMode(state.currentText, 'practice', 'firstletter')">
                             <div class="chooser-card-title">Только первая буква слов</div>
                         </div>
@@ -10663,7 +10711,7 @@ function getFirstLetterOnly(word) {
         function isPracticeFocusModeEnabled() {
             return state.view === 'practice' &&
                 state.mode === 'practice' &&
-                (state.practiceMode === 'default' || state.practiceMode === 'letters' ||
+                (state.practiceMode === 'default' ||
                  state.practiceMode === 'firstletter' || state.practiceMode === 'hints');
         }
 
@@ -10673,6 +10721,7 @@ function getFirstLetterOnly(word) {
         function clearPracticeFocus() {
             state.practiceFocusWordIndex = null;
             state.practiceFocusEnabled = false;
+            state.practiceHintOpen = false;
         }
 
         function exitPracticeFocusMode() {
@@ -10711,6 +10760,7 @@ function getFirstLetterOnly(word) {
                 const nextPos = currentPos === -1 ? 0 : (currentPos + 1) % targets.length;
                 state.practiceFocusWordIndex = targets[nextPos];
             }
+            state.practiceHintOpen = false;
             render();
             scrollToFocusedWord();
             return true;
@@ -10873,7 +10923,7 @@ function getFirstLetterOnly(word) {
                         practiceParts.push(`<span class="word revealed${isPracticeFocusWord ? ' practice-focus-active' : ''}" onclick="hideWordAgain(${i})">${escapeHtml(joinedWords)}</span>`);
                     } else {
                         const displayHint = anyHalfRevealed
-                            ? groupIndices.map(index => getFirstLastLetters(words[index])).join(' ')
+                            ? groupIndices.map(index => getFirstLetterOnly(words[index])).join(' ')
                             : (((hint && hint !== '') ? hint : hiddenSorted.indexOf(i) + 1) + ' (' + groupIndices.length + ')');
                         const hintClass = anyHalfRevealed ? 'has-letters' : ((hint && hint !== '') ? 'has-custom-hint' : '');
                         practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass, i, isPracticeFocusWord));
@@ -10886,10 +10936,7 @@ function getFirstLetterOnly(word) {
                     let displayHint;
                     let hintClass;
                     const seqNum = hiddenSorted.indexOf(i) + 1;
-                    if (state.practiceMode === 'letters') {
-                        displayHint = getFirstLastLetters(word);
-                        hintClass = 'has-letters';
-                    } else if (state.practiceMode === 'firstletter') {
+                    if (state.practiceMode === 'firstletter') {
                         displayHint = getFirstLetterOnly(word);
                         hintClass = 'has-letters';
                     } else if (state.practiceMode === 'hints') {
@@ -10901,7 +10948,13 @@ function getFirstLetterOnly(word) {
                     }
                     practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass, i, isPracticeFocusWord, i === nextRevealIndex));
                 } else if (isMarked && isHalfRevealed && !isRevealed) {
-                    practiceParts.push(renderPracticeHiddenWord(getFirstLastLetters(word), 'has-letters', i, isPracticeFocusWord, i === nextRevealIndex));
+                    // Слово с подсказкой: показываем ровно то, что игрок запросил.
+                    const shownKind = (text.hintKind && text.hintKind[i]) || 'firstletter';
+                    const useQuestion = shownKind === 'question' && hint && hint !== '';
+                    practiceParts.push(renderPracticeHiddenWord(
+                        useQuestion ? hint : getFirstLetterOnly(word),
+                        useQuestion ? 'has-custom-hint' : 'has-letters',
+                        i, isPracticeFocusWord, i === nextRevealIndex));
                 } else if (isMarked && isRevealed) {
                     practiceParts.push(`<span class="word revealed${isPracticeFocusWord ? ' practice-focus-active' : ''}" onclick="hideWordAgain(${i})">${escapeHtml(word)}</span>`);
                 } else {
@@ -10940,6 +10993,11 @@ function getFirstLetterOnly(word) {
             const canFocusNext = isPracticeLayout &&
                 isPracticeFocusModeEnabled() &&
                 (state.practiceFocusEnabled ? unrevealedCount > 1 : unrevealedCount > 0);
+            // Подсказка относится к тому же слову, что и «Открыть следующее слово».
+            const hintTargetIndex = isPracticeLayout ? getActivePracticeTargetIndex(text) : null;
+            const availableHints = isPracticeLayout ? getAvailableWordHints(text, hintTargetIndex) : [];
+            // Строка выбора нужна, только когда вариантов действительно два.
+            const hintChoiceOpen = state.practiceHintOpen && availableHints.length > 1;
             const primaryLabel = !progress || progress.total === 0
                 ? 'Нет скрытых слов'
                 : (progress.allRevealed ? '↺ Скрыть все слова' : 'Открыть следующее слово');
@@ -10999,21 +11057,29 @@ function getFirstLetterOnly(word) {
                             </button>
                         </div>
                     `}
-                    ${state.mode === 'practice' && state.practiceMode === 'hints' ? `
-                        <div class="hint-reveal-controls">
-                            <div class="hint-reveal-label">После нажатия на вопрос</div>
-                            <div class="hint-reveal-toggle">
-                                <button class="hint-reveal-btn ${state.hintsRevealMode === 'full' ? 'active' : ''}" onclick="setHintsRevealMode('full')">Показать слово</button>
-                                <button class="hint-reveal-btn ${state.hintsRevealMode === 'letters' ? 'active' : ''}" onclick="setHintsRevealMode('letters')">Показать П_Т</button>
-                            </div>
-                        </div>
-                    ` : ''}
                 </div>
                 ${isPracticeLayout ? `
                     <div class="practice-dock">
                         <div class="practice-dock-inner">
-                            ${canFocusNext ? `
-                                <button class="practice-skip-btn" onclick="focusNextHiddenWord()" title="Перевести фокус на следующее слово, не открывая текущее">Фокус на следующем слове</button>
+                            ${hintChoiceOpen ? `
+                                <div class="practice-hint-row">
+                                    ${availableHints.includes('firstletter') ? `
+                                        <button class="practice-hint-option" onclick="applyWordHint('firstletter')">Первая буква</button>
+                                    ` : ''}
+                                    ${availableHints.includes('question') ? `
+                                        <button class="practice-hint-option" onclick="applyWordHint('question')">Вопрос к слову</button>
+                                    ` : ''}
+                                </div>
+                            ` : ''}
+                            ${(canFocusNext || availableHints.length > 0) ? `
+                                <div class="practice-assist-row">
+                                    ${canFocusNext ? `
+                                        <button class="practice-skip-btn" onclick="focusNextHiddenWord()" title="Перевести фокус на следующее слово, не открывая текущее">Фокус на следующем слове</button>
+                                    ` : ''}
+                                    ${availableHints.length > 0 ? `
+                                        <button class="practice-skip-btn practice-hint-btn ${hintChoiceOpen ? 'active' : ''}" onclick="togglePracticeHint()" title="Показать слово иначе, не раскрывая его">Подсказка</button>
+                                    ` : ''}
+                                </div>
                             ` : ''}
                             <button class="practice-primary-btn" ${primaryAction ? `onclick="${primaryAction}"` : 'disabled'}>${primaryLabel}</button>
                             <div class="practice-nav-row">
@@ -13110,6 +13176,7 @@ function getFirstLetterOnly(word) {
             const text = ensureTextStudyData(getCurrentFolder().texts[index]);
             text.revealedWords = [];
             text.halfRevealedWords = [];
+            state.practiceHintOpen = false;
             if (practiceSubMode) {
                 state.practiceMode = practiceSubMode;
             } else if (mode !== 'type') {
@@ -13135,7 +13202,7 @@ function getFirstLetterOnly(word) {
                 return true;
             }
             if (key === '3') {
-                openTermInMode(state.currentText, 'practice', 'letters');
+                openTermInMode(state.currentText, 'practice', 'firstletter');
                 return true;
             }
             if (key === '4') {
@@ -14307,16 +14374,6 @@ function getFirstLetterOnly(word) {
             render();
         }
 
-        function setHintsRevealMode(mode) {
-            if (mode !== 'full' && mode !== 'letters') return;
-            state.hintsRevealMode = mode;
-            if (state.currentText !== null && state.currentFolder !== null) {
-                const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
-                text.halfRevealedWords = [];
-            }
-            render();
-        }
-        
         function cancelBatch() {
             state.pendingWords = [];
             state.pendingHintGroups = [];
@@ -14534,46 +14591,96 @@ function getFirstLetterOnly(word) {
             render();
         }
         
-        function saveAsLetters() {
+        // Слово, с которым игрок работает прямо сейчас: подсвеченное фокусом, а если
+        // фокус выключен — следующее по порядку. Это тот же выбор, что делает кнопка
+        // «Открыть следующее слово», поэтому подсказка и раскрытие всегда про одно
+        // и то же слово и не расходятся между собой.
+        function getActivePracticeTargetIndex(text) {
+            const sorted = getRenderableHiddenIndices(text);
+            const focused = state.practiceFocusWordIndex;
+            if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled && focused !== null &&
+                sorted.includes(focused) && !isFocusTargetFullyRevealed(text, focused)) {
+                return focused;
+            }
+            const next = sorted.find(idx => !isFocusTargetFullyRevealed(text, idx));
+            return next === undefined ? null : next;
+        }
+
+        // Подсказка всегда показывает слово ИНАЧЕ, чем текущий режим скрытия, — иначе
+        // она не сообщала бы ничего нового. Отсюда правила:
+        //   полностью скрытые -> первая буква или вопрос (на выбор);
+        //   только первая буква -> вопрос;
+        //   вопросы -> первая буква.
+        // Вопрос предлагается лишь тогда, когда он у слова действительно есть.
+        function getAvailableWordHints(text, index) {
+            if (index === null || index === undefined) return [];
+            const question = text.wordHints && text.wordHints[index];
+            const hasQuestion = !!(question && String(question).trim() !== '');
+            let kinds;
+            if (state.practiceMode === 'hints') {
+                kinds = ['firstletter'];
+            } else if (state.practiceMode === 'firstletter') {
+                kinds = hasQuestion ? ['question'] : [];
+            } else {
+                kinds = hasQuestion ? ['firstletter', 'question'] : ['firstletter'];
+            }
+            // Показанную подсказку второй раз не предлагаем.
+            const shown = text.hintKind && text.hintKind[index];
+            return kinds.filter(kind => kind !== shown);
+        }
+
+        function applyWordHint(kind) {
+            if (state.currentText === null || state.currentFolder === null) return;
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
-            const index = state.pendingWordIndex;
-            
-            text.hiddenWords.push(index);
-            text.wordHints[index] = '';
-            text.hintTypes[index] = 'letters';
-            
-            state.pendingWordIndex = null;
+            const index = getActivePracticeTargetIndex(text);
+            if (index === null) return;
+            if (!getAvailableWordHints(text, index).includes(kind)) return;
+
+            const group = state.practiceMode === 'hints' ? getHiddenWordGroupByIndex(text, index) : null;
+            const targetIndexes = group ? group.indices : [index];
+            targetIndexes.forEach(targetIndex => {
+                if (!text.halfRevealedWords.includes(targetIndex)) {
+                    text.halfRevealedWords.push(targetIndex);
+                }
+                text.hintKind[targetIndex] = kind;
+            });
+            state.practiceHintOpen = false;
             saveData();
-            closeModal('hintModal');
             render();
         }
-        
+
+        // Один доступный вариант применяем сразу — предлагать выбор из одного пункта
+        // было бы лишним касанием. Два варианта раскрывают строку выбора.
+        function togglePracticeHint() {
+            if (state.currentText === null || state.currentFolder === null) return;
+            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+            const index = getActivePracticeTargetIndex(text);
+            const kinds = getAvailableWordHints(text, index);
+            if (kinds.length === 0) return;
+            if (kinds.length === 1) {
+                applyWordHint(kinds[0]);
+                return;
+            }
+            state.practiceHintOpen = !state.practiceHintOpen;
+            render();
+        }
+
         function revealWord(index) {
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             
             const group = state.practiceMode === 'hints' ? getHiddenWordGroupByIndex(text, index) : null;
             const targetIndexes = group ? group.indices : [index];
-            const isHintsMode = state.practiceMode === 'hints';
-            const shouldHalfReveal = isHintsMode &&
-                state.hintsRevealMode === 'letters' &&
-                targetIndexes.every(targetIndex => !text.halfRevealedWords.includes(targetIndex)) &&
-                targetIndexes.every(targetIndex => !text.revealedWords.includes(targetIndex));
 
-            if (shouldHalfReveal) {
-                targetIndexes.forEach(targetIndex => {
-                    if (!text.halfRevealedWords.includes(targetIndex)) {
-                        text.halfRevealedWords.push(targetIndex);
-                    }
-                });
-            } else {
-                targetIndexes.forEach(targetIndex => {
-                    const halfPos = text.halfRevealedWords.indexOf(targetIndex);
-                    if (halfPos !== -1) text.halfRevealedWords.splice(halfPos, 1);
-                    if (!text.revealedWords.includes(targetIndex)) {
-                        text.revealedWords.push(targetIndex);
-                    }
-                });
-            }
+            // Клик по слову раскрывает его целиком. Промежуточный шаг «сначала П_Т»
+            // убран вместе с самим представлением П_Т: теперь за постепенное
+            // раскрытие отвечает кнопка «Подсказка», а не двойной клик по чипу.
+            targetIndexes.forEach(targetIndex => {
+                const halfPos = text.halfRevealedWords.indexOf(targetIndex);
+                if (halfPos !== -1) text.halfRevealedWords.splice(halfPos, 1);
+                if (!text.revealedWords.includes(targetIndex)) {
+                    text.revealedWords.push(targetIndex);
+                }
+            });
             render();
         }
 
@@ -14632,6 +14739,7 @@ function getFirstLetterOnly(word) {
                             text.revealedWords.push(targetIndex);
                         }
                     });
+                    state.practiceHintOpen = false;
                     render();
                     return;
                 }
