@@ -13535,6 +13535,21 @@
             return 1;
         }
 
+        // После вставки пункта в середину списка нумерация ниже остаётся старой,
+        // и в списке появляется второй «2». Пересчитываем хвост по порядку.
+        // Трогаем только строки, которые уже пронумерованы: обычные строки текста
+        // не должны внезапно получать номер. Правим строго ниже курсора, поэтому
+        // его позиция не съезжает, даже когда число меняет разрядность (9 -> 10).
+        function renumberListBelow(value, fromIndex, startNumber) {
+            let next = startNumber;
+            const tail = value.slice(fromIndex).split('\n').map(line => {
+                const match = line.match(/^(\d+)\./);
+                if (!match) return line;
+                return (next++) + '.' + line.slice(match[0].length);
+            }).join('\n');
+            return value.slice(0, fromIndex) + tail;
+        }
+
         function insertNextListNumber(el) {
             const value = el.value;
             const selStart = el.selectionStart;
@@ -13560,9 +13575,10 @@
                 return;
             }
 
-            const insertion = '\n' + getNextListNumber(beforeCursor) + '. ';
-            el.value = beforeCursor + insertion + afterCursor;
+            const insertedNumber = getNextListNumber(beforeCursor);
+            const insertion = '\n' + insertedNumber + '. ';
             const newPos = beforeCursor.length + insertion.length;
+            el.value = renumberListBelow(beforeCursor + insertion + afterCursor, newPos, insertedNumber + 1);
             el.setSelectionRange(newPos, newPos);
         }
 
