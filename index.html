@@ -1642,6 +1642,27 @@
             border-bottom: 2px dashed #d946ef;
         }
 
+        /* Звёздочка сложного слова висит в углу чипа абсолютно, поэтому не влезает
+           в его содержимое и одинаково работает и на скрытом слове, и на открытом.
+           Долгое нажатие на iOS вызывает лупу и меню выделения — гасим их, иначе
+           отметить слово было бы невозможно. */
+        .practice-shell .word[data-widx] {
+            position: relative;
+            -webkit-touch-callout: none;
+        }
+
+        .word.hard-word::after {
+            content: '★';
+            position: absolute;
+            top: -0.34em;
+            right: -0.12em;
+            font-size: 0.55em;
+            line-height: 1;
+            color: #f6c76a;
+            text-shadow: 0 0 3px rgba(0, 0, 0, 0.75);
+            pointer-events: none;
+        }
+
         .word.hidden-word {
             background: var(--gradient-primary);
             color: var(--accent-on-strong);
@@ -6171,6 +6192,8 @@
             if (!text.wordHints) text.wordHints = {};
             if (!text.hintTypes) text.hintTypes = {};
             if (!text.halfRevealedWords) text.halfRevealedWords = [];
+            // Слова, которые игрок отметил трудными для запоминания.
+            if (!Array.isArray(text.hardWords)) text.hardWords = [];
             // Сколько первых букв слова открыто подсказкой. Читается только для слов
             // из halfRevealedWords, поэтому чистить эту карту не нужно — устаревшие
             // записи просто никогда не попадают на экран.
@@ -10763,10 +10786,89 @@
             });
         }
 
-        function renderPracticeHiddenWord(displayText, extraClassName, wordIndex, isPracticeFocusWord, isNextReveal) {
+        // ——— Отметка «сложное слово» ———
+        // Долгое нажатие по слову в практике помечает его трудным для запоминания,
+        // повторное — снимает отметку. Обработчики висят на документе в единственном
+        // экземпляре: вешать их на каждый чип значило бы переприсваивать сотни
+        // слушателей на каждую перерисовку, а инлайновые атрибуты раздули бы разметку
+        // (в длинном тексте чипов бывает под две сотни).
+        const HARD_WORD_PRESS_MS = 480;
+        let hardPressTimer = null;
+        let hardPressHandled = false;
+
+        function findPracticeWordIndex(target) {
+            if (!target || !target.closest) return null;
+            const el = target.closest('.word[data-widx]');
+            if (!el || !el.closest('.practice-shell')) return null;
+            const index = Number(el.dataset.widx);
+            return Number.isFinite(index) ? index : null;
+        }
+
+        function toggleHardWord(index) {
+            if (state.currentText === null || state.currentFolder === null) return false;
+            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+            if (!(text.hiddenWords || []).includes(index)) return false;
+            const pos = text.hardWords.indexOf(index);
+            if (pos === -1) text.hardWords.push(index);
+            else text.hardWords.splice(pos, 1);
+            saveData();
+            render();
+            return true;
+        }
+
+        function cancelHardPress() {
+            if (hardPressTimer !== null) {
+                clearTimeout(hardPressTimer);
+                hardPressTimer = null;
+            }
+        }
+
+        function startHardPress(target) {
+            cancelHardPress();
+            const index = findPracticeWordIndex(target);
+            if (index === null) return;
+            hardPressHandled = false;
+            hardPressTimer = setTimeout(() => {
+                hardPressTimer = null;
+                if (toggleHardWord(index)) {
+                    // Гасим клик, который придёт следом за долгим нажатием: иначе
+                    // слово заодно раскрылось бы, хотя игрок его только помечал.
+                    hardPressHandled = true;
+                    if (navigator.vibrate) navigator.vibrate(15);
+                }
+            }, HARD_WORD_PRESS_MS);
+        }
+
+        document.addEventListener('touchstart', e => startHardPress(e.target), { passive: true });
+        document.addEventListener('touchmove', cancelHardPress, { passive: true });
+        document.addEventListener('touchend', cancelHardPress, { passive: true });
+        document.addEventListener('touchcancel', cancelHardPress, { passive: true });
+        document.addEventListener('mousedown', e => { if (e.button === 0) startHardPress(e.target); });
+        document.addEventListener('mouseup', cancelHardPress);
+        document.addEventListener('mouseleave', cancelHardPress);
+        // Клик после сработавшего долгого нажатия не должен раскрывать слово.
+        document.addEventListener('click', e => {
+            if (!hardPressHandled) return;
+            hardPressHandled = false;
+            e.preventDefault();
+            e.stopPropagation();
+        }, true);
+        // На компьютере правая кнопка — быстрый способ без удержания.
+        document.addEventListener('contextmenu', e => {
+            const index = findPracticeWordIndex(e.target);
+            if (index === null) return;
+            if (toggleHardWord(index)) e.preventDefault();
+        });
+
+        function isHardWord(text, index) {
+            return !!(text.hardWords && text.hardWords.includes(index));
+        }
+
+        function renderPracticeHiddenWord(displayText, extraClassName, wordIndex, isPracticeFocusWord, isNextReveal, isHard) {
             const className = ['word', 'hidden-word', extraClassName,
                 isPracticeFocusWord ? 'practice-focus-active' : '',
-                isNextReveal ? 'next-reveal' : '']
+                isNextReveal ? 'next-reveal' : '',
+                isHard ? 'hard-word' : '']
                 .filter(Boolean)
                 .join(' ');
             return `<span class="${className}" data-widx="${wordIndex}" onclick="revealWord(${wordIndex})"><span class="word-hidden-label">${escapeHtml(String(displayText))}</span></span>`;
@@ -10896,13 +10998,13 @@
                     const anyRevealed = groupIndices.some(index => text.revealedWords.includes(index));
                     const anyHalfRevealed = groupIndices.some(index => text.halfRevealedWords && text.halfRevealedWords.includes(index));
                     if (allRevealed || anyRevealed) {
-                        practiceParts.push(`<span class="word revealed${isPracticeFocusWord ? ' practice-focus-active' : ''}" onclick="hideWordAgain(${i})">${escapeHtml(joinedWords)}</span>`);
+                        practiceParts.push(`<span class="word revealed${isPracticeFocusWord ? ' practice-focus-active' : ''}${isHardWord(text, i) ? ' hard-word' : ''}" data-widx="${i}" onclick="hideWordAgain(${i})">${escapeHtml(joinedWords)}</span>`);
                     } else {
                         const displayHint = anyHalfRevealed
                             ? groupIndices.map(index => getFirstLettersOnly(words[index], getVisibleHintLetters(text, index))).join(' ')
                             : (((hint && hint !== '') ? hint : hiddenSorted.indexOf(i) + 1) + ' (' + groupIndices.length + ')');
                         const hintClass = anyHalfRevealed ? 'has-letters' : ((hint && hint !== '') ? 'has-custom-hint' : '');
-                        practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass, i, isPracticeFocusWord));
+                        practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass, i, isPracticeFocusWord, false, isHardWord(text, i)));
                     }
                     continue;
                 }
@@ -10922,13 +11024,13 @@
                         displayHint = seqNum;
                         hintClass = '';
                     }
-                    practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass, i, isPracticeFocusWord, i === nextRevealIndex));
+                    practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass, i, isPracticeFocusWord, i === nextRevealIndex, isHardWord(text, i)));
                 } else if (isMarked && isHalfRevealed && !isRevealed) {
                     practiceParts.push(renderPracticeHiddenWord(
                         getFirstLettersOnly(word, getVisibleHintLetters(text, i)),
-                        'has-letters', i, isPracticeFocusWord, i === nextRevealIndex));
+                        'has-letters', i, isPracticeFocusWord, i === nextRevealIndex, isHardWord(text, i)));
                 } else if (isMarked && isRevealed) {
-                    practiceParts.push(`<span class="word revealed${isPracticeFocusWord ? ' practice-focus-active' : ''}" onclick="hideWordAgain(${i})">${escapeHtml(word)}</span>`);
+                    practiceParts.push(`<span class="word revealed${isPracticeFocusWord ? ' practice-focus-active' : ''}${isHardWord(text, i) ? ' hard-word' : ''}" data-widx="${i}" onclick="hideWordAgain(${i})">${escapeHtml(word)}</span>`);
                 } else {
                     practiceParts.push(`<span class="word">${escapeHtml(word)}</span>`);
                 }
@@ -11008,7 +11110,7 @@
                         </div>
                     ` : `
                         <div class="help-text">
-                            Нажимайте на скрытые слова чтобы открыть их
+                            Нажимайте на скрытые слова чтобы открыть их${isPracticeLayout ? ' · долгое нажатие отмечает слово сложным' : ''}
                         </div>
                     `}
 
