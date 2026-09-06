@@ -2917,6 +2917,13 @@
             line-height: 1.2;
         }
 
+        /* Прячем, не убирая из дерева: удаление меняло бы число дочерних узлов
+           обёртки, а вместе с ним пересоздавалось бы поле ввода. */
+        .type-current-hint.is-hidden,
+        .type-feedback.is-hidden {
+            display: none;
+        }
+
         .type-feedback {
             margin-bottom: 12px;
             font-size: 13.5px;
@@ -8045,9 +8052,18 @@
             const currentHintText = currentTargetIndex !== undefined
                 ? String(getTypeModeHiddenWordDisplay(text, words, currentTargetIndex).text)
                 : '';
-            const singleTokensHtml = ts.singleWrongWord
-                ? `<div class="type-feedback wrong">Не совпало: «${escapeHtml(ts.singleWrongWord)}». Попробуйте ещё раз.</div>`
-                : '';
+            // Оба блока — подсказка «сейчас слово N» и сообщение об ошибке — рисуются
+            // ВСЕГДА, а при ненадобности просто прячутся классом. Раньше они то
+            // появлялись, то исчезали, из-за чего у обёртки менялось число дочерних
+            // узлов, и точечное обновление пересобирало её целиком через innerHTML.
+            // Вместе с обёрткой пересоздавалось и поле ввода — на телефоне это
+            // закрывало клавиатуру, и после каждой ошибки (и после первого верного
+            // слова вслед за ней) приходилось тапать по полю заново.
+            const singleTokensHtml = `<div class="type-feedback wrong${ts.singleWrongWord ? '' : ' is-hidden'}">${
+                ts.singleWrongWord
+                    ? `Не совпало: «${escapeHtml(ts.singleWrongWord)}». Попробуйте ещё раз.`
+                    : ''
+            }</div>`;
             const bulkInputClass = 'type-input-field' + (ts.bulkAnswered ? (ts.bulkIsCorrect ? ' correct' : ' wrong') : '');
 
             return `
@@ -8067,12 +8083,10 @@
                             <span>${ts.currentIndex} / ${hiddenSorted.length}</span>
                         </div>
                         <div class="type-progress-track"><div class="type-progress-fill" style="transform:scaleX(${hiddenSorted.length ? (ts.currentIndex / hiddenSorted.length).toFixed(4) : 0})"></div></div>
-                        ${currentTargetIndex !== undefined ? `
-                            <div class="type-current-hint">
-                                <span class="type-current-label">Сейчас слово ${ts.currentIndex + 1}</span>
-                                <span class="type-current-chip">${escapeHtml(currentHintText)}</span>
-                            </div>
-                        ` : ''}
+                        <div class="type-current-hint${currentTargetIndex !== undefined ? '' : ' is-hidden'}">
+                            <span class="type-current-label">Сейчас слово ${ts.currentIndex + 1}</span>
+                            <span class="type-current-chip">${escapeHtml(currentHintText)}</span>
+                        </div>
                         ${singleTokensHtml}
                         <input type="text"
                             class="type-input-field"
@@ -8165,21 +8179,34 @@
             return state.typeInputPreference === 'bulk' ? 'typeAllInputField' : 'typeInputField';
         }
 
-        function focusTypeField(fieldId) {
-            setTimeout(() => {
+        function focusTypeField(fieldId, selectAll) {
+            const apply = () => {
                 const input = document.getElementById(fieldId);
-                if (input) {
-                    input.focus();
-                    if (typeof input.setSelectionRange === 'function') {
-                        const caretPos = input.value.length;
-                        input.setSelectionRange(caretPos, caretPos);
-                    }
+                if (!input) return;
+                if (document.activeElement !== input) input.focus();
+                if (typeof input.setSelectionRange !== 'function') return;
+                if (selectAll && input.value) {
+                    // Неверное слово остаётся в поле, но выделенным: следующая же
+                    // буква его заменит. Стирать вручную не нужно, а посмотреть,
+                    // что именно было набрано, всё ещё можно.
+                    input.setSelectionRange(0, input.value.length);
+                } else {
+                    const caretPos = input.value.length;
+                    input.setSelectionRange(caretPos, caretPos);
                 }
-            }, 100);
+            };
+            // Ждать имеет смысл только когда поле пересоздано и фокус потерян.
+            // Если он на месте, лишний таймер лишь оттягивал бы установку курсора.
+            const input = document.getElementById(fieldId);
+            if (input && document.activeElement === input) {
+                apply();
+                return;
+            }
+            setTimeout(apply, 100);
         }
 
-        function focusPreferredTypeField() {
-            focusTypeField(getPreferredTypeFieldId());
+        function focusPreferredTypeField(selectAll) {
+            focusTypeField(getPreferredTypeFieldId(), selectAll);
         }
 
         function checkTypeWord() {
@@ -8227,7 +8254,7 @@
             render();
 
             if (ts.currentIndex >= hiddenSorted.length && !ts.singleWrongWord) return;
-            focusPreferredTypeField();
+            focusPreferredTypeField(!!ts.singleWrongWord);
         }
 
         function checkAllTypeWords() {
