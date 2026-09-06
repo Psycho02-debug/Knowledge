@@ -5132,7 +5132,9 @@
         .folder-dashboard-actions {
             display: flex;
             align-items: center;
-            gap: 6px;
+            /* Зазор 6px оставлял названию папки на пиксель меньше нужного, и на
+               экране в 375px «Игра Первых» переносилось на вторую строку. */
+            gap: 4px;
             margin-left: auto;
         }
 
@@ -5148,6 +5150,44 @@
             justify-content: center;
             cursor: pointer;
             transition: color 0.2s ease, background 0.2s ease;
+        }
+
+        /* Стрелки живут в нижнем ряду карточки, а не рядом с остальными кнопками:
+           в верхнем ряду пять элементов не помещаются в 375px — замер показал, что
+           заголовку нужно 134px, а после ужимания кнопок остаётся максимум 125,
+           и название папки переносилось на две строки. Внизу места достаточно.
+           Прижаты вправо, чтобы не мешать плиткам материалов. */
+        .folder-move-stack {
+            display: flex;
+            gap: 2px;
+            flex: 0 0 auto;
+            margin-left: auto;
+            align-self: center;
+        }
+
+        .folder-move-btn {
+            width: 30px;
+            height: 26px;
+            padding: 0;
+            border: none;
+            background: transparent;
+            color: var(--text-tertiary);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .folder-move-btn:hover:not(:disabled) {
+            color: var(--text-primary);
+        }
+
+        /* На краях списка двигать некуда — кнопка гаснет, но остаётся на месте,
+           чтобы строка не прыгала по ширине от папки к папке. */
+        .folder-move-btn:disabled {
+            opacity: 0.25;
+            cursor: default;
         }
 
         .folder-mini-action:hover {
@@ -10472,6 +10512,16 @@
                                 </div>
                                 <div class="folder-dashboard-meta">
                                     ${previewTitles.length ? previewTitles.map(title => `<span class="material-pill">${escapeHtml(title)}</span>`).join('') : `<span class="material-pill">Пока без материалов</span>`}
+                                    ${state.folders.length > 1 ? `
+                                        <div class="folder-move-stack">
+                                            <button class="folder-move-btn" onclick="event.stopPropagation();moveFolder(${i}, -1)" title="Переместить выше" aria-label="Переместить выше" ${i === 0 ? 'disabled' : ''}>
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+                                            </button>
+                                            <button class="folder-move-btn" onclick="event.stopPropagation();moveFolder(${i}, 1)" title="Переместить ниже" aria-label="Переместить ниже" ${i === state.folders.length - 1 ? 'disabled' : ''}>
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                                            </button>
+                                        </div>
+                                    ` : ''}
                                 </div>
                             </div>
                         `;
@@ -14639,6 +14689,21 @@
             }
             saveData();
             closeModal('bulkImportModal');
+            render();
+        }
+
+        // Перестановка папок в списке. state.currentFolder и state.editingTermSubfolder
+        // хранят ПОЗИЦИИ в массиве, поэтому после обмена их нужно поправить — иначе
+        // открытая папка молча подменилась бы соседней.
+        function moveFolder(index, direction) {
+            const target = index + direction;
+            if (index < 0 || index >= state.folders.length) return;
+            if (target < 0 || target >= state.folders.length) return;
+            const [moved] = state.folders.splice(index, 1);
+            state.folders.splice(target, 0, moved);
+            if (state.currentFolder === index) state.currentFolder = target;
+            else if (state.currentFolder === target) state.currentFolder = index;
+            saveData();
             render();
         }
 
