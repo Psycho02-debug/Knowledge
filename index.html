@@ -6515,6 +6515,24 @@
             return true;
         }
 
+        // Приведение уже сохранённых материалов к новому виду: знаки препинания
+        // отделяются от слов. Проход идемпотентный — со второго раза менять нечего,
+        // поэтому отдельный флаг «миграция выполнена» не нужен. Флаг мог бы
+        // разойтись с реальным состоянием данных: например, после переноса папки
+        // с другого устройства, где текст ещё старого вида.
+        function normalizeAllMaterialsPunctuation() {
+            let changed = 0;
+            const walk = folder => {
+                if (!folder) return;
+                (folder.texts || []).forEach(text => {
+                    if (applyPunctuationSplitToText(text)) changed++;
+                });
+                (folder.subfolders || []).forEach(walk);
+            };
+            (state.folders || []).forEach(walk);
+            return changed;
+        }
+
         function getGroupedWordsLabel(words, indices) {
             if (!Array.isArray(indices) || !indices.length) return '';
             const firstIndex = Math.min(...indices);
@@ -7606,13 +7624,14 @@
             state.courseFolders = normalizeCourseFoldersTree(localData.courseFolders || []);
             state.profile = getLocalProfile();
             normalizeFoldersTree(state.folders);
+            const normalizedMaterials = normalizeAllMaterialsPunctuation();
             const seededFlashcards = ensureBuiltInFlashcardFolders();
             lastSavedData = JSON.stringify({
                 folders: state.folders,
                 flashcardFolders: state.flashcardFolders,
                 courseFolders: state.courseFolders
             });
-            if (seededFlashcards) {
+            if (seededFlashcards || normalizedMaterials > 0) {
                 lastSavedData = '';
                 saveData(true);
             }
