@@ -2133,6 +2133,15 @@
            втроём с «Сбросить выбор» и «Скопировать материал» подписи не влезали
            в 375px и обрезались. Контурная, чтобы не спорить с «Скопировать
            материал» — та заливная и остаётся главной. */
+        /* На телефоне клавиши «/» нет, поэтому выделение всех слов нужно кнопкой.
+           Занимает свою строку, как и правка текста: подписи длинные. */
+        .btn-select-all {
+            flex: 1 0 100%;
+            background: none;
+            border: 1px solid var(--border-input);
+            color: var(--text-secondary);
+        }
+
         .btn-edit-text {
             flex: 1 0 100%;
             background: none;
@@ -6425,6 +6434,85 @@
 
         function isNumericListMarkerToken(token) {
             return typeof token === 'string' && /^\d+\.?$/.test(token.trim());
+        }
+
+        // Токен из одних знаков препинания. Такие никогда не выделяются: скрывать
+        // запятую бессмысленно, а при «выделить все» они засоряли выборку.
+        function isPunctuationToken(token) {
+            if (typeof token !== 'string') return false;
+            const trimmed = token.trim();
+            return trimmed !== '' && /^[.,!?;:…—–«»"'()\[\]{}\-]+$/u.test(trimmed);
+        }
+
+        // Знак препинания, прилипший к слову, попадает в чип вместе с ним: скрывается
+        // не «текст», а «текст,». Отделяем хвостовые знаки пробелом, чтобы они были
+        // самостоятельными токенами.
+        //
+        // Маркер списка («1.») не трогаем — там точка часть номера, а не знак после
+        // слова. Дробные числа и многоточие сами по себе тоже не подходят под шаблон:
+        // он требует, чтобы перед знаками стоял непунктуационный символ.
+        const TRAILING_PUNCTUATION_RE = /^(.*[^\s.,!?;:…])([.,!?;:…]+)$/u;
+
+        function splitTrailingPunctuation(content) {
+            const tokens = (content || '').match(/\S+|\s+/g) || [];
+            const out = [];
+            const indexMap = new Map();
+            for (let i = 0; i < tokens.length; i++) {
+                indexMap.set(i, out.length);
+                const token = tokens[i];
+                if (!token.trim() || isNumericListMarkerToken(token)) {
+                    out.push(token);
+                    continue;
+                }
+                const match = token.match(TRAILING_PUNCTUATION_RE);
+                if (!match) {
+                    out.push(token);
+                    continue;
+                }
+                out.push(match[1], ' ', match[2]);
+            }
+            return { content: out.join(''), indexMap, changed: out.length !== tokens.length };
+        }
+
+        // Разделение сдвигает индексы, поэтому переносим их сами. Общий механизм
+        // переноса (remapProcessedTextState) здесь не годится: он сопоставляет
+        // токены по строке, а «текст,» и «текст» — разные строки, и разметка
+        // такого слова просто потерялась бы.
+        function applyPunctuationSplitToText(text) {
+            if (!text) return false;
+            ensureTextStudyData(text);
+            const result = splitTrailingPunctuation(text.content || '');
+            if (!result.changed) return false;
+
+            const move = i => result.indexMap.has(i) ? result.indexMap.get(i) : null;
+            const moveList = list => [...new Set((list || [])
+                .map(move).filter(i => i !== null))].sort((a, b) => a - b);
+            const moveMap = obj => {
+                const out = {};
+                Object.entries(obj || {}).forEach(([key, value]) => {
+                    const moved = move(Number(key));
+                    if (moved !== null) out[moved] = value;
+                });
+                return out;
+            };
+
+            text.hiddenWords = moveList(text.hiddenWords);
+            text.revealedWords = moveList(text.revealedWords);
+            text.halfRevealedWords = moveList(text.halfRevealedWords);
+            text.hardWords = moveList(text.hardWords);
+            text.wordHints = moveMap(text.wordHints);
+            text.hintTypes = moveMap(text.hintTypes);
+            text.hintLetters = moveMap(text.hintLetters);
+
+            const groups = {};
+            Object.entries(text.hiddenWordGroups || {}).forEach(([leaderKey, indices]) => {
+                const leader = move(Number(leaderKey));
+                const mapped = moveList(indices);
+                if (leader !== null && mapped.length) groups[leader] = mapped;
+            });
+            text.hiddenWordGroups = groups;
+            text.content = result.content;
+            return true;
         }
 
         function getGroupedWordsLabel(words, indices) {
@@ -11358,6 +11446,7 @@
                         <div class="action-buttons">
                             ${state.mode === 'edit' ? `
                                 <button class="action-btn btn-edit-text" onclick="showEditTextModal()">Редактировать текст</button>
+                                <button class="action-btn btn-select-all" onclick="selectAllPendingWords()">Выделить все слова</button>
                                 <button class="action-btn btn-reset" onclick="clearMarks()">Сбросить выбор</button>
                                 ${(text.hiddenWords || []).length ? `
                                     <button class="action-btn btn-save" onclick="copyProcessedMaterial()">Скопировать материал</button>
@@ -14754,10 +14843,12 @@
                 if (!term) return;
                 updateMaterialContentPreservingProcessing(term, title, content, example, imageUrl);
                 if (pendingImport) applyDescriptionImportToText(term, pendingImport);
+                applyPunctuationSplitToText(term);
             } else if (state.editingText) {
                 const text = getCurrentFolder().texts[state.currentText];
                 updateMaterialContentPreservingProcessing(text, title, content, example, imageUrl);
                 if (pendingImport) applyDescriptionImportToText(text, pendingImport);
+                applyPunctuationSplitToText(text);
             } else {
                 const newText = {
                     title: title,
@@ -14772,6 +14863,7 @@
                 };
                 getCurrentFolder().texts.push(newText);
                 if (pendingImport) applyDescriptionImportToText(newText, pendingImport);
+                applyPunctuationSplitToText(newText);
             }
             state.editingText = false;
             state.editingTermIndex = null;
@@ -14969,6 +15061,7 @@
                 if (words[i].trim() === '') continue;
                 if (isSlashSeparatorToken(words[i])) continue;
                 if (isNumericListMarkerToken(words[i])) continue;
+                if (isPunctuationToken(words[i])) continue;
                 if (hiddenWords.has(i)) continue;
                 allAvailableWordIndexes.push(i);
             }
@@ -15481,6 +15574,7 @@
                     if (words[i].trim() === '') continue;
                     if (isSlashSeparatorToken(words[i])) continue;
                     if (isNumericListMarkerToken(words[i])) continue;
+                    if (isPunctuationToken(words[i])) continue;
                     nextIdx = i;
                     break;
                 }
