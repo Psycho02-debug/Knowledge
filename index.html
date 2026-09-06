@@ -14615,17 +14615,35 @@
         // а действие выполняем на отпускании модификатора.
         //
         // Ctrl принимается наравне с Cmd — на Windows и Linux командной клавиши нет.
-        const MODAL_MODIFIER_KEYS = ['Shift', 'Meta', 'Control'];
+        // 'OS' в списке потому, что часть браузеров называет командную клавишу так.
+        const MODAL_MODIFIER_KEYS = ['Shift', 'Meta', 'Control', 'OS'];
+        // Запасной путь: если отпускание модификатора до нас не дойдёт, срабатываем
+        // по удержанию. Полсекунды заметно дольше, чем набирают Cmd+Shift+буква,
+        // поэтому обычные сочетания успевают отмениться нажатием буквы.
+        const MODAL_SHORTCUT_HOLD_MS = 500;
         let cmdShiftArmed = false;
+        let cmdShiftHoldTimer = null;
 
         function cancelModalShortcut() {
             cmdShiftArmed = false;
+            if (cmdShiftHoldTimer !== null) {
+                clearTimeout(cmdShiftHoldTimer);
+                cmdShiftHoldTimer = null;
+            }
+        }
+
+        function runModalShortcut() {
+            if (!cmdShiftArmed) return;
+            cancelModalShortcut();
+            if (!isTextModalOpen()) return;
+            saveTextAndSelectWords();
         }
 
         document.addEventListener('keydown', function(e) {
             if (MODAL_MODIFIER_KEYS.includes(e.key)) {
-                if (e.shiftKey && (e.metaKey || e.ctrlKey) && isTextModalOpen()) {
+                if (!cmdShiftArmed && e.shiftKey && (e.metaKey || e.ctrlKey) && isTextModalOpen()) {
                     cmdShiftArmed = true;
+                    cmdShiftHoldTimer = setTimeout(runModalShortcut, MODAL_SHORTCUT_HOLD_MS);
                 }
                 return;
             }
@@ -14633,13 +14651,11 @@
         }, true);
 
         document.addEventListener('keyup', function(e) {
-            if (!MODAL_MODIFIER_KEYS.includes(e.key)) return;
             if (!cmdShiftArmed) return;
-            cmdShiftArmed = false;
-            if (!isTextModalOpen()) return;
+            if (!MODAL_MODIFIER_KEYS.includes(e.key)) return;
             e.preventDefault();
-            saveTextAndSelectWords();
-        });
+            runModalShortcut();
+        }, true);
 
         document.addEventListener('mousedown', cancelModalShortcut, true);
         window.addEventListener('blur', cancelModalShortcut);
