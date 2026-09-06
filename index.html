@@ -2129,6 +2129,17 @@
             color: var(--text-secondary);
         }
 
+        /* Правка текста прямо из режима выделения. Занимает отдельную строку:
+           втроём с «Сбросить выбор» и «Скопировать материал» подписи не влезали
+           в 375px и обрезались. Контурная, чтобы не спорить с «Скопировать
+           материал» — та заливная и остаётся главной. */
+        .btn-edit-text {
+            flex: 1 0 100%;
+            background: none;
+            border: 1px solid var(--border-input);
+            color: var(--accent-primary);
+        }
+
         .btn-delete {
             background: #3b1425;
             color: #fb7185;
@@ -3298,6 +3309,14 @@
             padding-top: 10px;
             border-top: 1px dashed var(--border-color);
             font-style: italic;
+        }
+
+        /* Выделение слов стоит отдельным блоком сразу под правкой материала: это
+           подготовка текста, а не режим изучения. Отступ снизу меньше обычного,
+           чтобы блок читался как продолжение правки, а не как самостоятельный
+           раздел. */
+        .chooser-grid-tight {
+            margin-bottom: 18px;
         }
 
         .chooser-section-label {
@@ -6366,6 +6385,8 @@
             const oldHalfRevealedWords = new Set(text.halfRevealedWords || []);
             const oldWordHints = { ...(text.wordHints || {}) };
             const oldHintTypes = { ...(text.hintTypes || {}) };
+            const oldHardWords = new Set(text.hardWords || []);
+            const oldHintLetters = { ...(text.hintLetters || {}) };
             const oldHiddenWordGroups = {};
             Object.keys(text.hiddenWordGroups || {}).forEach(key => {
                 oldHiddenWordGroups[key] = [...text.hiddenWordGroups[key]];
@@ -6387,6 +6408,8 @@
             const newHalfRevealedWords = new Set();
             const newWordHints = {};
             const newHintTypes = {};
+            const newHardWords = new Set();
+            const newHintLetters = {};
             const newHiddenWordGroups = {};
 
             getHiddenWordGroups(oldSnapshot).forEach(group => {
@@ -6410,6 +6433,10 @@
                     newHiddenWords.add(newIndex);
                     if (oldRevealedWords.has(oldIndex)) newRevealedWords.add(newIndex);
                     if (oldHalfRevealedWords.has(oldIndex)) newHalfRevealedWords.add(newIndex);
+                    if (oldHardWords.has(oldIndex)) newHardWords.add(newIndex);
+                    if (Object.prototype.hasOwnProperty.call(oldHintLetters, oldIndex)) {
+                        newHintLetters[newIndex] = oldHintLetters[oldIndex];
+                    }
 
                     if (position === 0) {
                         if (Object.prototype.hasOwnProperty.call(oldWordHints, group.leader)) {
@@ -6433,6 +6460,10 @@
                 newHiddenWords.add(newIndex);
                 if (oldRevealedWords.has(oldIndex)) newRevealedWords.add(newIndex);
                 if (oldHalfRevealedWords.has(oldIndex)) newHalfRevealedWords.add(newIndex);
+                if (oldHardWords.has(oldIndex)) newHardWords.add(newIndex);
+                if (Object.prototype.hasOwnProperty.call(oldHintLetters, oldIndex)) {
+                    newHintLetters[newIndex] = oldHintLetters[oldIndex];
+                }
                 if (Object.prototype.hasOwnProperty.call(oldWordHints, oldIndex)) {
                     newWordHints[newIndex] = oldWordHints[oldIndex];
                 }
@@ -6450,6 +6481,13 @@
                 .sort((a, b) => a - b);
             text.wordHints = newWordHints;
             text.hintTypes = newHintTypes;
+            // Отметки сложных слов и счётчики подсказок тоже должны переехать на
+            // новые позиции: иначе после правки текста звёздочки оказывались бы
+            // на чужих словах.
+            text.hardWords = [...newHardWords]
+                .filter(index => newHiddenWords.has(index))
+                .sort((a, b) => a - b);
+            text.hintLetters = newHintLetters;
             text.hiddenWordGroups = newHiddenWordGroups;
         }
 
@@ -10626,11 +10664,13 @@
                         ${text.image ? `<img src="${text.image}" loading="lazy" decoding="async" style="max-width:100%;max-height:120px;border-radius:12px;object-fit:cover;margin-bottom:8px;">` : ''}
                         <div style="color:var(--accent-primary);font-size:15px;font-weight:500;">Редактировать материал</div>
                     </div>
-                    <div class="chooser-section-label">Изучение</div>
-                    <div class="chooser-grid">
+                    <div class="chooser-grid chooser-grid-1 chooser-grid-tight">
                         <div class="chooser-card" onclick="openTermInMode(state.currentText, 'edit')">
                             <div class="chooser-card-title">Выделите слова для скрытия</div>
                         </div>
+                    </div>
+                    <div class="chooser-section-label">Изучение</div>
+                    <div class="chooser-grid">
                         <div class="chooser-card" onclick="openTermInMode(state.currentText, 'practice', 'default')">
                             <div class="chooser-card-title">Полностью скрытые слова</div>
                         </div>
@@ -10642,9 +10682,6 @@
                         </div>
                         <div class="chooser-card" onclick="openTermInMode(state.currentText, 'type')">
                             <div class="chooser-card-title">Вписать слово</div>
-                        </div>
-                        <div class="chooser-card" onclick="openTermInMode(state.currentText, 'game')">
-                            <div class="chooser-card-title">Собери текст по словам</div>
                         </div>
                     </div>
                     
@@ -10664,6 +10701,11 @@
                             <div class="chooser-card-icon">❓</div>
                             <div class="chooser-card-title">Вопросы к термину</div>
                             <div class="chooser-card-desc">Лицевая — ваши вопросы к термину, оборотная — сам термин целиком</div>
+                        </div>
+                        <div class="chooser-card chooser-card-accent" onclick="openTermInMode(state.currentText, 'game')">
+                            <div class="chooser-card-icon">🧩</div>
+                            <div class="chooser-card-title">Собери текст по словам</div>
+                            <div class="chooser-card-desc">Собрать текст из перемешанных слов</div>
                         </div>
                     </div>
 
@@ -11120,6 +11162,7 @@
                     ${isPracticeLayout ? '' : `
                         <div class="action-buttons">
                             ${state.mode === 'edit' ? `
+                                <button class="action-btn btn-edit-text" onclick="showEditTextModal()">Редактировать текст</button>
                                 <button class="action-btn btn-reset" onclick="clearMarks()">Сбросить выбор</button>
                                 ${(text.hiddenWords || []).length ? `
                                     <button class="action-btn btn-save" onclick="copyProcessedMaterial()">Скопировать материал</button>
