@@ -5173,6 +5173,16 @@
             border-color: var(--accent-primary);
         }
 
+        .modal-wide-hint {
+            margin-left: 8px;
+            padding: 2px 7px;
+            border-radius: 6px;
+            background: var(--bg-badge);
+            color: var(--text-tertiary);
+            font-size: 11px;
+            font-weight: 700;
+        }
+
         .folder-dashboard-actions {
             display: flex;
             align-items: center;
@@ -6074,7 +6084,7 @@
                 </label>
             </div>
             <input type="hidden" id="termImageUrl" value="">
-            <button class="modal-wide-action" onclick="saveTextAndSelectWords()">Сохранить и выделить слова</button>
+            <button class="modal-wide-action" onclick="saveTextAndSelectWords()">Сохранить и выделить слова<span class="modal-wide-hint">⌘⇧</span></button>
             <div class="modal-buttons">
                 <button class="modal-cancel" onclick="closeModal(&#39;textModal&#39;)">Отмена</button>
                 <button class="modal-save" onclick="saveText()">Сохранить</button>
@@ -14588,6 +14598,51 @@
             if (!folder || targetIndex < 0 || targetIndex >= folder.texts.length) return;
             openTermInMode(targetIndex, 'edit');
         }
+
+        function isTextModalOpen() {
+            const modal = document.getElementById('textModal');
+            return !!modal && modal.classList.contains('show');
+        }
+
+        // Cmd+Shift в окне материала сохраняет текст и открывает выделение слов.
+        //
+        // Один Shift сюда не годится: его постоянно держат ради заглавных букв.
+        // Сочетание двух модификаторов при наборе не встречается, но и его мало
+        // проверить по нажатию — Cmd+Shift это начало множества сочетаний
+        // (Cmd+Shift+Z для повтора действия и другие), и мы срабатывали бы
+        // раньше, чем человек дожмёт букву. Поэтому взводим признак, когда обе
+        // клавиши зажаты, снимаем его при любой другой клавише или клике мышью,
+        // а действие выполняем на отпускании модификатора.
+        //
+        // Ctrl принимается наравне с Cmd — на Windows и Linux командной клавиши нет.
+        const MODAL_MODIFIER_KEYS = ['Shift', 'Meta', 'Control'];
+        let cmdShiftArmed = false;
+
+        function cancelModalShortcut() {
+            cmdShiftArmed = false;
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (MODAL_MODIFIER_KEYS.includes(e.key)) {
+                if (e.shiftKey && (e.metaKey || e.ctrlKey) && isTextModalOpen()) {
+                    cmdShiftArmed = true;
+                }
+                return;
+            }
+            cancelModalShortcut();
+        }, true);
+
+        document.addEventListener('keyup', function(e) {
+            if (!MODAL_MODIFIER_KEYS.includes(e.key)) return;
+            if (!cmdShiftArmed) return;
+            cmdShiftArmed = false;
+            if (!isTextModalOpen()) return;
+            e.preventDefault();
+            saveTextAndSelectWords();
+        });
+
+        document.addEventListener('mousedown', cancelModalShortcut, true);
+        window.addEventListener('blur', cancelModalShortcut);
 
         function saveFolder() {
             const name = document.getElementById('folderName').value.trim();
