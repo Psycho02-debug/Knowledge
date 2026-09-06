@@ -2919,6 +2919,14 @@
 
         /* Прячем, не убирая из дерева: удаление меняло бы число дочерних узлов
            обёртки, а вместе с ним пересоздавалось бы поле ввода. */
+        .folder-import-hint {
+            margin: -6px 0 12px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent-primary);
+        }
+
+        .folder-import-hint.is-hidden,
         .type-current-hint.is-hidden,
         .type-feedback.is-hidden {
             display: none;
@@ -3968,6 +3976,31 @@
             gap: 12px;
             margin-bottom: 10px;
             flex-wrap: wrap;
+        }
+
+        /* Действие уровня папки: перенос на другое устройство. В шапке ему места
+           нет — три кнопки не влезают в 375px и распирают страницу по ширине. */
+        .folder-transfer-row {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 12px;
+        }
+
+        .copy-folder-btn {
+            background: none;
+            border: 1px solid var(--border-input);
+            color: var(--accent-primary);
+            font-size: 13px;
+            font-weight: 600;
+            font-family: inherit;
+            padding: 7px 18px;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: border-color 0.2s, color 0.2s;
+        }
+
+        .copy-folder-btn:hover {
+            border-color: var(--accent-primary);
         }
 
         .texts-section-title {
@@ -5901,7 +5934,8 @@
     <div class="modal" id="folderModal">
         <div class="modal-content">
             <h3 id="folderModalTitle">Новая папка</h3>
-            <input type="text" id="folderName" placeholder="Название папки" onkeydown="if(event.key===&#39;Enter&#39;)saveFolder()">
+            <input type="text" id="folderName" placeholder="Название папки" onkeydown="if(event.key===&#39;Enter&#39;)saveFolder()" onpaste="handleFolderNamePaste(event)">
+            <div class="folder-import-hint is-hidden" id="folderImportHint"></div>
             <div class="modal-buttons">
                 <button class="modal-cancel" onclick="closeModal(&#39;folderModal&#39;)">Отмена</button>
                 <button class="modal-save" onclick="saveFolder()">Сохранить</button>
@@ -7237,6 +7271,7 @@
             lineCardFlipped: false,
             lineCardCueMode: 'letter',
             pendingDescriptionImport: null,
+            pendingFolderImport: null,
             questionsCardFlipped: false,
             editingQuestionIndex: null,
             studyQueue: [],
@@ -10599,6 +10634,9 @@
                         </div>
                     ` : ''}
                     ${allTextsCount > 0 ? `
+                        <div class="folder-transfer-row">
+                            <button class="copy-folder-btn" onclick="copyProcessedFolder()" title="Скопировать папку целиком, чтобы вставить её на другом устройстве">Скопировать папку</button>
+                        </div>
                         <div style="display:flex;gap:8px;align-items:center;">
                             <div class="search-bar" style="flex:1;">
                                 <span class="search-icon">
@@ -13826,6 +13864,115 @@
             }
         }
 
+        // ——— Перенос целой папки между устройствами ———
+        // Формат — то же самое, что у одного материала, только с заголовком папки
+        // и повторяющимися блоками. Разделитель не нужен: строка «Название:» сама
+        // по себе начинает новый материал, а «Модуль:» — вложенную папку.
+        //
+        //   Папка: Нейросети
+        //
+        //   Название: GPU
+        //   Описание:
+        //   {{Скорость}} вычислений
+        //
+        //   Модуль: Основы
+        //
+        //   Название: VRAM
+        //   Описание:
+        //   Сколько {{параметров::чего?}}
+        function buildProcessedFolderExport(folder) {
+            const parts = ['Папка: ' + (folder.name || '')];
+            const addTexts = (texts) => {
+                (texts || []).forEach(text => {
+                    ensureTextStudyData(text);
+                    parts.push('');
+                    parts.push('Название: ' + (text.title || ''));
+                    parts.push('Описание:');
+                    parts.push(buildProcessedDescriptionExport(text));
+                });
+            };
+            addTexts(folder.texts);
+            (folder.subfolders || []).forEach(sub => {
+                parts.push('');
+                parts.push('Модуль: ' + (sub.name || ''));
+                addTexts(sub.texts);
+            });
+            return parts.join('\n');
+        }
+
+        function isFolderImportText(rawText) {
+            return !!rawText && /^\s*Папка\s*:/im.test(rawText);
+        }
+
+        // Возвращает готовую папку со всеми материалами и модулями либо null,
+        // если текст не похож на экспорт папки.
+        function parseProcessedFolderImport(rawText) {
+            if (!isFolderImportText(rawText)) return null;
+            const lines = rawText.split('\n');
+            const folder = { name: '', texts: [], subfolders: [] };
+            let target = folder;          // куда складывать материалы: папка или модуль
+            let current = null;           // материал, который сейчас набирается
+            let descriptionLines = null;  // строки описания текущего материала
+
+            const finishText = () => {
+                if (!current) return;
+                const raw = (descriptionLines || []).join('\n').replace(/\s+$/, '');
+                const parsed = parseProcessedDescriptionImport(raw);
+                const text = {
+                    title: current.title, content: parsed.plainText, example: '', image: '',
+                    hiddenWords: [], revealedWords: [], halfRevealedWords: [],
+                    wordHints: {}, hintTypes: {}, hiddenWordGroups: {},
+                    questions: [], hardWords: [], hintLetters: {}
+                };
+                applyDescriptionImportToText(text, {
+                    hiddenWords: parsed.hiddenWords,
+                    wordHints: parsed.wordHints
+                });
+                if (text.title || text.content.trim()) target.texts.push(text);
+                current = null;
+                descriptionLines = null;
+            };
+
+            for (const line of lines) {
+                const folderMatch = line.match(/^\s*Папка\s*:\s*(.*)$/i);
+                if (folderMatch && !folder.name && !current) {
+                    folder.name = folderMatch[1].trim();
+                    continue;
+                }
+                const moduleMatch = line.match(/^\s*Модуль\s*:\s*(.*)$/i);
+                if (moduleMatch) {
+                    finishText();
+                    const sub = { name: moduleMatch[1].trim(), texts: [], subfolders: [] };
+                    folder.subfolders.push(sub);
+                    target = sub;
+                    continue;
+                }
+                const titleMatch = line.match(/^\s*Название\s*:\s*(.*)$/i);
+                if (titleMatch) {
+                    finishText();
+                    current = { title: titleMatch[1].trim() };
+                    descriptionLines = null;
+                    continue;
+                }
+                if (/^\s*Описание\s*:\s*$/i.test(line)) {
+                    if (current) descriptionLines = [];
+                    continue;
+                }
+                if (descriptionLines) descriptionLines.push(line);
+            }
+            finishText();
+            return folder;
+        }
+
+        async function copyProcessedFolder() {
+            const folder = getCurrentFolder();
+            if (!folder) return;
+            const exported = buildProcessedFolderExport(folder);
+            const ok = await copyPlainTextToClipboard(exported);
+            if (ok) flashFolderCopyDone();
+            else prompt('Не удалось скопировать автоматически. Скопируйте текст вручную:', exported);
+        }
+
         async function copyProcessedMaterial() {
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             if (!text.hiddenWords || !text.hiddenWords.length) {
@@ -13858,6 +14005,19 @@
                 if (!liveBtn) return;
                 liveBtn.textContent = 'Скопировать материал';
                 liveBtn.classList.remove('is-done');
+            }, 1800);
+        }
+
+        let folderCopyResetTimer = null;
+        function flashFolderCopyDone() {
+            const btn = document.querySelector('.copy-folder-btn');
+            if (!btn) return;
+            if (folderCopyResetTimer !== null) clearTimeout(folderCopyResetTimer);
+            btn.textContent = '✓ Скопировано';
+            folderCopyResetTimer = setTimeout(() => {
+                folderCopyResetTimer = null;
+                const live = document.querySelector('.copy-folder-btn');
+                if (live) live.textContent = 'Скопировать папку';
             }, 1800);
         }
 
@@ -14022,7 +14182,36 @@
             }
         }
         
+        // Вставка экспорта папки в поле названия разбирает его целиком — так же,
+        // как вставка экспорта материала в поле его названия.
+        function handleFolderNamePaste(event) {
+            const clipboardData = event.clipboardData || window.clipboardData;
+            const rawText = clipboardData ? clipboardData.getData('text') : '';
+            if (!isFolderImportText(rawText)) return;
+            event.preventDefault();
+            const parsed = parseProcessedFolderImport(rawText);
+            if (!parsed) return;
+            state.pendingFolderImport = parsed;
+            const field = document.getElementById('folderName');
+            field.value = parsed.name || 'Импортированная папка';
+            const материалов = parsed.texts.length +
+                parsed.subfolders.reduce((sum, sub) => sum + sub.texts.length, 0);
+            const hint = document.getElementById('folderImportHint');
+            if (hint) {
+                hint.textContent = `Будет вставлено материалов: ${материалов}` +
+                    (parsed.subfolders.length ? `, модулей: ${parsed.subfolders.length}` : '');
+                hint.classList.remove('is-hidden');
+            }
+        }
+
+        function resetFolderImportState() {
+            state.pendingFolderImport = null;
+            const hint = document.getElementById('folderImportHint');
+            if (hint) { hint.textContent = ''; hint.classList.add('is-hidden'); }
+        }
+
         function showFolderModal() {
+            resetFolderImportState();
             state.folderModalMode = 'root';
             document.getElementById('folderModalTitle').textContent = 'Новая папка';
             document.getElementById('folderName').value = '';
@@ -14032,6 +14221,7 @@
         }
 
         function showSubfolderModal() {
+            resetFolderImportState();
             if (state.currentFolder === null || state.currentSubfolder !== null) return;
             state.folderModalMode = 'subfolder';
             document.getElementById('folderModalTitle').textContent = 'Новый модуль';
@@ -14042,6 +14232,7 @@
         }
 
         function showFlashcardFolderModal() {
+            resetFolderImportState();
             state.folderModalMode = 'card_root';
             document.getElementById('folderModalTitle').textContent = 'Новая папка карточек';
             document.getElementById('folderName').value = '';
@@ -14272,11 +14463,12 @@
             const name = document.getElementById('folderName').value.trim();
             if (!name) return;
 
-            const newFolder = {
-                name: name,
-                texts: [],
-                subfolders: []
-            };
+            // Если в поле вставляли экспорт папки, материалы и модули уже разобраны.
+            const imported = state.pendingFolderImport;
+            state.pendingFolderImport = null;
+            const newFolder = imported
+                ? { name: name, texts: imported.texts, subfolders: imported.subfolders }
+                : { name: name, texts: [], subfolders: [] };
 
             if (state.folderModalMode === 'subfolder') {
                 const root = getTopFolder();
