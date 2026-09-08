@@ -3992,7 +3992,80 @@
         .folder-transfer-row {
             display: flex;
             justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
             margin-bottom: 12px;
+        }
+
+        /* Главное действие отдельной строкой во всю ширину, вспомогательные — над
+           ним: втроём в один ряд «Отмена» переносилась и ряд выглядел рваным. */
+        .selection-bar {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .selection-bar-row {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .selection-copy-btn {
+            width: 100%;
+            padding: 11px 14px;
+            border: none;
+            border-radius: 16px;
+            background: var(--gradient-primary);
+            color: var(--accent-on-strong);
+            font-size: 13px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+        }
+
+        .selection-copy-btn:disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+
+        .selection-plain-btn {
+            padding: 9px 14px;
+            border: 1px solid var(--border-input);
+            border-radius: 16px;
+            background: none;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+        }
+
+        /* Галочка занимает место маркера перетаскивания, поэтому строка карточки
+           не меняет ширину при входе в режим выбора. */
+        .term-select-mark {
+            width: 22px;
+            height: 22px;
+            flex: 0 0 auto;
+            margin-right: 6px;
+            border: 1.5px solid var(--border-input);
+            border-radius: 7px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 800;
+            color: var(--accent-on-strong);
+        }
+
+        .term-card.selected .term-select-mark {
+            background: var(--accent-strong);
+            border-color: var(--accent-strong);
+        }
+
+        .term-card.selected {
+            border-color: var(--accent-primary);
         }
 
         .copy-folder-btn {
@@ -6104,7 +6177,7 @@
     <div class="modal" id="bulkImportModal">
         <div class="modal-content">
             <h3>Загрузить список материалов</h3>
-            <p style="font-size:13px;color:var(--text-secondary);margin:0 0 10px 0;line-height:1.5;">Первая строка блока — <strong>название</strong>, остальные строки — <strong>описание</strong>. Между материалами — пустая строка.</p>
+            <p style="font-size:13px;color:var(--text-secondary);margin:0 0 10px 0;line-height:1.5;">Первая строка блока — <strong>название</strong>, остальные строки — <strong>описание</strong>. Между материалами — пустая строка.<br>Сюда же вставляются материалы, скопированные с другого устройства — вместе со скрытыми словами.</p>
             <textarea id="bulkImportText" placeholder="CSAT&#10;Метрика удовлетворённости клиентов. Показывает, насколько клиент доволен конкретным взаимодействием.&#10;&#10;NPS&#10;Net Promoter Score — индекс лояльности. Измеряет вероятность рекомендации компании.&#10;&#10;Конверсия&#10;Доля пользователей, совершивших целевое действие, от общего числа посетителей." oninput="updateBulkImportPreview()" style="min-height:220px;"></textarea>
             <div id="bulkImportPreview" style="font-size:13px;color:var(--accent-primary);font-weight:600;margin:8px 0 2px;min-height:18px;"></div>
             <div class="modal-buttons">
@@ -7473,6 +7546,8 @@
             lineCardCueMode: 'letter',
             pendingDescriptionImport: null,
             pendingFolderImport: null,
+            textsSelectionMode: false,
+            selectedTextKeys: [],
             questionsCardFlipped: false,
             editingQuestionIndex: null,
             studyQueue: [],
@@ -10846,9 +10921,20 @@
                         </div>
                     ` : ''}
                     ${allTextsCount > 0 ? `
-                        <div class="folder-transfer-row">
-                            <button class="copy-folder-btn" onclick="copyProcessedFolder()" title="Скопировать папку целиком, чтобы вставить её на другом устройстве">Скопировать папку</button>
-                        </div>
+                        ${state.textsSelectionMode ? `
+                            <div class="selection-bar">
+                                <div class="selection-bar-row">
+                                    <button class="selection-plain-btn" onclick="selectAllVisibleTexts()">${state.selectedTextKeys.length === textsViewEntriesCache.length && textsViewEntriesCache.length ? 'Снять все' : 'Выбрать все'}</button>
+                                    <button class="selection-plain-btn" onclick="cancelTextsSelection()">Отмена</button>
+                                </div>
+                                <button class="selection-copy-btn" onclick="copySelectedMaterials()" ${state.selectedTextKeys.length ? '' : 'disabled'}>Скопировать выбранные (${state.selectedTextKeys.length})</button>
+                            </div>
+                        ` : `
+                            <div class="folder-transfer-row">
+                                <button class="copy-folder-btn" onclick="copyProcessedFolder()" title="Скопировать папку целиком, чтобы вставить её на другом устройстве">Скопировать папку</button>
+                                <button class="copy-folder-btn" onclick="startTextsSelection()" title="Выбрать отдельные материалы и скопировать только их">Выбрать материалы</button>
+                            </div>
+                        `}
                         <div style="display:flex;gap:8px;align-items:center;">
                             <div class="search-bar" style="flex:1;">
                                 <span class="search-icon">
@@ -10912,14 +10998,18 @@
                     ` : allTextsCount > 0 ? `
                         <div class="text-list">
                             ${textsWithIndex.map((text, vi) => `
-                                <div class="term-card ${text.attention ? 'attention' : ''}" data-term-index="${vi}" onclick="openText(${vi})" style="animation-delay: ${vi * 0.05}s" draggable="false">
+                                <div class="term-card ${text.attention ? 'attention' : ''}${state.textsSelectionMode && isTextSelected(vi) ? ' selected' : ''}" data-term-index="${vi}" onclick="${state.textsSelectionMode ? `toggleTextSelection(${vi})` : `openText(${vi})`}" style="animation-delay: ${vi * 0.05}s" draggable="false">
                                     <div class="term-header">
-                                        <div class="drag-handle" onclick="event.stopPropagation()" ontouchstart="event.stopPropagation()">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
-                                        </div>
+                                        ${state.textsSelectionMode ? `
+                                            <div class="term-select-mark">${isTextSelected(vi) ? '✓' : ''}</div>
+                                        ` : `
+                                            <div class="drag-handle" onclick="event.stopPropagation()" ontouchstart="event.stopPropagation()">
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
+                                            </div>
+                                        `}
                                         <h4 style="flex:1">${text.title}</h4>
                                         ${text.image ? `<img src="${text.image}" loading="lazy" decoding="async" style="width:28px;height:28px;border-radius:6px;object-fit:cover;margin-right:4px;">` : ''}
-                                        <div class="term-actions">
+                                        <div class="term-actions" ${state.textsSelectionMode ? 'hidden' : ''}>
                                             <button class="term-edit-btn" onclick="event.stopPropagation(); editTerm(${vi})" title="Редактировать">
                                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                             </button>
@@ -14182,6 +14272,92 @@
             return folder;
         }
 
+        // Ключ материала в списке: список фильтруется и сортируется, поэтому видимый
+        // номер карточки не годится — при поиске он указывал бы на другой материал.
+        // Позиция в самой папке (плюс номер модуля) стабильна.
+        function getTextSelectionKey(listIndex) {
+            const entry = textsViewEntriesCache[listIndex];
+            if (!entry) return null;
+            return (entry._sourceSubfolderIndex === null ? 'root' : entry._sourceSubfolderIndex) +
+                ':' + entry._sourceIndex;
+        }
+
+        function isTextSelected(listIndex) {
+            const key = getTextSelectionKey(listIndex);
+            return key !== null && state.selectedTextKeys.includes(key);
+        }
+
+        function toggleTextSelection(listIndex) {
+            const key = getTextSelectionKey(listIndex);
+            if (key === null) return;
+            const pos = state.selectedTextKeys.indexOf(key);
+            if (pos === -1) state.selectedTextKeys.push(key);
+            else state.selectedTextKeys.splice(pos, 1);
+            render();
+        }
+
+        function startTextsSelection() {
+            state.textsSelectionMode = true;
+            state.selectedTextKeys = [];
+            render();
+        }
+
+        function cancelTextsSelection() {
+            state.textsSelectionMode = false;
+            state.selectedTextKeys = [];
+            render();
+        }
+
+        function selectAllVisibleTexts() {
+            const keys = [];
+            for (let i = 0; i < textsViewEntriesCache.length; i++) {
+                const key = getTextSelectionKey(i);
+                if (key !== null) keys.push(key);
+            }
+            state.selectedTextKeys = state.selectedTextKeys.length === keys.length ? [] : keys;
+            render();
+        }
+
+        // Выбранные материалы уходят в том же виде, что и папка, только без строки
+        // «Папка:» — тогда на другом устройстве их можно вставить в «Загрузить
+        // список» и они лягут в текущую папку, а не создадут новую.
+        function buildSelectedMaterialsExport() {
+            const parts = [];
+            for (let i = 0; i < textsViewEntriesCache.length; i++) {
+                if (!isTextSelected(i)) continue;
+                const location = getTextLocationFromListIndex(i);
+                if (!location) continue;
+                const text = ensureTextStudyData(location.text);
+                if (parts.length) parts.push('');
+                parts.push('Название: ' + (text.title || ''));
+                parts.push('Описание:');
+                parts.push(buildProcessedDescriptionExport(text));
+            }
+            return parts.join('\n');
+        }
+
+        async function copySelectedMaterials() {
+            if (!state.selectedTextKeys.length) return;
+            const exported = buildSelectedMaterialsExport();
+            const ok = await copyPlainTextToClipboard(exported);
+            if (ok) flashSelectionCopyDone();
+            else prompt('Не удалось скопировать автоматически. Скопируйте текст вручную:', exported);
+        }
+
+        let selectionCopyResetTimer = null;
+        function flashSelectionCopyDone() {
+            const btn = document.querySelector('.selection-copy-btn');
+            if (!btn) return;
+            if (selectionCopyResetTimer !== null) clearTimeout(selectionCopyResetTimer);
+            const label = btn.textContent;
+            btn.textContent = '✓ Скопировано';
+            selectionCopyResetTimer = setTimeout(() => {
+                selectionCopyResetTimer = null;
+                const live = document.querySelector('.selection-copy-btn');
+                if (live) live.textContent = label;
+            }, 1800);
+        }
+
         async function copyProcessedFolder() {
             const folder = getCurrentFolder();
             if (!folder) return;
@@ -14900,6 +15076,19 @@
             setTimeout(() => document.getElementById('bulkImportText').focus(), 100);
         }
 
+        // Вставка обработанных материалов («Название:/Описание:» с разметкой {{}}).
+        // Разбор переиспользуем от папки: подставляем пустой заголовок папки, и та же
+        // функция возвращает готовые материалы вместе со скрытыми словами.
+        function parseProcessedMaterialsImport(raw) {
+            if (!raw || !/^\s*Название\s*:/im.test(raw)) return null;
+            if (!/\{\{[^{}]+\}\}/.test(raw) && !/^\s*Описание\s*:\s*$/im.test(raw)) return null;
+            const parsed = parseProcessedFolderImport('Папка: \n' + raw);
+            if (!parsed) return null;
+            const texts = [...parsed.texts];
+            (parsed.subfolders || []).forEach(sub => texts.push(...sub.texts));
+            return texts.length ? texts : null;
+        }
+
         function parseBulkImportItems(raw) {
             const blocks = raw.split(/\n[ \t]*\n/).filter(b => b.trim());
             const items = [];
@@ -14914,7 +15103,8 @@
 
         function updateBulkImportPreview() {
             const raw = document.getElementById('bulkImportText').value;
-            const items = parseBulkImportItems(raw);
+            const processed = parseProcessedMaterialsImport(raw);
+            const items = processed || parseBulkImportItems(raw);
             const preview = document.getElementById('bulkImportPreview');
             if (items.length > 0) {
                 const n = items.length;
@@ -14930,14 +15120,17 @@
 
         function processBulkImport() {
             const raw = document.getElementById('bulkImportText').value;
-            const items = parseBulkImportItems(raw);
+            const processed = parseProcessedMaterialsImport(raw);
+            const items = processed || parseBulkImportItems(raw);
             if (items.length === 0) {
                 alert('Не удалось распознать материалы.\n\nФормат:\nНазвание\nОписание материала\n\nСледующее название\nОписание');
                 return;
             }
             const folder = getCurrentFolder();
             for (const item of items) {
-                folder.texts.push({
+                // Обработанные материалы приходят готовыми объектами со скрытыми
+                // словами; простой список — только названием и текстом.
+                folder.texts.push(processed ? item : {
                     title: item.title,
                     content: item.content,
                     example: '',
