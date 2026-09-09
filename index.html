@@ -14158,6 +14158,18 @@
             const currentLineAfter = nextNewlineIdx === -1 ? afterCursor : afterCursor.slice(0, nextNewlineIdx);
             const emptyNumberedMatch = currentLineBefore.match(/^(\d+)\.\s*$/);
 
+            // Курсор в самом начале строки, а под ним есть текст: Enter здесь не
+            // заканчивает пункт, а отодвигает строку вниз. Номер тут не нужен.
+            // Раньше он вставлялся в ту же строку перед существующим — выходило
+            // «3. 4. скорость выдачи токенов», потому что хвост ещё и
+            // перенумеровывался на единицу вперёд.
+            if (currentLineBefore === '' && currentLineAfter.trim() !== '') {
+                el.value = beforeCursor + '\n' + afterCursor;
+                const newPos = selStart + 1;
+                el.setSelectionRange(newPos, newPos);
+                return;
+            }
+
             if (lineStart > 0 && emptyNumberedMatch && currentLineAfter.trim() === '') {
                 // Строка уже содержит пустой номер без текста после него — второй Enter подряд
                 // не переходит к следующему номеру, а просто отодвигает этот же номер ещё на
