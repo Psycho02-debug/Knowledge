@@ -1631,6 +1631,13 @@
             white-space: nowrap;
         }
 
+        /* Знак препинания в режиме выделения: обычный курсор и приглушённый цвет,
+           чтобы было видно, что нажимать на него незачем. */
+        .word.word-punct {
+            cursor: default;
+            color: var(--text-secondary);
+        }
+
         .word.marked {
             background: #34194f;
             color: #f0abfc;
@@ -6505,44 +6512,71 @@
             return typeof token === 'string' && token.trim() === '/';
         }
 
+        // Номер пункта списка: «1», «1.», «1)». Такой токен не слово, поэтому
+        // не выделяется и не разбивается — точка и скобка здесь часть номера.
         function isNumericListMarkerToken(token) {
-            return typeof token === 'string' && /^\d+\.?$/.test(token.trim());
+            return typeof token === 'string' && /^\d+[.)]?$/.test(token.trim());
         }
 
         // Токен из одних знаков препинания. Такие никогда не выделяются: скрывать
-        // запятую бессмысленно, а при «выделить все» они засоряли выборку.
+        // запятую или скобку бессмысленно, а при «выделить все» они засоряли выборку.
         function isPunctuationToken(token) {
             if (typeof token !== 'string') return false;
             const trimmed = token.trim();
-            return trimmed !== '' && /^[.,!?;:…—–«»"'()\[\]{}\-]+$/u.test(trimmed);
+            return trimmed !== '' && /^[.,!?;:…—–«»„“”‘’‹›"'()\[\]{}\-]+$/u.test(trimmed);
         }
 
         // Знак препинания, прилипший к слову, попадает в чип вместе с ним: скрывается
-        // не «текст», а «текст,». Отделяем хвостовые знаки пробелом, чтобы они были
-        // самостоятельными токенами.
+        // не «текст», а «(текст),». Отделяем знаки пробелом с обеих сторон слова,
+        // чтобы они были самостоятельными токенами и выпадали из выделения.
         //
-        // Маркер списка («1.») не трогаем — там точка часть номера, а не знак после
-        // слова. Дробные числа и многоточие сами по себе тоже не подходят под шаблон:
-        // он требует, чтобы перед знаками стоял непунктуационный символ.
-        const TRAILING_PUNCTUATION_RE = /^(.*[^\s.,!?;:…])([.,!?;:…]+)$/u;
+        // Дефис в набор не входит: он бывает частью слова («какой-то») и минусом
+        // перед числом. Маркер списка («1.», «2)») не трогаем — там знак часть
+        // номера. Дробные числа не задеваются: знак должен стоять с краю токена,
+        // а точка в «3.14» внутри.
+        const CLOSING_TO_OPENING_BRACKET = { ')': '(', ']': '[', '}': '{' };
 
-        function splitTrailingPunctuation(content) {
+        const EDGE_PUNCTUATION_RE = /^([.,!?;:…—–«»„“”‘’‹›"'()\[\]{}]*)(.*?)([.,!?;:…—–«»„“”‘’‹›"'()\[\]{}]*)$/u;
+
+        function splitEdgePunctuation(content) {
             const tokens = (content || '').match(/\S+|\s+/g) || [];
             const out = [];
             const indexMap = new Map();
             for (let i = 0; i < tokens.length; i++) {
-                indexMap.set(i, out.length);
                 const token = tokens[i];
                 if (!token.trim() || isNumericListMarkerToken(token)) {
+                    indexMap.set(i, out.length);
                     out.push(token);
                     continue;
                 }
-                const match = token.match(TRAILING_PUNCTUATION_RE);
-                if (!match) {
+                const match = token.match(EDGE_PUNCTUATION_RE);
+                const lead = match ? match[1] : '';
+                let core = match ? match[2] : token;
+                let tail = match ? match[3] : '';
+                // «f(x)» — скобка открылась внутри токена, значит закрывающая тоже
+                // часть слова, а не знак после него. Без этой проверки формула
+                // превратилась бы в «f(x )».
+                while (tail && CLOSING_TO_OPENING_BRACKET[tail[0]]) {
+                    const closer = tail[0];
+                    const opener = CLOSING_TO_OPENING_BRACKET[closer];
+                    const opened = core.split(opener).length - 1;
+                    const closed = core.split(closer).length - 1;
+                    if (opened <= closed) break;
+                    core += closer;
+                    tail = tail.slice(1);
+                }
+                // Пустая середина — токен целиком из знаков, он уже самостоятельный.
+                if (!core || (!lead && !tail)) {
+                    indexMap.set(i, out.length);
                     out.push(token);
                     continue;
                 }
-                out.push(match[1], ' ', match[2]);
+                if (lead) out.push(lead, ' ');
+                // Разметка слова обязана переехать на само слово, а не на скобку перед
+                // ним, поэтому индекс запоминается после вставки открывающих знаков.
+                indexMap.set(i, out.length);
+                out.push(core);
+                if (tail) out.push(' ', tail);
             }
             return { content: out.join(''), indexMap, changed: out.length !== tokens.length };
         }
@@ -6554,7 +6588,7 @@
         function applyPunctuationSplitToText(text) {
             if (!text) return false;
             ensureTextStudyData(text);
-            const result = splitTrailingPunctuation(text.content || '');
+            const result = splitEdgePunctuation(text.content || '');
             if (!result.changed) return false;
 
             const move = i => result.indexMap.has(i) ? result.indexMap.get(i) : null;
@@ -11380,7 +11414,16 @@
                     continue;
                 }
                 if (word.trim() === '') {
-                    practiceParts.push(escapeHtml(normalizeDisplayWhitespaceToken(word, practiceParts.length === 0)));
+                    const spacing = normalizeDisplayWhitespaceToken(word, practiceParts.length === 0);
+                    // Отделённый знак не должен оставаться один на строке: «важно »
+                    // с переносом перед кавычкой выглядит как ошибка вёрстки.
+                    // Неразрывный пробел рисуется так же, но запрещает разрыв.
+                    // Только для одиночного пробела — перенос строки в тексте важнее.
+                    if (spacing === ' ' && (isPunctuationToken(words[i - 1]) || isPunctuationToken(words[i + 1]))) {
+                        practiceParts.push('&nbsp;');
+                        continue;
+                    }
+                    practiceParts.push(escapeHtml(spacing));
                     continue;
                 }
 
@@ -11396,6 +11439,15 @@
                 const pendingGroup = getPendingHintGroupByIndex(i);
 
                 if (state.mode === 'edit') {
+                    // Знак препинания — не содержательная часть текста, выделять его
+                    // нечего. Спан рисуется без обработчика, чтобы промах по запятой
+                    // рядом со словом просто ничего не делал. Исключение — знак,
+                    // отмеченный в старом материале: его надо оставить снимаемым.
+                    if (!isMarked && !isPending && isPunctuationToken(word)) {
+                        practiceParts.push(`<span class="word word-punct">${escapeHtml(word)}</span>`);
+                        continue;
+                    }
+
                     let className = '';
                     if (isPending) {
                         className = 'pending-selection';
@@ -15205,6 +15257,9 @@
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             const words = text.content.split(/(\s+)/);
             if (isSlashSeparatorToken(words[index])) return;
+            // Проверка ниже ветки снятия отметки: скрытый знак из старого материала
+            // должен оставаться снимаемым, а вот заново отметить его уже нельзя.
+            if (!text.hiddenWords.includes(index) && isPunctuationToken(words[index])) return;
             
             if (text.hiddenWords.includes(index)) {
                 if (!removeHiddenWordGroupByIndex(text, index)) {
@@ -15235,6 +15290,7 @@
             const words = text.content.split(/(\s+)/);
             state.pendingWords.forEach(index => {
                 if (isSlashSeparatorToken(words[index])) return;
+                if (isPunctuationToken(words[index])) return;
                 if (!text.hiddenWords.includes(index)) {
                     text.hiddenWords.push(index);
                     if (!text.wordHints[index]) text.wordHints[index] = '';
