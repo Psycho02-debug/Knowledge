@@ -15864,6 +15864,19 @@
                 shuffleVisibleTexts();
                 return;
             }
+            // «E» (она же «У» в русской раскладке — та же физическая клавиша) правит
+            // открытый материал. Проверка на открытое окно обязательна: буква частая,
+            // и если фокус ушёл с поля на кнопку, нажатие пересобрало бы форму из
+            // сохранённого текста, стерев несохранённые правки.
+            if ((e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У') &&
+                !e.metaKey && !e.altKey &&
+                (state.view === 'term_chooser' || state.view === 'practice' || state.view === 'type') &&
+                state.currentFolder !== null && state.currentText !== null &&
+                !document.querySelector('.modal.show')) {
+                e.preventDefault();
+                showEditTextModal();
+                return;
+            }
             if (e.key === ']' || e.key === 'х' || e.key === 'Х' || e.key === 'ъ' || e.key === 'Ъ' ||
                 e.key === '`' || e.key === 'ё' || e.key === 'Ё') {
                 e.preventDefault();
