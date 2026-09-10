@@ -11393,7 +11393,13 @@
             // а не только в режиме фокуса: иначе после открытия очередного слова
             // было непонятно, какое из оставшихся будет следующим. Если режим фокуса
             // включён, ведущим считается он — двух подсветок сразу быть не должно.
-            const nextRevealIndex = state.mode === 'practice' && !isPracticeFocusActive
+            //
+            // Пока не открыто ни одного слова, подсветки нет вовсе: на нетронутом
+            // тексте она бессмысленна — и так очевидно, что следующее слово первое, —
+            // а экран при этом сразу открывался с ярким пятном и приглушённым
+            // остатком текста. Появляется она после первого открытого слова.
+            const hasRevealedAny = focusableHiddenSorted.some(idx => isFocusTargetFullyRevealed(text, idx));
+            const nextRevealIndex = state.mode === 'practice' && !isPracticeFocusActive && hasRevealedAny
                 ? focusableHiddenSorted.find(idx => !isFocusTargetFullyRevealed(text, idx))
                 : undefined;
             const practiceParts = [];
