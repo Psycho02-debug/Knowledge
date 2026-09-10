@@ -1,4 +1,4 @@
-const CACHE = 'zapominalka-v63';
+const CACHE = 'zapominalka-v64';
 const ASSETS = [
   './index.html',
   './manifest.json',
