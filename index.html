@@ -12949,6 +12949,7 @@
         }
         
         function openFolder(index) {
+            resetTextsSelectionState();
             state.learningBranch = 'texts';
             state.currentFolder = index;
             state.currentSubfolder = null;
@@ -13768,6 +13769,7 @@
         function openSubfolder(index) {
             const root = getTopFolder();
             if (!root || !root.subfolders[index]) return;
+            resetTextsSelectionState();
             state.learningBranch = 'texts';
             state.currentSubfolder = index;
             state.currentText = null;
@@ -13877,6 +13879,7 @@
         }
         
         function goBack() {
+            resetTextsSelectionState();
             if (state.currentSubfolder !== null) {
                 state.currentSubfolder = null;
                 state.currentText = null;
@@ -14474,9 +14477,17 @@
             render();
         }
 
-        function cancelTextsSelection() {
+        // Отметки хранятся как «модуль:номер» внутри текущей папки. В другой папке
+        // те же номера указывают на чужие материалы, и «Скопировать выбранные»
+        // скопировал бы то, чего пользователь не выбирал. Поэтому при любой смене
+        // папки или модуля режим выбора сбрасывается.
+        function resetTextsSelectionState() {
             state.textsSelectionMode = false;
             state.selectedTextKeys = [];
+        }
+
+        function cancelTextsSelection() {
+            resetTextsSelectionState();
             render();
         }
 
@@ -15007,7 +15018,12 @@
                 return true;
             }
             if (state.view === 'texts') {
-                if (state.matchingMode) {
+                if (state.textsSelectionMode) {
+                    // Иначе Escape выбрасывал из папки целиком вместе с отметками —
+                    // а в режим выбора теперь входят с клавиатуры (N), и выходить
+                    // из него ждут тем же способом.
+                    cancelTextsSelection();
+                } else if (state.matchingMode) {
                     exitMatchingGame();
                 } else if (state.folderQuizMode) {
                     exitFolderQuiz();
@@ -15351,6 +15367,7 @@
                     root.subfolders.splice(state.currentSubfolder, 1);
                     state.currentSubfolder = null;
                     state.currentText = null;
+                    resetTextsSelectionState();
                     saveData();
                     state.view = 'texts';
                     render();
@@ -15996,6 +16013,24 @@
                 }
                 if (nextIdx >= 0) toggleMark(nextIdx);
                 return;
+            }
+            // «N» — то же, что кнопка «Выбрать материалы»; повторное нажатие выходит
+            // из режима выбора, как «Отмена». Сверка по букве, как у «M»: латинская
+            // N и русская Н сидят на разных клавишах, «т» — латинская N в русской
+            // раскладке. Кнопка на экране есть не всегда (пустая папка, идёт игра),
+            // поэтому сверяемся с ней самой, а не пересчитываем её условия.
+            if ((e.key === 'n' || e.key === 'N' || e.key === 'н' || e.key === 'Н' || e.key === 'т' || e.key === 'Т') &&
+                !e.metaKey && !e.altKey && state.view === 'texts' && !document.querySelector('.modal.show')) {
+                if (state.textsSelectionMode) {
+                    e.preventDefault();
+                    cancelTextsSelection();
+                    return;
+                }
+                if (document.querySelector('.folder-transfer-row')) {
+                    e.preventDefault();
+                    startTextsSelection();
+                    return;
+                }
             }
             if ((e.key === 'w' || e.key === 'W' || e.key === 'ц' || e.key === 'Ц') && state.view === 'texts') {
                 e.preventDefault();
