@@ -15918,24 +15918,33 @@
             const activeElement = document.activeElement;
             const tag = activeElement ? activeElement.tagName : '';
             if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-            // Cmd+C на экране выбора слов — то же, что кнопка «Скопировать материал».
-            // Текст в карточке выделить нельзя (долгое нажатие отдано отметке
-            // сложных), так что обычное копирование здесь всё равно ничего не
-            // копировало бы. По e.code, а не по e.key: в русской раскладке клавиша
-            // та же, а символ другой. Если на странице всё же есть живое выделение
-            // вне карточки — его не перехватываем, копируется оно. Без скрытых слов
-            // кнопки на экране нет, и сочетание молчит так же.
+            // Cmd+C повторяет кнопку копирования там, где она есть:
+            // — на экране выбора слов — «Скопировать материал». Текст в карточке
+            //   выделить нельзя (долгое нажатие отдано отметке сложных), так что
+            //   обычное копирование здесь всё равно ничего не копировало бы;
+            // — в списке материалов в режиме выбора — «Скопировать выбранные».
+            // По e.code, а не по e.key: в русской раскладке клавиша та же, а символ
+            // другой. Если на странице есть живое выделение текста — его не
+            // перехватываем, копируется оно. Когда кнопки на экране нет (нет
+            // скрытых слов, ничего не отмечено), сочетание молчит так же.
             if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.code === 'KeyC' &&
-                state.view === 'practice' && state.mode === 'edit' &&
-                state.currentFolder !== null && state.currentText !== null &&
                 !document.querySelector('.modal.show')) {
                 const selection = window.getSelection();
-                if (selection && selection.toString().trim()) return;
-                const text = getCurrentFolder().texts[state.currentText];
-                if (!text || !(text.hiddenWords || []).length) return;
-                e.preventDefault();
-                copyProcessedMaterial();
-                return;
+                const hasLiveSelection = !!(selection && selection.toString().trim());
+                if (!hasLiveSelection && state.view === 'practice' && state.mode === 'edit' &&
+                    state.currentFolder !== null && state.currentText !== null) {
+                    const text = getCurrentFolder().texts[state.currentText];
+                    if (!text || !(text.hiddenWords || []).length) return;
+                    e.preventDefault();
+                    copyProcessedMaterial();
+                    return;
+                }
+                if (!hasLiveSelection && state.view === 'texts' && state.textsSelectionMode) {
+                    if (!state.selectedTextKeys.length) return;
+                    e.preventDefault();
+                    copySelectedMaterials();
+                    return;
+                }
             }
             if (e.ctrlKey && !e.metaKey && !e.altKey) {
                 return;
