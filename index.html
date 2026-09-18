@@ -11353,6 +11353,27 @@
             return Number.isFinite(index) ? index : null;
         }
 
+        // Слово, на которое сейчас показывает экран: в режиме фокуса — то, что под
+        // фокусом, иначе — подсвеченное «следующее». Именно его читает горячая
+        // клавиша отметки: на экране в этот момент выделено ровно одно слово, и
+        // отмечать что-то другое было бы неожиданно.
+        //
+        // Порядок тот же, что при отрисовке (getRenderableHiddenIndices), иначе в
+        // режиме вопросов клавиша попадала бы в середину объединённой группы, а не
+        // в её начало.
+        function getHighlightedPracticeWordIndex() {
+            if (state.view !== 'practice' || state.mode !== 'practice') return null;
+            if (state.currentFolder === null || state.currentText === null) return null;
+            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+            const renderable = getRenderableHiddenIndices(text);
+            if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled &&
+                renderable.includes(state.practiceFocusWordIndex)) {
+                return state.practiceFocusWordIndex;
+            }
+            const next = renderable.find(idx => !isFocusTargetFullyRevealed(text, idx));
+            return next === undefined ? null : next;
+        }
+
         function toggleHardWord(index) {
             if (state.currentText === null || state.currentFolder === null) return false;
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
@@ -16051,6 +16072,20 @@
                 if (e.key === 'ArrowUp' && !e.repeat) {
                     e.preventDefault();
                     toggleAllWordsReveal();
+                    return;
+                }
+                // «М» отмечает подсвеченное слово сложным — то же, что долгое
+                // нажатие на телефоне и правая кнопка мыши. Сверяемся с буквой, а
+                // не с физической клавишей: «м» и «M» сидят на разных клавишах, и
+                // по коду одна из раскладок осталась бы без сочетания. «ь» — это
+                // латинская M в русской раскладке, тот же отпечаток на клавише.
+                const isHardWordHotkey = e.key === 'm' || e.key === 'M' ||
+                    e.key === 'м' || e.key === 'М' || e.key === 'ь' || e.key === 'Ь';
+                if (isHardWordHotkey && !e.metaKey && !e.altKey && !e.repeat) {
+                    const target = getHighlightedPracticeWordIndex();
+                    if (target === null) return;
+                    e.preventDefault();
+                    toggleHardWord(target);
                     return;
                 }
             }
