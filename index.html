@@ -1886,6 +1886,15 @@
             transform: translateY(-1px);
         }
 
+        /* Обычное слово под фокусом. Жирность не меняем намеренно: у обычных слов
+           нет своего чипа, и более широкие жирные буквы перекладывали бы строку
+           на каждом шаге фокуса — текст бы дёргался. Заливка и кольцо-тень места
+           не занимают, поэтому вёрстка стоит на месте. */
+        .text-display.practice-focus-mode .word.practice-focus-active:not(.hidden-word):not(.revealed) {
+            background: var(--accent-primary);
+            color: #232b12;
+        }
+
         .text-display.practice-focus-mode .word.practice-focus-active.revealed {
             background: var(--accent-primary);
             color: #232b12;
@@ -11288,26 +11297,65 @@
             return getRenderableHiddenIndices(text).filter(idx => !isFocusTargetFullyRevealed(text, idx));
         }
 
-        // Включает режим фокуса (если он выключен) и ведёт по ещё не открытым
-        // словам по порядку, не раскрывая их. Уже пройденные слова пропускаются:
-        // фокус нужен для того, что осталось вспомнить.
-        function focusNextHiddenWord() {
+        // Слова, по которым идёт фокус: весь текст по порядку — скрытые, обычные и
+        // уже открытые, включая предлоги и союзы. Фокус работает как палец,
+        // ведущий по строке: пропуск обычных слов рвал чтение, приходилось
+        // держать в голове, где ты, пока фокус прыгал через половину фразы.
+        //
+        // Пропускаются только знаки препинания, номера пунктов и разделители «/»:
+        // это не слова, на них нечего читать и нечего вспоминать. В режиме
+        // вопросов объединённая группа рисуется одним чипом, поэтому фокус встаёт
+        // только на её первое слово — остальных членов группы на экране
+        // отдельно нет. Подавление здесь то же, что при отрисовке.
+        function getPracticeFocusTargets(text) {
+            ensureTextStudyData(text);
+            const words = text.content.split(/(\s+)/);
+            const suppressed = new Set();
+            if (state.practiceMode === 'hints') {
+                getHiddenWordGroups(text).forEach(group => {
+                    const lastIndex = group.indices[group.indices.length - 1];
+                    for (let idx = group.leader + 1; idx <= lastIndex; idx++) suppressed.add(idx);
+                });
+            }
+            const targets = [];
+            for (let i = 0; i < words.length; i++) {
+                const token = words[i];
+                if (!token || !token.trim() || suppressed.has(i)) continue;
+                if (isPunctuationToken(token) || isNumericListMarkerToken(token) || isSlashSeparatorToken(token)) continue;
+                targets.push(i);
+            }
+            return targets;
+        }
+
+        // Скрытое слово под фокусом, которое ещё есть что открыть.
+        function isFocusedWordStillHidden(text, index) {
+            return index !== null && (text.hiddenWords || []).includes(index) &&
+                !isFocusTargetFullyRevealed(text, index);
+        }
+
+        // Следующее слово по тексту; после последнего — снова первое.
+        function advancePracticeFocus(text) {
+            const targets = getPracticeFocusTargets(text);
+            const from = state.practiceFocusWordIndex;
+            const next = from === null ? undefined : targets.find(idx => idx > from);
+            state.practiceFocusWordIndex = next !== undefined ? next : (targets.length ? targets[0] : null);
+        }
+
+        // Включает режим фокуса (если он выключен) и ведёт по словам текста по
+        // порядку, ничего не раскрывая. Первое нажатие встаёт на первое слово.
+        function focusNextPracticeWord() {
             if (!isPracticeFocusModeEnabled()) return false;
             if (state.currentText === null || state.currentFolder === null) return false;
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
-            const targets = getUnrevealedFocusTargets(text);
+            const targets = getPracticeFocusTargets(text);
             if (!targets.length) return false;
 
-            // Первое нажатие включает режим фокуса и подсвечивает первое ещё не
-            // открытое слово; дальше кнопка ведёт по словам по порядку.
             if (!state.practiceFocusEnabled) {
                 state.practiceFocusEnabled = true;
                 state.practiceFocusWordIndex = targets[0];
             } else {
                 if (targets.length < 2) return false;
-                const currentPos = targets.indexOf(state.practiceFocusWordIndex);
-                const nextPos = currentPos === -1 ? 0 : (currentPos + 1) % targets.length;
-                state.practiceFocusWordIndex = targets[nextPos];
+                advancePracticeFocus(text);
             }
             render();
             scrollToFocusedWord();
@@ -11366,9 +11414,10 @@
             if (state.currentFolder === null || state.currentText === null) return null;
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             const renderable = getRenderableHiddenIndices(text);
-            if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled &&
-                renderable.includes(state.practiceFocusWordIndex)) {
-                return state.practiceFocusWordIndex;
+            // Под фокусом бывает и обычное слово — отметить его сложным нельзя,
+            // а уходить на какое-то другое слово было бы неожиданно.
+            if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled && state.practiceFocusWordIndex !== null) {
+                return renderable.includes(state.practiceFocusWordIndex) ? state.practiceFocusWordIndex : null;
             }
             const next = renderable.find(idx => !isFocusTargetFullyRevealed(text, idx));
             return next === undefined ? null : next;
@@ -11475,23 +11524,22 @@
             const words = text.content.split(/(\s+)/);
             const hiddenSorted = [...(text.hiddenWords || [])].sort((a, b) => a - b);
             const focusableHiddenSorted = getRenderableHiddenIndices(text);
+            const focusTargets = isPracticeFocusModeEnabled() ? getPracticeFocusTargets(text) : [];
             if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled) {
-                const isCurrentFocusStillValid = state.practiceFocusWordIndex !== null &&
-                    focusableHiddenSorted.includes(state.practiceFocusWordIndex) &&
-                    !isFocusTargetFullyRevealed(text, state.practiceFocusWordIndex);
-                if (!isCurrentFocusStillValid) {
-                    // Идём вперёд от последней позиции, а не всегда с начала: иначе
-                    // после «Пропустить» фокус тут же возвращался бы на пропущенное
-                    // слово. К пропущенному вернёмся, когда дойдём до конца текста.
-                    const targets = focusableHiddenSorted.filter(idx => !isFocusTargetFullyRevealed(text, idx));
+                // Открытое слово остаётся законной целью — фокус идёт по всем словам.
+                // Сдвигать его приходится, только если слова больше нет в тексте
+                // (материал отредактировали): встаём на ближайшее следующее.
+                if (!focusTargets.includes(state.practiceFocusWordIndex)) {
                     const from = state.practiceFocusWordIndex;
-                    const nextTarget = (from === null ? undefined : targets.find(idx => idx > from)) ?? targets[0];
-                    state.practiceFocusWordIndex = nextTarget === undefined ? null : nextTarget;
+                    const nextTarget = from === null ? undefined : focusTargets.find(idx => idx > from);
+                    state.practiceFocusWordIndex = nextTarget !== undefined ? nextTarget
+                        : (focusTargets.length ? focusTargets[0] : null);
                 }
             } else if (isPracticeFocusModeEnabled() && !state.practiceFocusEnabled) {
                 state.practiceFocusWordIndex = null;
             }
-            const isPracticeFocusActive = isPracticeFocusModeEnabled() && focusableHiddenSorted.includes(state.practiceFocusWordIndex);
+            const isPracticeFocusActive = isPracticeFocusModeEnabled() && state.practiceFocusEnabled &&
+                focusTargets.includes(state.practiceFocusWordIndex);
             // Слово, которое откроется следующим по кнопке. Подсвечиваем его всегда,
             // а не только в режиме фокуса: иначе после открытия очередного слова
             // было непонятно, какое из оставшихся будет следующим. Если режим фокуса
@@ -11620,6 +11668,8 @@
                         'has-letters', i, isPracticeFocusWord, i === nextRevealIndex, isHardWord(text, i)));
                 } else if (isMarked && isRevealed) {
                     practiceParts.push(`<span class="word revealed${isPracticeFocusWord ? ' practice-focus-active' : ''}${isHardWord(text, i) ? ' hard-word' : ''}" data-widx="${i}" onclick="hideWordAgain(${i})">${escapeHtml(word)}</span>`);
+                } else if (isPracticeFocusActive && i === state.practiceFocusWordIndex) {
+                    practiceParts.push(`<span class="word practice-focus-active">${escapeHtml(word)}</span>`);
                 } else {
                     practiceParts.push(`<span class="word">${escapeHtml(word)}</span>`);
                 }
@@ -11647,15 +11697,13 @@
             const primaryAction = !progress || progress.total === 0
                 ? ''
                 : (progress.allRevealed ? 'toggleAllWordsReveal()' : 'revealNextWordAndScroll()');
-            // Кнопка нужна, только когда фокус включён и есть куда переходить:
-            // минимум два ещё не открытых слова, иначе перескакивать не на что.
-            // Пока фокус выключен, кнопка нужна, чтобы его включить — хватает одного
-            // неоткрытого слова. Когда включён, она ведёт дальше по списку, поэтому
-            // осмысленна только если есть куда переходить.
+            // Пока фокус выключен, кнопка нужна, чтобы его включить, — если в тексте
+            // осталось что вспоминать. Когда включён, она ведёт по всем словам текста,
+            // поэтому нужна, пока есть куда перейти: хотя бы два слова.
             const unrevealedCount = isPracticeLayout ? getUnrevealedFocusTargets(text).length : 0;
             const canFocusNext = isPracticeLayout &&
                 isPracticeFocusModeEnabled() &&
-                (state.practiceFocusEnabled ? unrevealedCount > 1 : unrevealedCount > 0);
+                (state.practiceFocusEnabled ? focusTargets.length > 1 : unrevealedCount > 0);
             // Подсказка относится к тому же слову, что и «Открыть следующее слово».
             const hintTargetIndex = isPracticeLayout ? getActivePracticeTargetIndex(text) : null;
             const canHint = isPracticeLayout && canRevealHintLetter(text, hintTargetIndex);
@@ -11730,7 +11778,7 @@
                             ${(canFocusNext || canHint) ? `
                                 <div class="practice-assist-row">
                                     ${canFocusNext ? `
-                                        <button class="practice-skip-btn" onclick="focusNextHiddenWord()" title="Перевести фокус на следующее слово, не открывая текущее">Фокус на следующем слове</button>
+                                        <button class="practice-skip-btn" onclick="focusNextPracticeWord()" title="Перевести фокус на следующее слово, не открывая текущее">Фокус на следующем слове</button>
                                     ` : ''}
                                     ${canHint ? `
                                         <button class="practice-skip-btn practice-hint-btn" onclick="revealNextHintLetter()" title="Открыть следующую букву слова">${hintLabel}</button>
@@ -15674,9 +15722,11 @@
         function getActivePracticeTargetIndex(text) {
             const sorted = getRenderableHiddenIndices(text);
             const focused = state.practiceFocusWordIndex;
-            if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled && focused !== null &&
-                sorted.includes(focused) && !isFocusTargetFullyRevealed(text, focused)) {
-                return focused;
+            // Под фокусом может стоять обычное или уже открытое слово. Тогда
+            // подсказывать нечего: подсказка про чужое слово где-то дальше по
+            // тексту разошлась бы с тем, что подсвечено.
+            if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled && focused !== null) {
+                return sorted.includes(focused) && !isFocusTargetFullyRevealed(text, focused) ? focused : null;
             }
             const next = sorted.find(idx => !isFocusTargetFullyRevealed(text, idx));
             return next === undefined ? null : next;
@@ -15749,6 +15799,11 @@
                     text.revealedWords.push(targetIndex);
                 }
             });
+            // Раньше фокус уходил с открытого слова сам: открытые не были целями.
+            // Теперь они цели, поэтому шаг вперёд делаем явно — как у кнопки.
+            if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled && state.practiceFocusWordIndex === index) {
+                advancePracticeFocus(text);
+            }
             render();
         }
 
@@ -15780,6 +15835,25 @@
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             if (!text.hiddenWords || text.hiddenWords.length === 0) return;
             const sorted = getRenderableHiddenIndices(text);
+
+            // В режиме фокуса кнопка — шаг по тексту на одно слово: скрытое слово под
+            // фокусом открывается, обычное просто остаётся позади. Иначе на обычном
+            // слове кнопка либо ничего не делала бы, либо перепрыгивала к скрытому
+            // слову дальше — и фокус снова шёл бы не по всем словам.
+            if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled && state.practiceFocusWordIndex !== null) {
+                const focusedIndex = state.practiceFocusWordIndex;
+                if (isFocusedWordStillHidden(text, focusedIndex)) {
+                    const group = state.practiceMode === 'hints' ? getHiddenWordGroupByIndex(text, focusedIndex) : null;
+                    (group ? group.indices : [focusedIndex]).forEach(targetIndex => {
+                        const halfPos = text.halfRevealedWords.indexOf(targetIndex);
+                        if (halfPos !== -1) text.halfRevealedWords.splice(halfPos, 1);
+                        if (!text.revealedWords.includes(targetIndex)) text.revealedWords.push(targetIndex);
+                    });
+                }
+                advancePracticeFocus(text);
+                render();
+                return;
+            }
 
             // Если слово подсвечено фокусом — открываем именно его, а не первое по
             // порядку. Иначе после «Пропустить» кнопка открывала бы пропущенное
@@ -15849,7 +15923,8 @@
 
         function revealNextWordAndScroll() {
             revealNextWord();
-            scrollToUpcomingHiddenWord();
+            if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled) scrollToFocusedWord();
+            else scrollToUpcomingHiddenWord();
         }
 
         function resetReveal() {
@@ -16106,11 +16181,15 @@
                 }
                 if (e.key === 'ArrowDown' && !e.repeat && isPracticeFocusModeEnabled()) {
                     e.preventDefault();
-                    if (focusNextHiddenWord()) return;
+                    if (focusNextPracticeWord()) return;
                 }
-                if (e.key === 'Shift' && !e.repeat && isPracticeFocusModeEnabled() && state.practiceFocusWordIndex !== null) {
+                // Shift делает тот же шаг, что главная кнопка. Раньше он открывал
+                // слово под фокусом напрямую, а теперь под фокусом бывает обычное
+                // слово — его номер попал бы в список открытых скрытых слов.
+                if (e.key === 'Shift' && !e.repeat && isPracticeFocusModeEnabled() && state.practiceFocusEnabled &&
+                    state.practiceFocusWordIndex !== null) {
                     e.preventDefault();
-                    revealWordFully(state.practiceFocusWordIndex);
+                    revealNextWordAndScroll();
                     return;
                 }
                 if (e.key === 'ArrowUp' && !e.repeat) {
