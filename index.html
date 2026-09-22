@@ -7660,11 +7660,7 @@
                 answered: false,
                 isCorrect: false,
                 singleWrongWord: '',
-                bulkValue: '',
-                bulkAnswered: false,
-                bulkIsCorrect: false
             },
-            typeInputPreference: 'single',
             practiceFocusWordIndex: null,
             practiceFocusEnabled: false,
             lineCardFlipped: false,
@@ -8501,7 +8497,6 @@
                     ? `Не совпало: «${escapeHtml(ts.singleWrongWord)}». Попробуйте ещё раз.`
                     : ''
             }</div>`;
-            const bulkInputClass = 'type-input-field' + (ts.bulkAnswered ? (ts.bulkIsCorrect ? ' correct' : ' wrong') : '');
 
             return `
                 ${getTermNavHeader(text)}
@@ -8516,7 +8511,7 @@
 
                     <div class="type-input-wrap active">
                         <div class="type-input-label">
-                            <span>Ввод по порядку</span>
+                            <span>Ввод слов</span>
                             <span>${ts.currentIndex} / ${hiddenSorted.length}</span>
                         </div>
                         <div class="type-progress-track"><div class="type-progress-fill" style="transform:scaleX(${hiddenSorted.length ? (ts.currentIndex / hiddenSorted.length).toFixed(4) : 0})"></div></div>
@@ -8526,11 +8521,10 @@
                         </div>
                         ${singleTokensHtml}
                         <input type="text"
-                            class="type-input-field"
+                            class="type-input-field${ts.singleWrongWord ? ' wrong' : ''}"
                             id="typeInputField"
-                            placeholder="Введите слово и нажмите Enter"
+                            placeholder="Слово или сразу все через пробел"
                             value="${escapeHtmlAttr(ts.value)}"
-                            onfocus="rememberTypeInputMode('single')"
                             oninput="handleTypeSequenceInput(this.value)"
                             onkeydown="if(event.key==='Enter') checkTypeWord()"
                             autocomplete="off"
@@ -8539,23 +8533,6 @@
                             spellcheck="false"
                             >
                         <button class="type-check-btn" onclick="checkTypeWord()">Проверить</button>
-                    </div>
-
-                    <div class="type-input-wrap active">
-                        <div class="type-input-label">
-                            <span>Все скрытые слова сразу</span>
-                            <span>${hiddenSorted.length} / через 1 пробел</span>
-                        </div>
-                        <input type="text"
-                            class="${bulkInputClass}"
-                            id="typeAllInputField"
-                            placeholder="Введите все скрытые слова по порядку через один пробел..."
-                            value="${escapeHtmlAttr(ts.bulkValue)}"
-                            onfocus="rememberTypeInputMode('bulk')"
-                            oninput="rememberTypeInputMode('bulk'); state.typeState.bulkValue = this.value"
-                            onkeydown="if(event.key==='Enter') checkAllTypeWords()"
-                            autocomplete="off"
-                            ${ts.bulkAnswered ? 'disabled' : ''}>
                     </div>
                     ${getTermNavInline()}
                 </div>
@@ -8586,17 +8563,12 @@
         function setTypeDisplayMode(mode) {
             state.typeDisplayMode = mode;
             render();
-            focusPreferredTypeField();
+            focusTypeInputField();
         }
 
         function handleTypeSequenceInput(value) {
-            rememberTypeInputMode('single');
             state.typeState.value = value;
             state.typeState.singleWrongWord = '';
-        }
-
-        function rememberTypeInputMode(mode) {
-            state.typeInputPreference = mode === 'bulk' ? 'bulk' : 'single';
         }
 
         function resetTypeState() {
@@ -8605,15 +8577,8 @@
                 value: '',
                 answered: false,
                 isCorrect: false,
-                singleWrongWord: '',
-                bulkValue: '',
-                bulkAnswered: false,
-                bulkIsCorrect: false
+                singleWrongWord: ''
             };
-        }
-
-        function getPreferredTypeFieldId() {
-            return state.typeInputPreference === 'bulk' ? 'typeAllInputField' : 'typeInputField';
         }
 
         function focusTypeField(fieldId, selectAll) {
@@ -8642,8 +8607,8 @@
             setTimeout(apply, 100);
         }
 
-        function focusPreferredTypeField(selectAll) {
-            focusTypeField(getPreferredTypeFieldId(), selectAll);
+        function focusTypeInputField(selectAll) {
+            focusTypeField('typeInputField', selectAll);
         }
 
         function checkTypeWord() {
@@ -8654,7 +8619,6 @@
             const rawInput = ts.value.trim();
             if (!rawInput) return;
 
-            rememberTypeInputMode('single');
             const targetWords = hiddenSorted.map(index => normalizeTypeWord(words[index]));
             const userWords = rawInput.split(/\s+/);
             // Проверяем ПРОДОЛЖЕНИЕ с уже достигнутой позиции, а не весь список
@@ -8686,62 +8650,16 @@
             ts.value = wrongWord ? wrongWord : '';
             ts.answered = false;
             ts.isCorrect = false;
-            ts.bulkAnswered = false;
-            ts.bulkIsCorrect = false;
             render();
 
             if (ts.currentIndex >= hiddenSorted.length && !ts.singleWrongWord) return;
-            focusPreferredTypeField(!!ts.singleWrongWord);
-        }
-
-        function checkAllTypeWords() {
-            const text = getCurrentFolder().texts[state.currentText];
-            const words = text.content.split(/(\s+)/);
-            const hiddenSorted = [...(text.hiddenWords || [])].sort((a, b) => a - b);
-            const ts = state.typeState;
-            const rawInput = ts.bulkValue.trim();
-
-            if (ts.bulkAnswered || hiddenSorted.length === 0) return;
-
-            rememberTypeInputMode('bulk');
-            ts.singleWrongWord = '';
-            const hasSingleSpacesOnly = rawInput !== '' && !/[\n\r\t]/.test(rawInput) && !/\s{2,}/.test(rawInput);
-            const userWords = hasSingleSpacesOnly ? rawInput.split(' ') : [];
-            const targetWords = hiddenSorted.map(index => normalizeTypeWord(words[index]));
-            const normalizedUserWords = userWords.map(normalizeTypeWord);
-            const isCorrect =
-                hasSingleSpacesOnly &&
-                normalizedUserWords.length === targetWords.length &&
-                normalizedUserWords.every((word, index) => word === targetWords[index]);
-
-            ts.bulkAnswered = true;
-            ts.bulkIsCorrect = isCorrect;
-            render();
-
-            if (isCorrect) {
-                setTimeout(() => {
-                    ts.currentIndex = hiddenSorted.length;
-                    ts.value = '';
-                    ts.answered = false;
-                    ts.isCorrect = false;
-                    ts.bulkValue = '';
-                    ts.bulkAnswered = false;
-                    ts.bulkIsCorrect = false;
-                    render();
-                }, 600);
-            } else {
-                setTimeout(() => {
-                    ts.bulkAnswered = false;
-                    render();
-                    focusPreferredTypeField();
-                }, 1000);
-            }
+            focusTypeInputField(!!ts.singleWrongWord);
         }
 
         function restartTypeMode() {
             resetTypeState();
             render();
-            focusPreferredTypeField();
+            focusTypeInputField();
         }
 
         function initTypeMode() {
@@ -8780,7 +8698,7 @@
 
             render();
             if (mode === 'type') {
-                focusPreferredTypeField();
+                focusTypeInputField();
             }
         }
 
@@ -13898,7 +13816,7 @@
             if (mode === 'linecards') state.lineCardFlipped = false;
             if (mode === 'questions') state.questionsCardFlipped = false;
             render();
-            if (mode === 'type') focusPreferredTypeField();
+            if (mode === 'type') focusTypeInputField();
         }
 
         function switchStudyModeByHotkey(key) {
@@ -14263,7 +14181,7 @@
             // Это другой материал, а не обновление текущего: начинаем сверху.
             window.scrollTo(0, 0);
             if (currentMode === 'type') {
-                focusPreferredTypeField();
+                focusTypeInputField();
             }
         }
 
