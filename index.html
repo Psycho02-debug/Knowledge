@@ -6720,7 +6720,17 @@
         const EDGE_PUNCTUATION_RE = /^([.,!?;:…—–«»„“”‘’‹›"'()\[\]{}]*)(.*?)([.,!?;:…—–«»„“”‘’‹›"'()\[\]{}]*)$/u;
 
         function splitEdgePunctuation(content) {
-            const tokens = (content || '').match(/\S+|\s+/g) || [];
+            // Токенизация обязана совпадать с той, по которой индексируется разметка
+            // во всём остальном приложении, — content.split(/(\s+)/). Раньше здесь
+            // стоял match(/\S+|\s+/g), и он отличается ровно одним: если текст
+            // начинается с пробела или перевода строки, split добавляет в начало
+            // пустой элемент, а match — нет. Индексы расходились на единицу, и
+            // разметка такого материала съезжала на соседние токены при каждом
+            // сохранении: слова теряли скрытие, а номера шли через один, потому что
+            // часть индексов оказывалась на пробелах и не рисовалась вовсе.
+            // Пустые элементы попадают и в out, поэтому позиции остаются
+            // согласованными, а на склеенный текст они не влияют.
+            const tokens = (content || '').split(/(\s+)/);
             const out = [];
             const indexMap = new Map();
             for (let i = 0; i < tokens.length; i++) {
@@ -6762,6 +6772,77 @@
             return { content: out.join(''), indexMap, changed: out.length !== tokens.length };
         }
 
+        // ——— Починка съехавшей разметки ———
+        // Индекс разметки обязан указывать на реальное слово. Если он попал на
+        // пробел, слово, которому разметка принадлежала, стоит сразу за ним: сдвиг
+        // всегда был на один токен назад (см. комментарий в splitEdgePunctuation),
+        // туда и возвращаем. Индекс за пределами текста восстановить не из чего —
+        // его отбрасываем. Проход идемпотентный: у целого материала он ничего не
+        // меняет, поэтому его можно звать на каждом сохранении.
+        function repairWordIndexAlignment(text) {
+            if (!text) return false;
+            ensureTextStudyData(text);
+            const words = String(text.content || '').split(/(\s+)/);
+            const snapshot = () => JSON.stringify([
+                text.hiddenWords, text.revealedWords, text.halfRevealedWords,
+                text.hardWords, text.wordHints, text.hintTypes,
+                text.hintLetters, text.hiddenWordGroups
+            ]);
+            const before = snapshot();
+
+            const fix = index => {
+                const i = Number(index);
+                if (!Number.isInteger(i) || i < 0 || i >= words.length) return null;
+                // Индекс на реальном токене не трогаем: угадывать за пользователя,
+                // то ли слово он отмечал, не нужно.
+                if (words[i].trim() !== '') return i;
+                for (let j = i + 1; j < words.length; j++) {
+                    if (words[j].trim() === '') continue;
+                    // Номер пункта и разделитель «/» отметить нельзя ни кнопкой,
+                    // ни нажатием, значит разметка на них не принадлежала никому —
+                    // возвращать её некуда, и такой индекс просто уходит.
+                    if (isNumericListMarkerToken(words[j])) return null;
+                    if (isSlashSeparatorToken(words[j])) return null;
+                    return j;
+                }
+                return null;
+            };
+            const fixList = list => [...new Set((list || [])
+                .map(fix).filter(i => i !== null))].sort((a, b) => a - b);
+            const fixMap = obj => {
+                const out = {};
+                Object.entries(obj || {}).forEach(([key, value]) => {
+                    const moved = fix(key);
+                    if (moved === null) return;
+                    if (!Object.prototype.hasOwnProperty.call(out, moved)) out[moved] = value;
+                });
+                return out;
+            };
+
+            text.hiddenWords = fixList(text.hiddenWords);
+            const hiddenSet = new Set(text.hiddenWords);
+            // Открытые, наполовину открытые и сложные — это состояния скрытого слова.
+            // Отметка на слове, которого нет в списке скрытых, ничего не значит и
+            // только сбивает счётчики.
+            text.revealedWords = fixList(text.revealedWords).filter(i => hiddenSet.has(i));
+            text.halfRevealedWords = fixList(text.halfRevealedWords).filter(i => hiddenSet.has(i));
+            text.hardWords = fixList(text.hardWords).filter(i => hiddenSet.has(i));
+            text.wordHints = fixMap(text.wordHints);
+            text.hintTypes = fixMap(text.hintTypes);
+            text.hintLetters = fixMap(text.hintLetters);
+
+            const groups = {};
+            Object.entries(text.hiddenWordGroups || {}).forEach(([leaderKey, indices]) => {
+                const leader = fix(leaderKey);
+                const mapped = fixList(indices).filter(i => hiddenSet.has(i));
+                if (leader === null || mapped.length < 2 || mapped[0] !== leader) return;
+                groups[leader] = mapped;
+            });
+            text.hiddenWordGroups = groups;
+
+            return snapshot() !== before;
+        }
+
         // Разделение сдвигает индексы, поэтому переносим их сами. Общий механизм
         // переноса (remapProcessedTextState) здесь не годится: он сопоставляет
         // токены по строке, а «текст,» и «текст» — разные строки, и разметка
@@ -6770,7 +6851,9 @@
             if (!text) return false;
             ensureTextStudyData(text);
             const result = splitEdgePunctuation(text.content || '');
-            if (!result.changed) return false;
+            // Даже когда делить нечего, разметку стоит проверить: она могла съехать
+            // раньше — старой версией разбора, считавшей токены по-другому.
+            if (!result.changed) return repairWordIndexAlignment(text);
 
             const move = i => result.indexMap.has(i) ? result.indexMap.get(i) : null;
             const moveList = list => [...new Set((list || [])
@@ -6800,6 +6883,7 @@
             });
             text.hiddenWordGroups = groups;
             text.content = result.content;
+            repairWordIndexAlignment(text);
             return true;
         }
 
@@ -14890,11 +14974,15 @@
                 const sepIdx = inner.indexOf('::');
                 const word = sepIdx === -1 ? inner : inner.slice(0, sepIdx);
                 const hint = sepIdx === -1 ? '' : inner.slice(sepIdx + 2).trim();
-                // Считаем токены через match, а не split: split с захватывающей группой
-                // добавляет лишний пустой хвостовой элемент, если строка кончается на
-                // пробельный символ, что сдвигало бы индекс слова на единицу.
-                const tokensBeforeWord = plainText.match(/\S+|\s+/g) || [];
-                const wordTokenIndex = tokensBeforeWord.length;
+                // Каким по счёту токеном станет слово в split(/(\s+)/) — том самом
+                // представлении, по которому индексируется разметка. Фиктивный символ
+                // в конце избавляет от разбора частных случаев: он встаёт ровно туда,
+                // куда встанет слово, и когда текст перед ним кончается пробелом, и
+                // когда не кончается — тогда слово просто прирастает к последнему
+                // токену. Прежний match(/\S+|\s+/g) не видел пустого элемента,
+                // который split добавляет в начало текста, начинающегося с пробела,
+                // и все индексы такого материала съезжали на единицу.
+                const wordTokenIndex = (plainText + 'X').split(/(\s+)/).length - 1;
                 plainText += word;
                 hiddenWords.push(wordTokenIndex);
                 if (hint) wordHints[wordTokenIndex] = hint;
@@ -14975,8 +15063,12 @@
             const selEnd = el.selectionEnd;
             const beforeCursor = el.value.slice(0, selStart);
             const afterCursor = el.value.slice(selEnd);
-            const beforeTokens = beforeCursor.match(/\S+|\s+/g) || [];
-            const offset = beforeTokens.length;
+            // Токены вставки — это хвост токенов объединённого текста, поэтому
+            // смещение равно разнице их количеств. Считается по той же
+            // токенизации, что и вся разметка, и остаётся верным, даже если
+            // текст перед курсором и вставка склеиваются в один токен.
+            const offset = (beforeCursor + parsed.plainText).split(/(\s+)/).length -
+                parsed.plainText.split(/(\s+)/).length;
 
             el.value = beforeCursor + parsed.plainText + afterCursor;
             const newCursorPos = beforeCursor.length + parsed.plainText.length;
