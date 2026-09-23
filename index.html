@@ -3024,6 +3024,22 @@
             line-height: 1.2;
         }
 
+        /* Язык текущего слова. Переключить раскладку клавиатуры со страницы
+           браузер не даёт, поэтому вместо переключения — подсказка, на каком
+           языке ждут ответ (а набранное в другой раскладке всё равно
+           засчитывается, см. typeWordMatches). */
+        .type-current-lang {
+            padding: 4px 8px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-input);
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            line-height: 1.2;
+        }
+
         /* Прячем, не убирая из дерева: удаление меняло бы число дочерних узлов
            обёртки, а вместе с ним пересоздавалось бы поле ввода. */
         .folder-import-hint {
@@ -3073,6 +3089,25 @@
            оставляем под него место. */
         .container.type-shell {
             padding-bottom: calc(150px + env(safe-area-inset-bottom));
+        }
+
+        /* Экранная клавиатура съедает больше половины экрана, а браузер
+           подтягивает к себе только поле ввода — карточка с текстом уезжала
+           вверх, и вписывать слова приходилось вслепую. При открытой клавиатуре
+           ограничиваем высоту текста и прокручиваем его внутри себя: так
+           одновременно видно и текст, и поле. Высоту считает syncTypeTextClamp. */
+        /* Пока клавиатура открыта, странице нужен запас прокрутки снизу: без него
+           поле ввода упирается в нижний край документа и не доезжает до видимой
+           полосы над клавиатурой. */
+        .container.type-shell.type-keyboard-open {
+            padding-bottom: calc(150px + var(--type-keyboard-inset, 0px) + env(safe-area-inset-bottom));
+        }
+
+        .type-shell .text-display.type-text-clamped {
+            max-height: var(--type-text-max-height, 38vh);
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
         }
         .type-word-num {
             background: var(--accent-strong);
@@ -8381,6 +8416,10 @@
             if (isSameScreenUpdate && scrollBeforeRender > 0 && window.scrollY !== scrollBeforeRender) {
                 window.scrollTo(0, scrollBeforeRender);
             }
+
+            // Строго после восстановления прокрутки: ограничение высоты текста само
+            // подкручивает экран к полю ввода, и возврат позиции отменил бы это.
+            if (state.view === 'type') syncTypeTextClamp();
         }
 
         // Нижние панели закреплены поверх контента, поэтому контейнер должен
@@ -8485,6 +8524,9 @@
             const currentHintText = currentTargetIndex !== undefined
                 ? String(getTypeModeHiddenWordDisplay(text, words, currentTargetIndex).text)
                 : '';
+            const currentTargetLang = currentTargetIndex !== undefined
+                ? getWordInputLanguage(words[currentTargetIndex])
+                : 'ru';
             // Оба блока — подсказка «сейчас слово N» и сообщение об ошибке — рисуются
             // ВСЕГДА, а при ненадобности просто прячутся классом. Раньше они то
             // появлялись, то исчезали, из-за чего у обёртки менялось число дочерних
@@ -8518,11 +8560,13 @@
                         <div class="type-current-hint${currentTargetIndex !== undefined ? '' : ' is-hidden'}">
                             <span class="type-current-label">Сейчас слово ${ts.currentIndex + 1}</span>
                             <span class="type-current-chip">${escapeHtml(currentHintText)}</span>
+                            <span class="type-current-lang">${currentTargetLang === 'en' ? 'EN' : 'RU'}</span>
                         </div>
                         ${singleTokensHtml}
                         <input type="text"
                             class="type-input-field${ts.singleWrongWord ? ' wrong' : ''}"
                             id="typeInputField"
+                            lang="${currentTargetLang}"
                             placeholder="Слово или сразу все через пробел"
                             value="${escapeHtmlAttr(ts.value)}"
                             oninput="handleTypeSequenceInput(this.value)"
@@ -8532,7 +8576,7 @@
                             autocorrect="off"
                             spellcheck="false"
                             >
-                        <button class="type-check-btn" onclick="checkTypeWord()">Проверить</button>
+                        <button class="type-check-btn" onmousedown="event.preventDefault()" onclick="checkTypeWord()">Проверить</button>
                     </div>
                     ${getTermNavInline()}
                 </div>
@@ -8541,6 +8585,43 @@
 
         function normalizeTypeWord(word) {
             return word.trim().toLowerCase().replace(/[.,!?;:]/g, '');
+        }
+
+        // ——— Раскладка клавиатуры ———
+        // Переключить язык клавиатуры со страницы нельзя: ни iOS, ни Android, ни
+        // macOS не дают сайту менять раскладку — это настройка системы, и веб-API
+        // для неё не существует. Поэтому вместо переключения делаем две вещи:
+        // рядом с подсказкой показываем, на каком языке ждут слово, и засчитываем
+        // ответ, набранный теми же клавишами в другой раскладке. Строки ниже —
+        // посимвольное соответствие ЙЦУКЕН и QWERTY (одна позиция = одна клавиша).
+        const KEYBOARD_LAYOUT_RU = 'йцукенгшщзхъфывапролджэячсмитьбю.ё';
+        const KEYBOARD_LAYOUT_EN = "qwertyuiop[]asdfghjkl;'zxcvbnm,./`";
+
+        function convertKeyboardLayout(value, fromLayout, toLayout) {
+            let out = '';
+            for (const ch of value) {
+                const pos = fromLayout.indexOf(ch);
+                out += pos === -1 ? ch : toLayout[pos];
+            }
+            return out;
+        }
+
+        function getWordInputLanguage(word) {
+            if (typeof word !== 'string') return 'ru';
+            if (/[a-z]/i.test(word) && !/[а-яё]/i.test(word)) return 'en';
+            return 'ru';
+        }
+
+        // Сравнение слова с ответом: сначала как есть, затем — как если бы его
+        // набрали в другой раскладке. «cjcnjbn» при ожидаемом «состоит» — это те же
+        // клавиши, просто язык системы не переключили, и считать это ошибкой незачем.
+        function typeWordMatches(userWord, targetWord) {
+            const typed = normalizeTypeWord(userWord);
+            if (!typed) return false;
+            if (typed === targetWord) return true;
+            if (convertKeyboardLayout(typed, KEYBOARD_LAYOUT_EN, KEYBOARD_LAYOUT_RU) === targetWord) return true;
+            if (convertKeyboardLayout(typed, KEYBOARD_LAYOUT_RU, KEYBOARD_LAYOUT_EN) === targetWord) return true;
+            return false;
         }
 
         function getTypeModeHiddenWordDisplay(text, words, index) {
@@ -8597,10 +8678,13 @@
                     input.setSelectionRange(caretPos, caretPos);
                 }
             };
-            // Ждать имеет смысл только когда поле пересоздано и фокус потерян.
-            // Если он на месте, лишний таймер лишь оттягивал бы установку курсора.
-            const input = document.getElementById(fieldId);
-            if (input && document.activeElement === input) {
+            // Фокус возвращаем СИНХРОННО, пока не оборвалась цепочка
+            // пользовательского жеста: на iOS клавиатура поднимается только из
+            // обработчика тапа, а вызов из setTimeout — это уже отдельная задача,
+            // и поле получало фокус без клавиатуры. Из-за этого после каждого
+            // «Проверить» клавиатура закрывалась, и её приходилось открывать тапом.
+            // Таймер оставляем только на случай, когда поля ещё нет в документе.
+            if (document.getElementById(fieldId)) {
                 apply();
                 return;
             }
@@ -8609,6 +8693,83 @@
 
         function focusTypeInputField(selectAll) {
             focusTypeField('typeInputField', selectAll);
+        }
+
+        // ——— Режим «Вписать»: текст виден и при открытой клавиатуре ———
+        // Клавиатура не меняет window.innerHeight, но ужимает visualViewport —
+        // по разнице и определяем, что она открыта.
+        const TYPE_KEYBOARD_MIN_SHRINK = 120;
+        const TYPE_TEXT_MIN_HEIGHT = 110;
+
+        function scrollTypeCurrentWordIntoView(display) {
+            const target = display.querySelector('.word.hidden-word.focused');
+            if (!target) return;
+            const box = display.getBoundingClientRect();
+            const rect = target.getBoundingClientRect();
+            if (rect.top >= box.top + 4 && rect.bottom <= box.bottom - 4) return;
+            display.scrollTop += rect.top - box.top - Math.max(0, (box.height - rect.height) / 2);
+        }
+
+        function scrollTypeInputIntoView(wrap) {
+            const vv = window.visualViewport;
+            if (!vv) return;
+            const rect = wrap.getBoundingClientRect();
+            const viewTop = vv.offsetTop;
+            const viewBottom = viewTop + vv.height;
+            if (rect.bottom > viewBottom - 8) {
+                window.scrollBy(0, rect.bottom - (viewBottom - 8));
+            } else if (rect.top < viewTop + 8) {
+                window.scrollBy(0, rect.top - (viewTop + 8));
+            }
+        }
+
+        function syncTypeTextClamp() {
+            if (state.view !== 'type') return;
+            const display = document.querySelector('.type-shell .text-display');
+            if (!display) return;
+            const wrap = document.querySelector('.type-shell .type-input-wrap');
+            const vv = window.visualViewport;
+            const keyboardOpen = !!vv && (window.innerHeight - vv.height) > TYPE_KEYBOARD_MIN_SHRINK;
+            const shell = display.closest('.type-shell');
+            if (!wrap || !keyboardOpen) {
+                // На компьютере и при закрытой клавиатуре ограничивать нечего:
+                // текст прокручивается вместе со страницей, как везде.
+                if (display.classList.contains('type-text-clamped')) {
+                    display.classList.remove('type-text-clamped');
+                    display.style.removeProperty('--type-text-max-height');
+                }
+                if (shell && shell.classList.contains('type-keyboard-open')) {
+                    shell.classList.remove('type-keyboard-open');
+                    shell.style.removeProperty('--type-keyboard-inset');
+                }
+                return;
+            }
+            if (shell) {
+                const inset = Math.round(window.innerHeight - vv.height) + 'px';
+                if (shell.style.getPropertyValue('--type-keyboard-inset') !== inset) {
+                    shell.style.setProperty('--type-keyboard-inset', inset);
+                }
+                shell.classList.add('type-keyboard-open');
+            }
+            const available = Math.max(
+                TYPE_TEXT_MIN_HEIGHT,
+                Math.round(vv.height - wrap.getBoundingClientRect().height - 40)
+            );
+            const next = available + 'px';
+            if (display.style.getPropertyValue('--type-text-max-height') !== next) {
+                display.style.setProperty('--type-text-max-height', next);
+            }
+            display.classList.add('type-text-clamped');
+            scrollTypeInputIntoView(wrap);
+            scrollTypeCurrentWordIntoView(display);
+        }
+
+        if (window.visualViewport) {
+            // Событие приходит только на показ/скрытие клавиатуры и поворот экрана,
+            // так что таймеров и опроса здесь не нужно.
+            window.visualViewport.addEventListener('resize', () => {
+                if (state.view === 'type') syncTypeTextClamp();
+            });
         }
 
         function checkTypeWord() {
@@ -8635,7 +8796,7 @@
                     wrongWord = userWords[i];
                     break;
                 }
-                if (normalizeTypeWord(userWords[i]) === targetWords[targetPos]) {
+                if (typeWordMatches(userWords[i], targetWords[targetPos])) {
                     matchedCount++;
                 } else {
                     wrongWord = userWords[i];
