@@ -16161,6 +16161,21 @@
                 navigateToTerm(1);
                 return;
             }
+            // Стрелки ← → перелистывают термины и тогда, когда курсор стоит в поле
+            // ввода режима «Вписать»: иначе, чтобы перейти к соседнему материалу,
+            // приходилось выходить из поля мышью и возвращаться обратно. После
+            // перехода navigateToTerm сам возвращает фокус в поле, так что набор
+            // продолжается без лишних действий. Каретка внутри поля остаётся
+            // доступна стрелками с модификатором: Shift — выделение, Alt — по
+            // словам, Cmd — к началу и концу строки.
+            const isPlainArrowKey = (e.key === 'ArrowLeft' || e.key === 'ArrowRight') &&
+                !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey;
+            if (fromTypeField && isPlainArrowKey &&
+                state.currentFolder !== null && state.currentText !== null) {
+                e.preventDefault();
+                navigateToTerm(e.key === 'ArrowRight' ? 1 : -1);
+                return;
+            }
             const activeElement = document.activeElement;
             const tag = activeElement ? activeElement.tagName : '';
             if (tag === 'INPUT' || tag === 'TEXTAREA') return;
