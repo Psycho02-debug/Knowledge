@@ -2987,6 +2987,54 @@
             color: var(--text-tertiary);
         }
 
+        /* Режим «Вписать»: текст и поле ввода — одна карточка. Двумя отдельными
+           карточками экран распадался надвое, и между ними каждый раз приходилось
+           искать связь, хотя это один и тот же шаг: вот текст, вот куда писать.
+           Полоса прогресса заодно стала границей между зонами — отдельный
+           разделитель ей больше не нужен. */
+        .type-card {
+            margin-top: 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 22px;
+            box-shadow: var(--shadow-card);
+            overflow: hidden;
+            animation: fadeInUp 0.4s ease both;
+        }
+
+        /* Вложенные блоки теряют собственную «карточность»: рамку, тень,
+           скругления и появление держит общая карточка. */
+        .type-card .text-display,
+        .type-card .type-input-wrap {
+            background: none;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            margin: 0;
+            animation: none;
+        }
+
+        .type-card .text-display {
+            padding: 22px 20px 20px;
+        }
+
+        .type-card .type-input-wrap {
+            padding: 16px 20px 20px;
+        }
+
+        /* Полоса во всю ширину карточки, без скруглений и отступов: так она
+           читается как шов между текстом и вводом, а не как ещё один элемент. */
+        .type-card .type-progress-track {
+            height: 3px;
+            margin: 0;
+            border-radius: 0;
+            background: var(--border-color);
+        }
+
+        .type-card .type-progress-fill {
+            border-radius: 0;
+        }
+
         /* Полоса прогресса ввода — та же логика, что в режиме практики. */
         .type-progress-track {
             height: 6px;
@@ -8533,7 +8581,9 @@
                     ${getTermNavHeader(text)}
                     <div class="container type-shell">
                         ${modeButtons}
-                        <div class="text-display" style="margin-bottom:24px;">${wordSpans}</div>
+                        <div class="type-card">
+                        <div class="text-display">${wordSpans}</div>
+                        <div class="type-progress-track"><div class="type-progress-fill" style="transform:scaleX(1)"></div></div>
                         <div class="type-input-wrap active">
                             <div class="game-complete">
                                 <div class="confetti">🎉</div>
@@ -8542,6 +8592,7 @@
                                 <button class="action-btn btn-save" onclick="restartTypeMode()">Пройти снова</button>
                                 <p class="type-complete-hint">${completeNav.hasNext ? 'Enter или → — следующий термин' : 'Это последний термин'}</p>
                             </div>
+                        </div>
                         </div>
                         ${getTermNavInline()}
                     </div>
@@ -8572,14 +8623,14 @@
                         <button class="practice-mode-btn ${state.typeDisplayMode === 'letters' ? 'active' : ''}" onclick="setTypeDisplayMode('letters')">П_</button>
                         <button class="practice-mode-btn ${state.typeDisplayMode === 'hints' ? 'active' : ''}" onclick="setTypeDisplayMode('hints')">?</button>
                     </div>
-                    <div class="text-display" style="margin-bottom:24px;">${wordSpans}</div>
-
+                    <div class="type-card">
+                    <div class="text-display">${wordSpans}</div>
+                    <div class="type-progress-track"><div class="type-progress-fill" style="transform:scaleX(${hiddenSorted.length ? (solvedCount / hiddenSorted.length).toFixed(4) : 0})"></div></div>
                     <div class="type-input-wrap active">
                         <div class="type-input-label">
                             <span>Ввод слов</span>
                             <span>${solvedCount} / ${hiddenSorted.length}</span>
                         </div>
-                        <div class="type-progress-track"><div class="type-progress-fill" style="transform:scaleX(${hiddenSorted.length ? (solvedCount / hiddenSorted.length).toFixed(4) : 0})"></div></div>
                         <div class="type-current-hint${currentTargetIndex !== undefined ? '' : ' is-hidden'}">
                             <span class="type-current-label">Сейчас слово ${hiddenSorted.indexOf(currentTargetIndex) + 1}</span>
                             <span class="type-current-chip">${escapeHtml(currentHintText)}</span>
@@ -8600,6 +8651,7 @@
                             spellcheck="false"
                             >
                         <button class="type-check-btn" onmousedown="event.preventDefault()" onclick="checkTypeWord()">Проверить</button>
+                    </div>
                     </div>
                     ${getTermNavInline()}
                 </div>
