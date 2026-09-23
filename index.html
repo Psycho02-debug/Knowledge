@@ -14066,7 +14066,9 @@
                 openTermInMode(state.currentText, 'practice', 'hints');
                 return true;
             }
-            if (key === '6') {
+            // «Вписать» — пятый режим в панели, поэтому основная клавиша для него 5.
+            // Шестёрка осталась рабочей: раньше режим открывался только ею.
+            if (key === '5' || key === '6') {
                 openTermInMode(state.currentText, 'type');
                 return true;
             }
@@ -16195,14 +16197,14 @@
             }
             const isStudyModeHotkey =
                 e.key === '1' || e.key === '2' || e.key === '3' ||
-                e.key === '4' || e.key === '6';
+                e.key === '4' || e.key === '5' || e.key === '6';
             if ((e.key === '1' || e.key === '2') && state.view === 'practice' && state.mode === 'edit' && state.pendingWords.length > 0) {
                 e.preventDefault();
                 if (e.key === '1') applyBatchHide();
                 else showBatchHintModal();
                 return;
             }
-            if (e.key === '6' && state.view === 'practice' && state.mode === 'edit') {
+            if ((e.key === '5' || e.key === '6') && state.view === 'practice' && state.mode === 'edit') {
                 e.preventDefault();
                 if (switchStudyModeByHotkey(e.key)) return;
             }
