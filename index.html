@@ -8456,6 +8456,11 @@
             const words = text.content.split(/(\s+)/);
             const hiddenSorted = [...(text.hiddenWords || [])].sort((a, b) => a - b);
             const ts = state.typeState;
+            const solvedWords = getSolvedTypeWords(ts);
+            // Вписывают всегда самое раннее невписанное слово: после отправки
+            // с ошибкой возвращаемся к нему, а не идём дальше по тексту.
+            const currentTargetIndex = hiddenSorted.find(i => !solvedWords.includes(i));
+            const solvedCount = hiddenSorted.filter(i => solvedWords.includes(i)).length;
 
             const modeButtons = `
                 <div class="mode-toggle">
@@ -8490,13 +8495,15 @@
                     return escapeHtml(normalizeDisplayWhitespaceToken(word, i === 0));
                 }
                 const isMarked = text.hiddenWords && text.hiddenWords.includes(i);
-                const hIdx = hiddenSorted.indexOf(i);
                 if (isMarked) {
-                    if (hIdx < ts.currentIndex) {
+                    // Открыто ровно то, что вписано верно, — а не всё подряд до
+                    // счётчика. Слово может быть открыто, хотя предыдущее ещё нет:
+                    // в одной отправке можно ошибиться в середине и угадать дальше.
+                    if (solvedWords.includes(i)) {
                         return '<span class="word revealed">' + escapeHtml(word) + '</span>';
                     } else {
                         const hiddenDisplay = getTypeModeHiddenWordDisplay(text, words, i);
-                        const hiddenClassName = ['hidden-word', hiddenDisplay.className, hIdx === ts.currentIndex ? 'focused' : '']
+                        const hiddenClassName = ['hidden-word', hiddenDisplay.className, i === currentTargetIndex ? 'focused' : '']
                             .filter(Boolean)
                             .join(' ');
                         return '<span class="word ' + hiddenClassName + '">' + escapeHtml(String(hiddenDisplay.text)) + '</span>';
@@ -8509,7 +8516,6 @@
             // в карточке выше и занимал под 200px, из-за чего второе поле ввода
             // уходило за нижний край экрана. Вместо него — подсказка, какое слово
             // вводить сейчас, и сообщение об ошибке, если слово не совпало.
-            const currentTargetIndex = hiddenSorted[ts.currentIndex];
             const currentHintText = currentTargetIndex !== undefined
                 ? String(getTypeModeHiddenWordDisplay(text, words, currentTargetIndex).text)
                 : '';
@@ -8521,7 +8527,7 @@
             // со вписанными словами пользователь так и не видел. Поле ввода здесь
             // не рисуем: без него телефон убирает клавиатуру, и текст виден весь.
             // Дальше — «Пройти снова», стрелка внизу или Enter на следующий термин.
-            if (ts.currentIndex >= hiddenSorted.length && !ts.singleWrongWord) {
+            if (currentTargetIndex === undefined && !ts.singleWrongWord) {
                 const completeNav = getStudyNavigationMeta();
                 return `
                     ${getTermNavHeader(text)}
@@ -8549,11 +8555,13 @@
             // Вместе с обёрткой пересоздавалось и поле ввода — на телефоне это
             // закрывало клавиатуру, и после каждой ошибки (и после первого верного
             // слова вслед за ней) приходилось тапать по полю заново.
-            const singleTokensHtml = `<div class="type-feedback wrong${ts.singleWrongWord ? '' : ' is-hidden'}">${
-                ts.singleWrongWord
-                    ? `Не совпало: «${escapeHtml(ts.singleWrongWord)}». Попробуйте ещё раз.`
-                    : ''
-            }</div>`;
+            const wrongList = Array.isArray(ts.wrongWords) ? ts.wrongWords : [];
+            const feedbackText = wrongList.length === 1
+                ? `Не совпало: «${escapeHtml(wrongList[0])}». Попробуйте ещё раз.`
+                : wrongList.length > 1
+                    ? `Не совпали: ${wrongList.map(w => '«' + escapeHtml(w) + '»').join(', ')}. Верные слова открыты — впишите эти по порядку.`
+                    : '';
+            const singleTokensHtml = `<div class="type-feedback wrong${wrongList.length ? '' : ' is-hidden'}">${feedbackText}</div>`;
 
             return `
                 ${getTermNavHeader(text)}
@@ -8569,11 +8577,11 @@
                     <div class="type-input-wrap active">
                         <div class="type-input-label">
                             <span>Ввод слов</span>
-                            <span>${ts.currentIndex} / ${hiddenSorted.length}</span>
+                            <span>${solvedCount} / ${hiddenSorted.length}</span>
                         </div>
-                        <div class="type-progress-track"><div class="type-progress-fill" style="transform:scaleX(${hiddenSorted.length ? (ts.currentIndex / hiddenSorted.length).toFixed(4) : 0})"></div></div>
+                        <div class="type-progress-track"><div class="type-progress-fill" style="transform:scaleX(${hiddenSorted.length ? (solvedCount / hiddenSorted.length).toFixed(4) : 0})"></div></div>
                         <div class="type-current-hint${currentTargetIndex !== undefined ? '' : ' is-hidden'}">
-                            <span class="type-current-label">Сейчас слово ${ts.currentIndex + 1}</span>
+                            <span class="type-current-label">Сейчас слово ${hiddenSorted.indexOf(currentTargetIndex) + 1}</span>
                             <span class="type-current-chip">${escapeHtml(currentHintText)}</span>
                             <span class="type-current-lang">${currentTargetLang === 'en' ? 'EN' : 'RU'}</span>
                         </div>
@@ -8674,7 +8682,8 @@
         function resetTypeState() {
             state.typeState = {
                 currentIndex: 0,
-                cursor: 0,
+                solved: [],
+                wrongWords: [],
                 value: '',
                 answered: false,
                 isCorrect: false,
@@ -8682,50 +8691,86 @@
             };
         }
 
+        function getSolvedTypeWords(ts) {
+            return Array.isArray(ts.solved) ? ts.solved : [];
+        }
+
         // ——— Разбор ввода по всему тексту, а не только по скрытым словам ———
         // Вписывать можно и обычные слова: они есть в тексте и стоят на своём месте,
-        // так что засчитывать их ошибкой не за что. Обязательны и строго по порядку
-        // только скрытые — обычные можно пропускать, а можно печатать вместе с ними.
-        // Поэтому позиция хранится не в списке скрытых слов, а в списке всех слов
-        // текста (ts.cursor), а счётчик «N / M» выводится из неё.
+        // так что засчитывать их ошибкой не за что. Обязательным остаётся только
+        // скрытое и ещё не вписанное слово — уже открытое ведёт себя как обычное,
+        // ведь оно теперь просто видно в тексте.
         function getTypeSequenceTokens(text, words) {
             const hidden = new Set(text.hiddenWords || []);
             const tokens = [];
             for (let i = 0; i < words.length; i++) {
                 if (words[i].trim() === '') continue;
-                tokens.push({ hidden: hidden.has(i), normalized: normalizeTypeWord(words[i]) });
+                tokens.push({ index: i, hidden: hidden.has(i), normalized: normalizeTypeWord(words[i]) });
             }
             return tokens;
         }
 
-        function countHiddenTokensBefore(tokens, pos) {
-            let count = 0;
-            for (let i = 0; i < pos && i < tokens.length; i++) {
-                if (tokens[i].hidden) count++;
-            }
-            return count;
-        }
-
-        function positionAfterHiddenToken(tokens, hiddenCount) {
-            if (hiddenCount <= 0) return 0;
-            let seen = 0;
-            for (let i = 0; i < tokens.length; i++) {
-                if (!tokens[i].hidden) continue;
-                seen++;
-                if (seen === hiddenCount) return i + 1;
-            }
-            return tokens.length;
-        }
-
-        // Возвращает новую позицию курсора или -1, если слово не подошло.
-        // Обычные слова и знаки препинания на пути пропускаются молча, а вот
-        // скрытое слово пропустить нельзя: на нём разбор и останавливается.
-        function consumeTypedWord(tokens, pos, userWord) {
-            for (let p = pos; p < tokens.length; p++) {
-                if (typeWordMatches(userWord, tokens[p].normalized)) return p + 1;
-                if (tokens[p].hidden) return -1;
+        function findFirstRequiredToken(tokens, solved) {
+            for (let p = 0; p < tokens.length; p++) {
+                if (tokens[p].hidden && !solved.has(tokens[p].index)) return p;
             }
             return -1;
+        }
+
+        // Разбор начинаем не с начала текста, а сразу после предыдущего скрытого
+        // слова: обычные слова перед нужным вписывать можно, а вот совпасть с
+        // обычным словом из давно пройденной части текста ввод не должен —
+        // иначе повторяющееся «и» засчиталось бы не там, где его набрали.
+        function getTypeParseStart(tokens, firstRequired) {
+            if (firstRequired <= 0) return 0;
+            for (let p = firstRequired - 1; p >= 0; p--) {
+                if (tokens[p].hidden) return p + 1;
+            }
+            return 0;
+        }
+
+        // Разбирает всю отправку целиком. Ошибка в середине больше не обрывает
+        // разбор: верные слова после неё тоже засчитываются и открываются, а
+        // несовпавшее остаётся невписанным — к нему и вернёт следующий шаг,
+        // потому что вписывают всегда самое раннее невписанное слово.
+        function evaluateTypedWords(tokens, solvedList, userWords) {
+            const solved = new Set(solvedList);
+            const isRequired = p => tokens[p].hidden && !solved.has(tokens[p].index);
+            let pos = getTypeParseStart(tokens, findFirstRequiredToken(tokens, solved));
+            const wrong = [];
+
+            for (let i = 0; i < userWords.length; i++) {
+                const typed = userWords[i];
+                let matchPos = -1;
+                for (let p = pos; p < tokens.length; p++) {
+                    if (typeWordMatches(typed, tokens[p].normalized)) {
+                        matchPos = p;
+                        break;
+                    }
+                    // Необязательные слова на пути пропускаем молча, на первом
+                    // обязательном останавливаемся: перескочить его нельзя.
+                    if (isRequired(p)) break;
+                }
+                if (matchPos !== -1) {
+                    if (tokens[matchPos].hidden) solved.add(tokens[matchPos].index);
+                    pos = matchPos + 1;
+                    continue;
+                }
+                wrong.push(typed);
+                // Слово набрано вместо ближайшего обязательного — оно и осталось
+                // невписанным. Встаём за ним, чтобы разобрать остаток отправки.
+                let requiredPos = -1;
+                for (let p = pos; p < tokens.length; p++) {
+                    if (isRequired(p)) {
+                        requiredPos = p;
+                        break;
+                    }
+                }
+                if (requiredPos === -1) break;
+                pos = requiredPos + 1;
+            }
+
+            return { solved: [...solved].sort((a, b) => a - b), wrong };
         }
 
         function focusTypeField(fieldId, selectAll) {
@@ -8849,39 +8894,24 @@
             if (!rawInput) return;
 
             const tokens = getTypeSequenceTokens(text, words);
-            const userWords = rawInput.split(/\s+/);
-            // Проверяем ПРОДОЛЖЕНИЕ с уже достигнутой позиции, а не весь текст
-            // с начала. Раньше сравнение всегда шло от первого слова, поэтому
-            // приходилось держать в поле всё ранее введённое — из-за этого
-            // строка и разрасталась до нечитаемой.
-            let pos = Math.min(Math.max(ts.cursor | 0, 0), tokens.length);
-            // Если курсор разошёлся со счётчиком — например, текст отредактировали,
-            // не выходя из режима, — восстанавливаем его по числу вписанных слов.
-            if (countHiddenTokensBefore(tokens, pos) !== ts.currentIndex) {
-                pos = positionAfterHiddenToken(tokens, ts.currentIndex);
-            }
-            let wrongWord = '';
+            const result = evaluateTypedWords(tokens, getSolvedTypeWords(ts), rawInput.split(/\s+/));
+            const allDone = hiddenSorted.every(i => result.solved.includes(i));
 
-            for (let i = 0; i < userWords.length; i++) {
-                const next = consumeTypedWord(tokens, pos, userWords[i]);
-                if (next === -1) {
-                    wrongWord = userWords[i];
-                    break;
-                }
-                pos = next;
-            }
-
-            ts.cursor = pos;
-            ts.currentIndex = countHiddenTokensBefore(tokens, pos);
-            ts.singleWrongWord = wrongWord;
-            // В поле оставляем только то, что не засчитано: подтверждённые слова
-            // и так видны в карточке зелёными, дублировать их незачем.
-            ts.value = wrongWord ? wrongWord : '';
+            ts.solved = result.solved;
+            ts.currentIndex = hiddenSorted.filter(i => result.solved.includes(i)).length;
+            // Если вписано вообще всё, лишнее слово в хвосте отправки уже ни на что
+            // не влияет — показывать из-за него ошибку и прятать готовый текст незачем.
+            ts.wrongWords = allDone ? [] : result.wrong;
+            ts.singleWrongWord = ts.wrongWords.length ? ts.wrongWords[0] : '';
+            // В поле оставляем первое несовпавшее слово — его и вписывают заново.
+            // Остальные перечислены в сообщении, а засчитанные и так видны
+            // в карточке зелёными, дублировать их незачем.
+            ts.value = ts.singleWrongWord;
             ts.answered = false;
             ts.isCorrect = false;
             render();
 
-            if (ts.currentIndex >= hiddenSorted.length && !ts.singleWrongWord) return;
+            if (allDone && !ts.singleWrongWord) return;
             focusTypeInputField(!!ts.singleWrongWord);
         }
 
