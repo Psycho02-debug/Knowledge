@@ -2730,6 +2730,13 @@
             margin-bottom: 16px;
         }
 
+        .type-complete-hint {
+            margin-top: 14px;
+            font-size: 12.5px;
+            color: var(--text-tertiary);
+            font-weight: 600;
+        }
+
         .quiz-area {
             padding: 10px 0;
             animation: fadeInUp 0.4s ease both;
@@ -8478,24 +8485,6 @@
                 `;
             }
 
-            if (ts.currentIndex >= hiddenSorted.length && !ts.singleWrongWord) {
-                return `
-                    ${getTermNavHeader(text)}
-                    <div class="container">
-                        ${modeButtons}
-                        <div class="quiz-area">
-                            <div class="game-complete">
-                                <div class="confetti">🎉</div>
-                                <h2>Отлично!</h2>
-                                <p>Вы вписали все скрытые слова правильно.</p>
-                                <button class="action-btn btn-save" onclick="restartTypeMode()">Пройти снова</button>
-                            </div>
-                        </div>
-                        ${getTermNavInline()}
-                    </div>
-                `;
-            }
-
             const wordSpans = words.map((word, i) => {
                 if (word.trim() === '') {
                     return escapeHtml(normalizeDisplayWhitespaceToken(word, i === 0));
@@ -8527,6 +8516,32 @@
             const currentTargetLang = currentTargetIndex !== undefined
                 ? getWordInputLanguage(words[currentTargetIndex])
                 : 'ru';
+            // Дописанный текст показываем целиком — это и есть результат работы.
+            // Раньше вместо него открывался отдельный экран поздравления, и текста
+            // со вписанными словами пользователь так и не видел. Поле ввода здесь
+            // не рисуем: без него телефон убирает клавиатуру, и текст виден весь.
+            // Дальше — «Пройти снова», стрелка внизу или Enter на следующий термин.
+            if (ts.currentIndex >= hiddenSorted.length && !ts.singleWrongWord) {
+                const completeNav = getStudyNavigationMeta();
+                return `
+                    ${getTermNavHeader(text)}
+                    <div class="container type-shell">
+                        ${modeButtons}
+                        <div class="text-display" style="margin-bottom:24px;">${wordSpans}</div>
+                        <div class="type-input-wrap active">
+                            <div class="game-complete">
+                                <div class="confetti">🎉</div>
+                                <h2>Отлично!</h2>
+                                <p>Все слова вписаны верно — текст перед вами целиком.</p>
+                                <button class="action-btn btn-save" onclick="restartTypeMode()">Пройти снова</button>
+                                <p class="type-complete-hint">${completeNav.hasNext ? 'Enter или → — следующий термин' : 'Это последний термин'}</p>
+                            </div>
+                        </div>
+                        ${getTermNavInline()}
+                    </div>
+                `;
+            }
+
             // Оба блока — подсказка «сейчас слово N» и сообщение об ошибке — рисуются
             // ВСЕГДА, а при ненадобности просто прячутся классом. Раньше они то
             // появлялись, то исчезали, из-за чего у обёртки менялось число дочерних
@@ -8616,11 +8631,15 @@
         // набрали в другой раскладке. «cjcnjbn» при ожидаемом «состоит» — это те же
         // клавиши, просто язык системы не переключили, и считать это ошибкой незачем.
         function typeWordMatches(userWord, targetWord) {
-            const typed = normalizeTypeWord(userWord);
-            if (!typed) return false;
-            if (typed === targetWord) return true;
-            if (convertKeyboardLayout(typed, KEYBOARD_LAYOUT_EN, KEYBOARD_LAYOUT_RU) === targetWord) return true;
-            if (convertKeyboardLayout(typed, KEYBOARD_LAYOUT_RU, KEYBOARD_LAYOUT_EN) === targetWord) return true;
+            const raw = typeof userWord === 'string' ? userWord.trim().toLowerCase() : '';
+            if (!raw) return false;
+            if (normalizeTypeWord(raw) === targetWord) return true;
+            // Раскладку меняем ДО отбрасывания знаков препинания: в английской
+            // раскладке буквы б, ю, ж, э лежат на клавишах «,», «.», «;», «'»,
+            // и если сначала вычистить знаки, то «nf,kbw» превратится в «талиц»
+            // вместо «таблиц» — слово перестало бы совпадать из-за одной буквы.
+            if (normalizeTypeWord(convertKeyboardLayout(raw, KEYBOARD_LAYOUT_EN, KEYBOARD_LAYOUT_RU)) === targetWord) return true;
+            if (normalizeTypeWord(convertKeyboardLayout(raw, KEYBOARD_LAYOUT_RU, KEYBOARD_LAYOUT_EN)) === targetWord) return true;
             return false;
         }
 
@@ -8655,11 +8674,58 @@
         function resetTypeState() {
             state.typeState = {
                 currentIndex: 0,
+                cursor: 0,
                 value: '',
                 answered: false,
                 isCorrect: false,
                 singleWrongWord: ''
             };
+        }
+
+        // ——— Разбор ввода по всему тексту, а не только по скрытым словам ———
+        // Вписывать можно и обычные слова: они есть в тексте и стоят на своём месте,
+        // так что засчитывать их ошибкой не за что. Обязательны и строго по порядку
+        // только скрытые — обычные можно пропускать, а можно печатать вместе с ними.
+        // Поэтому позиция хранится не в списке скрытых слов, а в списке всех слов
+        // текста (ts.cursor), а счётчик «N / M» выводится из неё.
+        function getTypeSequenceTokens(text, words) {
+            const hidden = new Set(text.hiddenWords || []);
+            const tokens = [];
+            for (let i = 0; i < words.length; i++) {
+                if (words[i].trim() === '') continue;
+                tokens.push({ hidden: hidden.has(i), normalized: normalizeTypeWord(words[i]) });
+            }
+            return tokens;
+        }
+
+        function countHiddenTokensBefore(tokens, pos) {
+            let count = 0;
+            for (let i = 0; i < pos && i < tokens.length; i++) {
+                if (tokens[i].hidden) count++;
+            }
+            return count;
+        }
+
+        function positionAfterHiddenToken(tokens, hiddenCount) {
+            if (hiddenCount <= 0) return 0;
+            let seen = 0;
+            for (let i = 0; i < tokens.length; i++) {
+                if (!tokens[i].hidden) continue;
+                seen++;
+                if (seen === hiddenCount) return i + 1;
+            }
+            return tokens.length;
+        }
+
+        // Возвращает новую позицию курсора или -1, если слово не подошло.
+        // Обычные слова и знаки препинания на пути пропускаются молча, а вот
+        // скрытое слово пропустить нельзя: на нём разбор и останавливается.
+        function consumeTypedWord(tokens, pos, userWord) {
+            for (let p = pos; p < tokens.length; p++) {
+                if (typeWordMatches(userWord, tokens[p].normalized)) return p + 1;
+                if (tokens[p].hidden) return -1;
+            }
+            return -1;
         }
 
         function focusTypeField(fieldId, selectAll) {
@@ -8729,7 +8795,9 @@
             if (!display) return;
             const wrap = document.querySelector('.type-shell .type-input-wrap');
             const vv = window.visualViewport;
-            const keyboardOpen = !!vv && (window.innerHeight - vv.height) > TYPE_KEYBOARD_MIN_SHRINK;
+            const keyboardOpen = !!vv &&
+                (window.innerHeight - vv.height) > TYPE_KEYBOARD_MIN_SHRINK &&
+                !!document.getElementById('typeInputField');
             const shell = display.closest('.type-shell');
             if (!wrap || !keyboardOpen) {
                 // На компьютере и при закрытой клавиатуре ограничивать нечего:
@@ -8780,31 +8848,31 @@
             const rawInput = ts.value.trim();
             if (!rawInput) return;
 
-            const targetWords = hiddenSorted.map(index => normalizeTypeWord(words[index]));
+            const tokens = getTypeSequenceTokens(text, words);
             const userWords = rawInput.split(/\s+/);
-            // Проверяем ПРОДОЛЖЕНИЕ с уже достигнутой позиции, а не весь список
-            // с начала. Раньше сравнение всегда шло от нулевого слова, поэтому
-            // приходилось держать в поле все ранее введённые слова — из-за этого
+            // Проверяем ПРОДОЛЖЕНИЕ с уже достигнутой позиции, а не весь текст
+            // с начала. Раньше сравнение всегда шло от первого слова, поэтому
+            // приходилось держать в поле всё ранее введённое — из-за этого
             // строка и разрасталась до нечитаемой.
-            const startIndex = ts.currentIndex;
-            let matchedCount = 0;
+            let pos = Math.min(Math.max(ts.cursor | 0, 0), tokens.length);
+            // Если курсор разошёлся со счётчиком — например, текст отредактировали,
+            // не выходя из режима, — восстанавливаем его по числу вписанных слов.
+            if (countHiddenTokensBefore(tokens, pos) !== ts.currentIndex) {
+                pos = positionAfterHiddenToken(tokens, ts.currentIndex);
+            }
             let wrongWord = '';
 
             for (let i = 0; i < userWords.length; i++) {
-                const targetPos = startIndex + i;
-                if (targetPos >= targetWords.length) {
+                const next = consumeTypedWord(tokens, pos, userWords[i]);
+                if (next === -1) {
                     wrongWord = userWords[i];
                     break;
                 }
-                if (typeWordMatches(userWords[i], targetWords[targetPos])) {
-                    matchedCount++;
-                } else {
-                    wrongWord = userWords[i];
-                    break;
-                }
+                pos = next;
             }
 
-            ts.currentIndex = startIndex + matchedCount;
+            ts.cursor = pos;
+            ts.currentIndex = countHiddenTokensBefore(tokens, pos);
             ts.singleWrongWord = wrongWord;
             // В поле оставляем только то, что не засчитано: подтверждённые слова
             // и так видны в карточке зелёными, дублировать их незачем.
@@ -16079,7 +16147,12 @@
                         state.typeState.currentIndex >= hiddenSorted.length &&
                         !state.typeState.singleWrongWord;
                 })();
-            if (isTypeCompleted && e.key === 'Enter') {
+            // Тем же Enter, которым вписано последнее слово, на следующий термин
+            // не уходим: экран с готовым текстом надо сначала увидеть. Поле ввода
+            // к этому моменту уже удалено из документа, но событие пришло от него —
+            // по этому и отличаем первое нажатие от следующего.
+            const fromTypeField = e.target && e.target.id === 'typeInputField';
+            if (isTypeCompleted && e.key === 'Enter' && !fromTypeField) {
                 const nav = getStudyNavigationMeta();
                 if (!nav.hasNext) return;
                 e.preventDefault();
