@@ -4819,6 +4819,102 @@
             margin-bottom: 18px;
         }
 
+        .flashcard-import-modal {
+            max-width: 560px;
+            max-height: 86vh;
+            overflow-y: auto;
+        }
+
+        .flashcard-import-modal .import-lead {
+            margin-bottom: 14px;
+            line-height: 1.5;
+        }
+
+        .import-template {
+            margin-bottom: 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 12px 14px;
+            background: var(--bg-input);
+        }
+
+        .import-template > summary {
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            list-style: none;
+        }
+
+        .import-template > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .import-template > summary::before {
+            content: '›';
+            display: inline-block;
+            margin-right: 8px;
+            color: var(--accent-primary);
+            font-weight: 800;
+        }
+
+        .import-template[open] > summary::before {
+            content: '⌄';
+        }
+
+        .import-template pre {
+            margin: 12px 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: inherit;
+            font-size: 12.5px;
+            line-height: 1.55;
+            color: var(--text-secondary);
+        }
+
+        .import-file-drop {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 13px 14px;
+            margin-bottom: 12px;
+            border: 1px dashed var(--border-color);
+            border-radius: 14px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .import-file-icon {
+            font-size: 18px;
+        }
+
+        .import-textarea {
+            min-height: 180px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .import-summary {
+            margin-top: 10px;
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--text-tertiary);
+        }
+
+        .import-summary.is-ready {
+            color: var(--accent-correct-text);
+        }
+
+        .import-summary.has-warning {
+            color: var(--accent-wrong-text);
+        }
+
+        .flashcard-import-btn {
+            width: 100%;
+            margin-bottom: 18px;
+        }
+
         .flashcard-list-section {
             margin-top: 30px;
         }
@@ -6394,6 +6490,33 @@
             <div class="modal-buttons">
                 <button class="modal-cancel" onclick="closeFlashcardModal()">Отмена</button>
                 <button class="modal-save" onclick="saveFlashcard()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="flashcardImportModal">
+        <div class="modal-content flashcard-import-modal">
+            <h3>Загрузить список карточек</h3>
+            <p class="import-lead">Карточки идут подряд: сверху лицевая сторона, под ней оборотная, между карточками пустая строка. Оборотная сторона может занимать несколько строк. Язык любой — русский и английский можно вперемешку.</p>
+
+            <details class="import-template">
+                <summary>Шаблон — что просить у нейросети</summary>
+                <pre id="flashcardImportTemplate"></pre>
+                <button type="button" class="module-action-btn secondary" id="flashcardImportCopyBtn" onclick="copyFlashcardImportTemplate()">Скопировать шаблон</button>
+            </details>
+
+            <label class="import-file-drop">
+                <span class="import-file-icon">📄</span>
+                <span id="flashcardImportFileLabel">Выбрать файл: Excel, Word, CSV или текст</span>
+                <input type="file" id="flashcardImportFile" accept=".txt,.md,.csv,.tsv,.xlsx,.docx" onchange="handleFlashcardImportFile(this)" style="display:none;">
+            </label>
+
+            <textarea id="flashcardImportText" class="import-textarea" placeholder="ubiquitous&#10;вездесущий, повсеместный&#10;&#10;Идемпотентность&#10;Свойство операции давать тот же результат при повторном применении." oninput="updateFlashcardImportPreview()"></textarea>
+            <div class="import-summary" id="flashcardImportSummary"></div>
+
+            <div class="modal-buttons">
+                <button class="modal-cancel" onclick="closeFlashcardImportModal()">Отмена</button>
+                <button class="modal-save" id="flashcardImportSave" onclick="applyFlashcardImport()">Добавить</button>
             </div>
         </div>
     </div>
@@ -9829,6 +9952,8 @@
                     <button class="profile-link-btn" onclick="startFlashcardStudy(false)" ${folder.cards.length ? '' : 'disabled'}>Изучать</button>
                     <button class="module-action-btn secondary" onclick="startFlashcardStudy(true)" ${folder.cards.length ? '' : 'disabled'}>Перемешать</button>
                 </div>
+
+                <button class="module-action-btn secondary flashcard-import-btn" onclick="showFlashcardImportModal()">Загрузить список карточек</button>
 
                 <div class="flashcard-timer-panel">
                     <div class="flashcard-timer-grid">
@@ -15305,6 +15430,433 @@
             setTimeout(() => document.getElementById('flashcardFront').focus(), 100);
         }
 
+
+        /* ================= ЗАГРУЗКА СПИСКА КАРТОЧЕК ================= */
+
+        // Формат намеренно самый простой из возможных: сверху лицевая сторона,
+        // под ней оборотная, между карточками пустая строка. Его легко надиктовать
+        // нейросети, легко проверить глазами и невозможно перепутать местами.
+        // Оборотная сторона может занимать несколько строк — это нужно для
+        // объёмных материалов, где на обороте развёрнутое объяснение.
+        const FLASHCARD_IMPORT_TEMPLATE = [
+            'Собери набор карточек в таком формате:',
+            '',
+            '— первая строка блока — лицевая сторона: термин, слово или вопрос;',
+            '— следующие строки блока — оборотная сторона: перевод, определение или ответ;',
+            '— между карточками одна пустая строка;',
+            '— без нумерации, маркеров списка и заголовков;',
+            '— русский и английский можно вперемешку, порядок карточек сохраняется.',
+            '',
+            'Пример:',
+            '',
+            'ubiquitous',
+            'вездесущий, повсеместный',
+            '',
+            'Идемпотентность',
+            'Свойство операции давать тот же результат при повторном применении.',
+            'Повторный запрос ничего не меняет и не ломает.',
+            '',
+            'race condition',
+            'состояние гонки — результат зависит от того, кто успел первым',
+            '',
+            'Если удобнее таблица: в Excel лицевая сторона в столбце A, оборотная в столбце B,',
+            'по одной карточке в строке. В Word — те же пары строк или таблица из двух столбцов.'
+        ].join('\n');
+
+        // Строки-заголовки таблицы не карточка, а подпись к столбцам. Приходят из
+        // Excel и Word почти всегда, поэтому отбрасываем их молча.
+        const FLASHCARD_IMPORT_HEADER_WORDS = new Set([
+            'лицеваясторона', 'оборотнаясторона', 'лицевая', 'оборотная',
+            'термин', 'определение', 'слово', 'перевод', 'вопрос', 'ответ',
+            'front', 'back', 'term', 'definition', 'word', 'translation',
+            'question', 'answer'
+        ]);
+
+        function isFlashcardImportHeaderPair(front, back) {
+            const norm = value => String(value || '').toLowerCase().replace(/[\s.:;,—–-]/g, '');
+            return FLASHCARD_IMPORT_HEADER_WORDS.has(norm(front)) &&
+                FLASHCARD_IMPORT_HEADER_WORDS.has(norm(back));
+        }
+
+        // Разбор в одну сторону: на входе всегда обычный текст, каким бы ни был
+        // исходный файл. Таблицы (Excel, Word, CSV) заранее превращаются в строки
+        // «лицевая⇥оборотная», поэтому здесь достаточно трёх правил.
+        function parseFlashcardBulkImport(raw) {
+            const text = String(raw || '')
+                .replace(/\r\n?/g, '\n')
+                .replace(/ /g, ' ')
+                .trim();
+            if (!text) return { cards: [], skipped: [] };
+
+            const cards = [];
+            const skipped = [];
+            const push = (front, back) => {
+                const f = String(front || '').trim();
+                const b = String(back || '').trim();
+                if (!f && !b) return;
+                if (!f || !b) {
+                    skipped.push(f || b);
+                    return;
+                }
+                if (!cards.length && isFlashcardImportHeaderPair(f, b)) return;
+                cards.push({ front: f, back: b });
+            };
+
+            const lines = text.split('\n');
+            const tabLines = lines.filter(line => line.includes('\t') && line.split('\t').filter(part => part.trim() !== '').length >= 2);
+
+            // 1. Таблица: каждая строка — целая карточка. Признак — табуляция,
+            //    которой в наборанном руками тексте не бывает.
+            if (tabLines.length) {
+                lines.forEach(line => {
+                    if (!line.trim()) return;
+                    const parts = line.split('\t');
+                    push(parts[0], parts.slice(1).join(' ').trim());
+                });
+                return { cards, skipped };
+            }
+
+            // 2. Блоки через пустую строку: первая строка — лицевая, остальные —
+            //    оборотная. Основной формат, он же в шаблоне.
+            const blocks = text.split(/\n[ \t]*\n+/).map(block => block.trim()).filter(Boolean);
+            if (blocks.length > 1) {
+                blocks.forEach(block => {
+                    const blockLines = block.split('\n').map(line => line.trim()).filter(Boolean);
+                    push(blockLines[0], blockLines.slice(1).join('\n'));
+                });
+                return { cards, skipped };
+            }
+
+            // 3. Пустых строк нет вовсе — значит строки идут парами.
+            const plain = lines.map(line => line.trim()).filter(Boolean);
+            for (let i = 0; i < plain.length; i += 2) {
+                push(plain[i], plain[i + 1]);
+            }
+            return { cards, skipped };
+        }
+
+        // ——— Чтение .xlsx и .docx без единой внешней библиотеки ———
+        // Оба формата — обычный ZIP с XML внутри. Распаковку делает штатный
+        // DecompressionStream, разбор XML — штатный DOMParser, так что приложение
+        // остаётся одним файлом без зависимостей и без единого запроса в сеть.
+        async function inflateZipEntry(bytes, method) {
+            if (method === 0) return bytes;
+            if (method !== 8) throw new Error('Неподдерживаемый способ сжатия внутри файла.');
+            if (typeof DecompressionStream !== 'function') {
+                throw new Error('Браузер не умеет распаковывать такие файлы. Сохраните материал как обычный текст или CSV.');
+            }
+            const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+            return new Uint8Array(await new Response(stream).arrayBuffer());
+        }
+
+        // Возвращает Map «имя файла в архиве» → строка. Читаются только те файлы,
+        // которые действительно нужны: распаковывать картинки и стили незачем.
+        async function readZipTextEntries(arrayBuffer, isWanted) {
+            const view = new DataView(arrayBuffer);
+            const bytes = new Uint8Array(arrayBuffer);
+            const decoder = new TextDecoder('utf-8');
+
+            // Признак конца центрального каталога ищем с хвоста: после него может
+            // стоять комментарий произвольной длины.
+            let eocd = -1;
+            const minEocd = Math.max(0, view.byteLength - 66000);
+            for (let i = view.byteLength - 22; i >= minEocd; i--) {
+                if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+            }
+            if (eocd === -1) throw new Error('Файл не похож на .xlsx или .docx.');
+
+            const entryCount = view.getUint16(eocd + 10, true);
+            let pointer = view.getUint32(eocd + 16, true);
+            const found = new Map();
+
+            for (let n = 0; n < entryCount; n++) {
+                if (view.getUint32(pointer, true) !== 0x02014b50) break;
+                const method = view.getUint16(pointer + 10, true);
+                const compressedSize = view.getUint32(pointer + 20, true);
+                const nameLength = view.getUint16(pointer + 28, true);
+                const extraLength = view.getUint16(pointer + 30, true);
+                const commentLength = view.getUint16(pointer + 32, true);
+                const localOffset = view.getUint32(pointer + 42, true);
+                const name = decoder.decode(bytes.subarray(pointer + 46, pointer + 46 + nameLength));
+                pointer += 46 + nameLength + extraLength + commentLength;
+
+                if (!isWanted(name)) continue;
+                if (view.getUint32(localOffset, true) !== 0x04034b50) continue;
+                const localNameLength = view.getUint16(localOffset + 26, true);
+                const localExtraLength = view.getUint16(localOffset + 28, true);
+                const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+                const raw = bytes.subarray(dataStart, dataStart + compressedSize);
+                found.set(name, decoder.decode(await inflateZipEntry(raw, method)));
+            }
+
+            if (!found.size) throw new Error('Внутри файла не нашлось таблицы или текста.');
+            return found;
+        }
+
+        function parseXmlDocument(xmlText) {
+            const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+            if (doc.getElementsByTagName('parsererror').length) {
+                throw new Error('Не удалось разобрать содержимое файла.');
+            }
+            return doc;
+        }
+
+        function columnLetterToIndex(reference) {
+            const letters = String(reference || '').replace(/[^A-Za-z]/g, '').toUpperCase();
+            if (!letters) return 0;
+            let index = 0;
+            for (let i = 0; i < letters.length; i++) {
+                index = index * 26 + (letters.charCodeAt(i) - 64);
+            }
+            return index - 1;
+        }
+
+        async function xlsxToPlainText(arrayBuffer) {
+            const entries = await readZipTextEntries(arrayBuffer, name =>
+                name === 'xl/sharedStrings.xml' || /^xl\/worksheets\/sheet\d+\.xml$/.test(name));
+
+            const sharedStrings = [];
+            const sharedXml = entries.get('xl/sharedStrings.xml');
+            if (sharedXml) {
+                const items = parseXmlDocument(sharedXml).getElementsByTagName('si');
+                for (let i = 0; i < items.length; i++) {
+                    const texts = items[i].getElementsByTagName('t');
+                    let value = '';
+                    for (let j = 0; j < texts.length; j++) value += texts[j].textContent;
+                    sharedStrings.push(value);
+                }
+            }
+
+            // Берём первый лист: набор карточек — это один список, раскладывать его
+            // по нескольким листам незачем.
+            const sheetName = [...entries.keys()]
+                .filter(name => name !== 'xl/sharedStrings.xml')
+                .sort((a, b) => a.localeCompare(b, 'en', { numeric: true }))[0];
+            if (!sheetName) throw new Error('В книге не нашлось ни одного листа.');
+
+            const rows = parseXmlDocument(entries.get(sheetName)).getElementsByTagName('row');
+            const lines = [];
+            for (let i = 0; i < rows.length; i++) {
+                const cells = rows[i].getElementsByTagName('c');
+                const values = [];
+                for (let j = 0; j < cells.length; j++) {
+                    const cell = cells[j];
+                    const type = cell.getAttribute('t');
+                    let value = '';
+                    if (type === 's') {
+                        const holder = cell.getElementsByTagName('v')[0];
+                        const index = holder ? Number(holder.textContent) : NaN;
+                        value = Number.isInteger(index) ? (sharedStrings[index] || '') : '';
+                    } else if (type === 'inlineStr') {
+                        const texts = cell.getElementsByTagName('t');
+                        for (let k = 0; k < texts.length; k++) value += texts[k].textContent;
+                    } else {
+                        const holder = cell.getElementsByTagName('v')[0];
+                        value = holder ? holder.textContent : '';
+                    }
+                    values[columnLetterToIndex(cell.getAttribute('r'))] = String(value).replace(/[\r\n\t]+/g, ' ').trim();
+                }
+                const front = values[0] || '';
+                const back = values[1] || '';
+                if (!front && !back) continue;
+                lines.push(front + '\t' + back);
+            }
+            return lines.join('\n');
+        }
+
+        function getDocxElementText(element) {
+            const texts = element.getElementsByTagName('w:t');
+            let value = '';
+            for (let i = 0; i < texts.length; i++) value += texts[i].textContent;
+            return value.replace(/[\r\n\t]+/g, ' ').trim();
+        }
+
+        async function docxToPlainText(arrayBuffer) {
+            const entries = await readZipTextEntries(arrayBuffer, name => name === 'word/document.xml');
+            const doc = parseXmlDocument(entries.get('word/document.xml'));
+
+            // Таблица из двух столбцов — самый удобный вид для Word, поэтому если
+            // она есть, читаем именно её и не мешаем с обычными абзацами.
+            const rows = doc.getElementsByTagName('w:tr');
+            const tableLines = [];
+            for (let i = 0; i < rows.length; i++) {
+                const cells = [];
+                const children = rows[i].childNodes;
+                for (let j = 0; j < children.length; j++) {
+                    if (children[j].nodeType === 1 && children[j].nodeName === 'w:tc') cells.push(children[j]);
+                }
+                if (cells.length < 2) continue;
+                const front = getDocxElementText(cells[0]);
+                const back = getDocxElementText(cells[1]);
+                if (!front && !back) continue;
+                tableLines.push(front + '\t' + back);
+            }
+            if (tableLines.length) return tableLines.join('\n');
+
+            const paragraphs = doc.getElementsByTagName('w:p');
+            const lines = [];
+            for (let i = 0; i < paragraphs.length; i++) {
+                lines.push(getDocxElementText(paragraphs[i]));
+            }
+            return lines.join('\n');
+        }
+
+        // CSV с кавычками: внутри поля бывают и запятые, и переводы строк,
+        // и удвоенные кавычки. Разбираем посимвольно, иначе развалится.
+        function csvToPlainText(text) {
+            const source = String(text || '').replace(/\r\n?/g, '\n');
+            const delimiter = (source.split(';').length > source.split(',').length) ? ';' : ',';
+            const rows = [];
+            let row = [];
+            let field = '';
+            let quoted = false;
+
+            for (let i = 0; i < source.length; i++) {
+                const char = source[i];
+                if (quoted) {
+                    if (char === '"') {
+                        if (source[i + 1] === '"') { field += '"'; i++; }
+                        else quoted = false;
+                    } else field += char;
+                    continue;
+                }
+                if (char === '"') { quoted = true; continue; }
+                if (char === delimiter) { row.push(field); field = ''; continue; }
+                if (char === '\n') { row.push(field); rows.push(row); row = []; field = ''; continue; }
+                field += char;
+            }
+            row.push(field);
+            rows.push(row);
+
+            return rows
+                .map(cells => cells.map(cell => cell.replace(/[\r\n\t]+/g, ' ').trim()))
+                .filter(cells => cells.some(Boolean))
+                .map(cells => (cells[0] || '') + '\t' + (cells[1] || ''))
+                .join('\n');
+        }
+
+        // Таблица из Excel или Word приходит строками «лицевая⇥оборотная» — читать
+        // такое в поле неудобно. Раз разбор прошёл без потерь, показываем результат
+        // в том же виде, что и в шаблоне: видно ровно то, что будет создано.
+        function formatFlashcardsAsImportText(cards) {
+            return cards.map(card => card.front + '\n' + card.back).join('\n\n');
+        }
+
+        function showFlashcardImportModal() {
+            if (state.currentFlashcardFolder === null) return;
+            document.getElementById('flashcardImportTemplate').textContent = FLASHCARD_IMPORT_TEMPLATE;
+            document.getElementById('flashcardImportText').value = '';
+            document.getElementById('flashcardImportFile').value = '';
+            document.getElementById('flashcardImportFileLabel').textContent = 'Выбрать файл: Excel, Word, CSV или текст';
+            updateFlashcardImportPreview();
+            document.getElementById('flashcardImportModal').classList.add('show');
+            setTimeout(() => document.getElementById('flashcardImportText').focus(), 100);
+        }
+
+        function closeFlashcardImportModal() {
+            closeModal('flashcardImportModal');
+        }
+
+        async function copyFlashcardImportTemplate() {
+            const ok = await copyPlainTextToClipboard(FLASHCARD_IMPORT_TEMPLATE);
+            const button = document.getElementById('flashcardImportCopyBtn');
+            if (!button) return;
+            button.textContent = ok ? 'Шаблон скопирован' : 'Не удалось скопировать';
+            setTimeout(() => { button.textContent = 'Скопировать шаблон'; }, 1800);
+        }
+
+        function updateFlashcardImportPreview() {
+            const summary = document.getElementById('flashcardImportSummary');
+            const saveButton = document.getElementById('flashcardImportSave');
+            if (!summary || !saveButton) return;
+            const parsed = parseFlashcardBulkImport(document.getElementById('flashcardImportText').value);
+            const count = parsed.cards.length;
+            saveButton.disabled = count === 0;
+            saveButton.textContent = count ? ('Добавить ' + count + ' ' + getCardCountWord(count)) : 'Добавить';
+
+            if (!count && !parsed.skipped.length) {
+                summary.className = 'import-summary';
+                summary.textContent = 'Вставьте список или выберите файл — здесь появится, сколько карточек получилось.';
+                return;
+            }
+            const parts = [];
+            if (count) parts.push('Готово: ' + count + ' ' + getCardCountWord(count) + '.');
+            if (parsed.skipped.length) {
+                parts.push('Без пары осталось строк: ' + parsed.skipped.length +
+                    ' (первая — «' + parsed.skipped[0] + '»). У каждой карточки должны быть обе стороны.');
+            }
+            if (count) {
+                const first = parsed.cards[0];
+                parts.push('Первая карточка: «' + first.front + '» → «' + first.back.split('\n')[0] + '».');
+            }
+            summary.className = 'import-summary' + (parsed.skipped.length ? ' has-warning' : ' is-ready');
+            summary.textContent = parts.join(' ');
+        }
+
+        function getCardCountWord(count) {
+            const mod10 = count % 10;
+            const mod100 = count % 100;
+            if (mod10 === 1 && mod100 !== 11) return 'карточку';
+            if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'карточки';
+            return 'карточек';
+        }
+
+        async function handleFlashcardImportFile(input) {
+            const file = input.files && input.files[0];
+            if (!file) return;
+            const label = document.getElementById('flashcardImportFileLabel');
+            const area = document.getElementById('flashcardImportText');
+            label.textContent = 'Читаю «' + file.name + '»…';
+            try {
+                const name = file.name.toLowerCase();
+                let text;
+                if (name.endsWith('.xlsx')) {
+                    text = await xlsxToPlainText(await file.arrayBuffer());
+                } else if (name.endsWith('.docx')) {
+                    text = await docxToPlainText(await file.arrayBuffer());
+                } else if (name.endsWith('.csv')) {
+                    text = csvToPlainText(await file.text());
+                } else if (name.endsWith('.xls') || name.endsWith('.doc')) {
+                    throw new Error('Старый формат .' + name.split('.').pop() +
+                        ' не читается. Сохраните файл как .xlsx или .docx.');
+                } else {
+                    text = await file.text();
+                }
+                const parsed = parseFlashcardBulkImport(text);
+                // Если что-то осталось без пары, оставляем файл как есть: пусть
+                // видно будет и проблемные строки, а не только удачные карточки.
+                area.value = (parsed.cards.length && !parsed.skipped.length)
+                    ? formatFlashcardsAsImportText(parsed.cards)
+                    : text;
+                label.textContent = file.name;
+                updateFlashcardImportPreview();
+            } catch (error) {
+                label.textContent = 'Выбрать файл: Excel, Word, CSV или текст';
+                input.value = '';
+                alert(error && error.message ? error.message : 'Не удалось прочитать файл.');
+            }
+        }
+
+        function applyFlashcardImport() {
+            const folder = getCurrentFlashcardFolder();
+            if (!folder) return;
+            const parsed = parseFlashcardBulkImport(document.getElementById('flashcardImportText').value);
+            if (!parsed.cards.length) return;
+            parsed.cards.forEach(card => {
+                folder.cards.push({
+                    front: card.front,
+                    back: card.back,
+                    image: '',
+                    attention: false,
+                    sourceLabel: '',
+                    sourceUrl: ''
+                });
+            });
+            saveData(true);
+            closeFlashcardImportModal();
+            render();
+        }
+
         function closeFlashcardModal() {
             state.editingFlashcardIndex = null;
             closeModal('flashcardModal');
@@ -15350,6 +15902,8 @@
                     cancelHint();
                 } else if (openModal.id === 'flashcardModal') {
                     closeFlashcardModal();
+                } else if (openModal.id === 'flashcardImportModal') {
+                    closeFlashcardImportModal();
                 } else if (openModal.id === 'courseTaskModal') {
                     closeCourseTaskModal();
                 } else if (openModal.id === 'questionModal') {
