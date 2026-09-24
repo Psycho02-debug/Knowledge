@@ -3083,6 +3083,32 @@
            браузер не даёт, поэтому вместо переключения — подсказка, на каком
            языке ждут ответ (а набранное в другой раскладке всё равно
            засчитывается, см. typeWordMatches). */
+        /* Кнопка прижата к правому краю строки подсказки: слева — что вписывать
+           сейчас, справа — как на это смотреть. */
+        .type-focus-btn {
+            margin-left: auto;
+            padding: 5px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-input);
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s, border-color 0.2s;
+        }
+
+        .type-focus-btn.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: #232b12;
+        }
+
+        .type-focus-btn.is-hidden {
+            display: none;
+        }
+
         .type-current-lang {
             padding: 4px 8px;
             border-radius: 8px;
@@ -7951,6 +7977,7 @@
             mode: 'chooser', // chooser, edit, practice, game, quiz, type, example
             practiceMode: 'default', // default, firstletter, hints
             typeDisplayMode: 'default', // default, letters, hints
+            typeFocusLineEnabled: false,
             typeState: {
                 currentIndex: 0,
                 value: '',
@@ -8745,9 +8772,19 @@
                 `;
             }
 
+            const lineNumbers = getTokenLineNumbers(words);
+            const focusLine = getTypeFocusLine(words, lineNumbers, currentTargetIndex);
+            const firstFocusToken = focusLine === null
+                ? 0
+                : lineNumbers.findIndex(line => line === focusLine);
+
             const wordSpans = words.map((word, i) => {
+                if (focusLine !== null && lineNumbers[i] !== focusLine) return '';
                 if (word.trim() === '') {
-                    return escapeHtml(normalizeDisplayWhitespaceToken(word, i === 0));
+                    // Разделитель с переводом строки внутри фокуса рисовать нельзя:
+                    // он развернул бы строку обратно в две.
+                    if (focusLine !== null && word.includes('\n')) return '';
+                    return escapeHtml(normalizeDisplayWhitespaceToken(word, i === firstFocusToken));
                 }
                 const isMarked = text.hiddenWords && text.hiddenWords.includes(i);
                 if (isMarked) {
@@ -8771,6 +8808,7 @@
             // в карточке выше и занимал под 200px, из-за чего второе поле ввода
             // уходило за нижний край экрана. Вместо него — подсказка, какое слово
             // вводить сейчас, и сообщение об ошибке, если слово не совпало.
+            const hasSeveralLines = String(text.content || '').includes('\n');
             const currentHintText = currentTargetIndex !== undefined
                 ? String(getTypeModeHiddenWordDisplay(text, words, currentTargetIndex).text)
                 : '';
@@ -8842,6 +8880,11 @@
                             <span class="type-current-label">Сейчас слово ${hiddenSorted.indexOf(currentTargetIndex) + 1}</span>
                             <span class="type-current-chip">${escapeHtml(currentHintText)}</span>
                             <span class="type-current-lang">${currentTargetLang === 'en' ? 'EN' : 'RU'}</span>
+                            <button type="button"
+                                class="type-focus-btn${state.typeFocusLineEnabled ? ' active' : ''}${hasSeveralLines ? '' : ' is-hidden'}"
+                                onmousedown="event.preventDefault()"
+                                onclick="toggleTypeFocusLine()"
+                                title="${state.typeFocusLineEnabled ? 'Показать весь текст' : 'Оставить на экране только текущую строку'}">Фокус</button>
                         </div>
                         ${singleTokensHtml}
                         <input type="text"
@@ -8948,6 +8991,51 @@
                 isCorrect: false,
                 singleWrongWord: ''
             };
+        }
+
+        // ——— Фокус на строке в режиме «Вписать» ———
+        // На длинном материале глаз теряет строку, с которой сейчас работает, а поле
+        // ввода уезжает далеко вниз. Фокус оставляет на экране одну строку — ту, где
+        // стоит слово, которое просят вписать, — и карточка сразу становится
+        // короткой, так что поле оказывается прямо под ней. Разметка внутри строки
+        // не меняется: те же номера и та же подсветка текущего слова.
+        function getTokenLineNumbers(words) {
+            const lines = new Array(words.length);
+            let line = 0;
+            for (let i = 0; i < words.length; i++) {
+                lines[i] = line;
+                if (words[i].trim() !== '') continue;
+                // Токен-разделитель принадлежит строке, которую он закрывает: сам он
+                // в фокусе не рисуется, а всё, что после него, уже следующая строка.
+                const breaks = words[i].split('\n').length - 1;
+                if (breaks) line += breaks;
+            }
+            return lines;
+        }
+
+        function getTypeFocusLine(words, lineNumbers, targetIndex) {
+            if (!state.typeFocusLineEnabled) return null;
+            if (!Number.isInteger(targetIndex)) return null;
+            // Одна строка на весь материал — прятать нечего.
+            if (lineNumbers[lineNumbers.length - 1] === 0) return null;
+            return lineNumbers[targetIndex];
+        }
+
+        function toggleTypeFocusLine() {
+            if (state.view !== 'type') return;
+            state.typeFocusLineEnabled = !state.typeFocusLineEnabled;
+            render();
+            // Фокус возвращаем синхронно, пока не оборвалась цепочка жеста, иначе
+            // на телефоне клавиатура закроется (см. focusTypeField).
+            focusTypeInputField();
+            const card = document.querySelector('.type-card');
+            if (!card) return;
+            // После сворачивания страница становится сильно короче, и браузер
+            // оставляет прокрутку где попало. Подтягиваем карточку к глазам.
+            const rect = card.getBoundingClientRect();
+            if (rect.top < 0 || rect.bottom > window.innerHeight) {
+                card.scrollIntoView({ block: 'center' });
+            }
         }
 
         function getSolvedTypeWords(ts) {
@@ -16896,6 +16984,14 @@
             // продолжается без лишних действий. Каретка внутри поля остаётся
             // доступна стрелками с модификатором: Shift — выделение, Alt — по
             // словам, Cmd — к началу и концу строки.
+            // Стрелка вниз в однострочном поле только уводит каретку в конец —
+            // её не жалко отдать под фокус на строке.
+            if (fromTypeField && e.key === 'ArrowDown' &&
+                !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && !e.repeat) {
+                e.preventDefault();
+                toggleTypeFocusLine();
+                return;
+            }
             const isPlainArrowKey = (e.key === 'ArrowLeft' || e.key === 'ArrowRight') &&
                 !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey;
             if (fromTypeField && isPlainArrowKey &&
@@ -17068,6 +17164,11 @@
                     else selectQuizOption(quizFocusedOption);
                     return;
                 }
+            }
+            if (state.view === 'type' && e.key === 'ArrowDown' && !e.repeat) {
+                e.preventDefault();
+                toggleTypeFocusLine();
+                return;
             }
             if (state.view === 'practice' && state.mode === 'practice') {
                 if ((e.key === 'Delete' || e.key === 'Backspace') && !e.repeat && isPracticeFocusModeEnabled() && state.practiceFocusEnabled) {
