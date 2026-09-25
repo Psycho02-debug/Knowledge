@@ -11853,17 +11853,40 @@
             return targets;
         }
 
+        // Шаг фокуса — не всегда одно слово. Скрытое слово стоит под фокусом само,
+        // а вот обычные слова между скрытыми подсвечиваются целой связкой, до
+        // границы следующего скрытого слова. Перечитывать «в которых по и» по
+        // одному слову незачем: смысл держит скрытое слово, а связки вокруг него
+        // читаются одним взглядом — и нажатий выходит вдвое меньше.
+        function getPracticeFocusSpan(text, leaderIndex) {
+            if (leaderIndex === null || leaderIndex === undefined) return [];
+            const targets = getPracticeFocusTargets(text);
+            const start = targets.indexOf(leaderIndex);
+            if (start === -1) return [];
+            const hidden = new Set(text.hiddenWords || []);
+            if (hidden.has(leaderIndex)) return [leaderIndex];
+            const span = [];
+            for (let i = start; i < targets.length; i++) {
+                if (hidden.has(targets[i])) break;
+                span.push(targets[i]);
+            }
+            return span;
+        }
+
         // Скрытое слово под фокусом, которое ещё есть что открыть.
         function isFocusedWordStillHidden(text, index) {
             return index !== null && (text.hiddenWords || []).includes(index) &&
                 !isFocusTargetFullyRevealed(text, index);
         }
 
-        // Следующее слово по тексту; после последнего — снова первое.
+        // Следующий шаг по тексту; после последнего — снова первый. Отсчитываем от
+        // КОНЦА текущей связки, иначе фокус остался бы внутри неё и прошёл бы те же
+        // обычные слова по одному.
         function advancePracticeFocus(text) {
             const targets = getPracticeFocusTargets(text);
-            const from = state.practiceFocusWordIndex;
-            const next = from === null ? undefined : targets.find(idx => idx > from);
+            const span = getPracticeFocusSpan(text, state.practiceFocusWordIndex);
+            const from = span.length ? span[span.length - 1] : state.practiceFocusWordIndex;
+            const next = from === null || from === undefined ? undefined : targets.find(idx => idx > from);
             state.practiceFocusWordIndex = next !== undefined ? next : (targets.length ? targets[0] : null);
         }
 
@@ -11905,7 +11928,10 @@
 
         function scrollToFocusedWord() {
             requestAnimationFrame(() => {
-                scrollWordIntoViewIfBelow(document.querySelector('.word.practice-focus-active'));
+                // Связка может занимать несколько строк — тянемся к её последнему
+                // слову, иначе хвост остался бы под нижней панелью.
+                const focused = document.querySelectorAll('.word.practice-focus-active');
+                scrollWordIntoViewIfBelow(focused[focused.length - 1]);
             });
         }
 
@@ -12066,6 +12092,10 @@
             }
             const isPracticeFocusActive = isPracticeFocusModeEnabled() && state.practiceFocusEnabled &&
                 focusTargets.includes(state.practiceFocusWordIndex);
+            // Под фокусом стоит либо одно скрытое слово, либо целая связка обычных.
+            const practiceFocusSpan = isPracticeFocusActive
+                ? new Set(getPracticeFocusSpan(text, state.practiceFocusWordIndex))
+                : new Set();
             // Слово, которое откроется следующим по кнопке. Подсвечиваем его всегда,
             // а не только в режиме фокуса: иначе после открытия очередного слова
             // было непонятно, какое из оставшихся будет следующим. Если режим фокуса
@@ -12112,7 +12142,7 @@
                 const hint = text.wordHints && text.wordHints[i];
                 const isRevealed = text.revealedWords && text.revealedWords.includes(i);
                 const isPending = state.pendingWords.includes(i);
-                const isPracticeFocusWord = isMarked && i === state.practiceFocusWordIndex;
+                const isPracticeFocusWord = isMarked && practiceFocusSpan.has(i);
                 const pendingGroup = getPendingHintGroupByIndex(i);
 
                 if (state.mode === 'edit') {
@@ -12194,7 +12224,7 @@
                         'has-letters', i, isPracticeFocusWord, i === nextRevealIndex, isHardWord(text, i)));
                 } else if (isMarked && isRevealed) {
                     practiceParts.push(`<span class="word revealed${isPracticeFocusWord ? ' practice-focus-active' : ''}${isHardWord(text, i) ? ' hard-word' : ''}" data-widx="${i}" onclick="hideWordAgain(${i})">${escapeHtml(word)}</span>`);
-                } else if (isPracticeFocusActive && i === state.practiceFocusWordIndex) {
+                } else if (isPracticeFocusActive && practiceFocusSpan.has(i)) {
                     practiceParts.push(`<span class="word practice-focus-active">${escapeHtml(word)}</span>`);
                 } else {
                     practiceParts.push(`<span class="word">${escapeHtml(word)}</span>`);
