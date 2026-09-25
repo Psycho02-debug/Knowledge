@@ -11867,10 +11867,23 @@
             if (hidden.has(leaderIndex)) return [leaderIndex];
             const span = [];
             for (let i = start; i < targets.length; i++) {
-                if (hidden.has(targets[i])) break;
                 span.push(targets[i]);
+                // Связка заканчивается первым же скрытым словом и включает его:
+                // именно оно откроется нажатием, а обычные слова перед ним
+                // прочитываются заодно. Так один шаг — одно открытое слово вместе
+                // со всем своим окружением.
+                if (hidden.has(targets[i])) break;
             }
             return span;
+        }
+
+        // Скрытое слово внутри связки — то самое, которое откроется нажатием.
+        // Оно всегда последнее: на нём связка и обрывается.
+        function getPracticeFocusSpanHiddenIndex(text, leaderIndex) {
+            const span = getPracticeFocusSpan(text, leaderIndex);
+            if (!span.length) return null;
+            const last = span[span.length - 1];
+            return (text.hiddenWords || []).includes(last) ? last : null;
         }
 
         // Скрытое слово под фокусом, которое ещё есть что открыть.
@@ -11969,7 +11982,8 @@
             // Под фокусом бывает и обычное слово — отметить его сложным нельзя,
             // а уходить на какое-то другое слово было бы неожиданно.
             if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled && state.practiceFocusWordIndex !== null) {
-                return renderable.includes(state.practiceFocusWordIndex) ? state.practiceFocusWordIndex : null;
+                const spanHidden = getPracticeFocusSpanHiddenIndex(text, state.practiceFocusWordIndex);
+                return spanHidden !== null && renderable.includes(spanHidden) ? spanHidden : null;
             }
             const next = renderable.find(idx => !isFocusTargetFullyRevealed(text, idx));
             return next === undefined ? null : next;
@@ -16721,7 +16735,9 @@
             // подсказывать нечего: подсказка про чужое слово где-то дальше по
             // тексту разошлась бы с тем, что подсвечено.
             if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled && focused !== null) {
-                return sorted.includes(focused) && !isFocusTargetFullyRevealed(text, focused) ? focused : null;
+                const spanHidden = getPracticeFocusSpanHiddenIndex(text, focused);
+                return spanHidden !== null && sorted.includes(spanHidden) &&
+                    !isFocusTargetFullyRevealed(text, spanHidden) ? spanHidden : null;
             }
             const next = sorted.find(idx => !isFocusTargetFullyRevealed(text, idx));
             return next === undefined ? null : next;
@@ -16796,7 +16812,8 @@
             });
             // Раньше фокус уходил с открытого слова сам: открытые не были целями.
             // Теперь они цели, поэтому шаг вперёд делаем явно — как у кнопки.
-            if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled && state.practiceFocusWordIndex === index) {
+            if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled &&
+                getPracticeFocusSpan(text, state.practiceFocusWordIndex).includes(index)) {
                 advancePracticeFocus(text);
             }
             render();
@@ -16836,8 +16853,11 @@
             // слове кнопка либо ничего не делала бы, либо перепрыгивала к скрытому
             // слову дальше — и фокус снова шёл бы не по всем словам.
             if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled && state.practiceFocusWordIndex !== null) {
-                const focusedIndex = state.practiceFocusWordIndex;
-                if (isFocusedWordStillHidden(text, focusedIndex)) {
+                // Открываем скрытое слово из связки, а не её первое слово: связка
+                // начинается с обычных слов, а открывать надо то, ради чего она и
+                // тянулась до скрытого.
+                const focusedIndex = getPracticeFocusSpanHiddenIndex(text, state.practiceFocusWordIndex);
+                if (focusedIndex !== null && isFocusedWordStillHidden(text, focusedIndex)) {
                     const group = state.practiceMode === 'hints' ? getHiddenWordGroupByIndex(text, focusedIndex) : null;
                     (group ? group.indices : [focusedIndex]).forEach(targetIndex => {
                         const halfPos = text.halfRevealedWords.indexOf(targetIndex);
