@@ -5141,6 +5141,26 @@
             font-size: 2.4rem;
         }
 
+        /* Карточка «термин ↔ текст»: с лицевой стороны крупное название, чтобы
+           его было видно с расстояния, с оборотной — обычный читаемый текст. */
+        .termcard-title {
+            padding: 22px 4px;
+            font-size: 1.5rem;
+            font-weight: 800;
+            line-height: 1.35;
+            text-align: center;
+            color: var(--text-primary);
+        }
+
+        .termcard-body {
+            padding: 6px 2px;
+            font-size: 1rem;
+            line-height: 1.75;
+            text-align: left;
+            white-space: pre-wrap;
+            color: var(--text-primary);
+        }
+
         .linecards-card {
             min-height: 320px;
         }
@@ -7993,6 +8013,7 @@
             practiceFocusWordIndex: null,
             practiceFocusEnabled: false,
             lineCardFlipped: false,
+            termCardFlipped: false,
             lineCardCueMode: 'letter',
             pendingDescriptionImport: null,
             pendingFolderImport: null,
@@ -8758,6 +8779,7 @@
                     <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
                     <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
                     <button class="mode-btn" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
+                    <button class="mode-btn" onclick="setMode('termcard')"><span class="mode-icon">🃏</span>Карточка</button>
                     <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
                 </div>
             `;
@@ -9305,6 +9327,10 @@
 
             if (mode === 'questions') {
                 state.questionsCardFlipped = false;
+            }
+
+            if (mode === 'termcard') {
+                state.termCardFlipped = false;
             }
 
             render();
@@ -11734,6 +11760,11 @@
                             <div class="chooser-card-title">Тест</div>
                             <div class="chooser-card-desc">Выбери верное определение</div>
                         </div>
+                        <div class="chooser-card chooser-card-accent" onclick="openTermInMode(state.currentText, 'termcard')">
+                            <div class="chooser-card-icon">🃏</div>
+                            <div class="chooser-card-title">Карточка термина</div>
+                            <div class="chooser-card-desc">Лицевая — название термина, оборотная — весь его текст целиком, без скрытых слов</div>
+                        </div>
                         <div class="chooser-card chooser-card-accent" onclick="openTermInMode(state.currentText, 'linecards')">
                             <div class="chooser-card-icon">🗂</div>
                             <div class="chooser-card-title">Карточка по строкам</div>
@@ -12091,6 +12122,10 @@
                 return renderQuestionsView(text);
             }
 
+            if (state.mode === 'termcard') {
+                return renderTermCardView(text);
+            }
+
             const words = text.content.split(/(\s+)/);
             const hiddenSorted = [...(text.hiddenWords || [])].sort((a, b) => a - b);
             const focusableHiddenSorted = getRenderableHiddenIndices(text);
@@ -12407,6 +12442,9 @@
                         <button class="mode-btn" onclick="setMode('linecards')">
                             <span class="mode-icon">🗂</span>Строки
                         </button>
+                        <button class="mode-btn" onclick="setMode('termcard')">
+                            <span class="mode-icon">🃏</span>Карточка
+                        </button>
                         <button class="mode-btn active" onclick="setMode('example')">
                             <span class="mode-icon">💡</span>Пример
                         </button>
@@ -12480,6 +12518,7 @@
                     <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
                     <button class="mode-btn active" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
                     <button class="mode-btn" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
+                    <button class="mode-btn" onclick="setMode('termcard')"><span class="mode-icon">🃏</span>Карточка</button>
                     <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
                 </div>
             `;
@@ -12531,6 +12570,87 @@
                         </button>
                         <div class="flashcard-study-buttons">
                             <button class="profile-link-btn" onclick="flipLineCard()">Перевернуть</button>
+                        </div>
+                    </div>
+                    <div class="text-display-row">
+                        ${getTermNavInline()}
+                    </div>
+                </div>
+            `;
+        }
+
+        // ——— Карточка «термин ↔ текст» ———
+        // Самый простой формат изучения: с лицевой стороны только название термина,
+        // с оборотной — весь его текст целиком, без скрытых слов. Ничего создавать
+        // не нужно: карточка собирается из самого материала, поэтому она есть
+        // у каждого материала сразу — и у старых, и у новых.
+        // Текст хранится с пробелами вокруг знаков препинания — иначе запятая
+        // уезжала бы под скрытие вместе со словом. На карточке текст просто
+        // читают, чипов тут нет, поэтому знаки возвращаются на место:
+        // «интерфейса , который» читается как ошибка вёрстки. Тире не трогаем —
+        // оно и в обычном тексте стоит с пробелами по бокам.
+        function formatContentForReading(content) {
+            return String(content || '')
+                .replace(/[ \t]+([.,!?;:\u2026\u00bb\u201d\u2019\u203a)\]}])/g, '$1')
+                .replace(/([\u00ab\u201e\u201c\u2018\u2039(\[{])[ \t]+/g, '$1');
+        }
+
+        function flipTermCard() {
+            state.termCardFlipped = !state.termCardFlipped;
+            render();
+        }
+
+        function renderTermCardView(text) {
+            const flipped = state.termCardFlipped;
+            const content = String(text.content || '').trim();
+
+            const modeButtons = `
+                <div class="mode-toggle">
+                    <button class="mode-btn" onclick="setMode('edit')"><span class="mode-icon">✎</span>Выбор</button>
+                    <button class="mode-btn" onclick="setMode('practice')"><span class="mode-icon">👁</span>Практика</button>
+                    <button class="mode-btn" onclick="setMode('type')"><span class="mode-icon">⌨</span>Вписать</button>
+                    <button class="mode-btn" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
+                    <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
+                    <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
+                    <button class="mode-btn" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
+                    <button class="mode-btn active" onclick="setMode('termcard')"><span class="mode-icon">🃏</span>Карточка</button>
+                    <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
+                </div>
+            `;
+
+            if (!content) {
+                return `
+                    ${getTermNavHeader(text)}
+                    <div class="container">
+                        ${modeButtons}
+                        <div class="quiz-area">
+                            <div class="quiz-message">
+                                <div class="quiz-message-icon">🃏</div>
+                                <p>У материала пока нет текста — оборотной стороне нечего показать.</p>
+                                <button class="quiz-message-btn" onclick="showEditTextModal()">Редактировать материал</button>
+                            </div>
+                        </div>
+                        <div class="text-display-row">
+                            ${getTermNavInline()}
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `
+                ${getTermNavHeader(text)}
+                <div class="container">
+                    ${modeButtons}
+                    <div class="flashcard-study-layout">
+                        <button class="flashcard-study-card termcard-card ${flipped ? 'is-flipped' : ''}" onclick="flipTermCard()">
+                            <div class="flashcard-study-face-label">${flipped ? 'Полный текст' : 'Термин'}</div>
+                            ${flipped
+                                ? `<div class="termcard-body">${escapeHtml(formatContentForReading(content))}</div>`
+                                : `<div class="termcard-title">${escapeHtml(text.title || '')}</div>`}
+                            <div class="flashcard-study-hint">${flipped ? 'Нажмите, чтобы вернуться к термину' : 'Нажмите, чтобы увидеть полный текст'}</div>
+                        </button>
+                        <div class="flashcard-study-buttons">
+                            <button class="profile-link-btn" onclick="flipTermCard()">Перевернуть</button>
                         </div>
                     </div>
                     <div class="text-display-row">
@@ -12607,6 +12727,7 @@
                     <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
                     <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
                     <button class="mode-btn active" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
+                    <button class="mode-btn" onclick="setMode('termcard')"><span class="mode-icon">🃏</span>Карточка</button>
                     <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
                 </div>
             `;
@@ -12691,6 +12812,7 @@
                             <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
                             <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
                             <button class="mode-btn" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
+                            <button class="mode-btn" onclick="setMode('termcard')"><span class="mode-icon">🃏</span>Карточка</button>
                             <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
                         </div>
                         
@@ -12717,6 +12839,7 @@
                         <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
                         <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
                         <button class="mode-btn" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
+                        <button class="mode-btn" onclick="setMode('termcard')"><span class="mode-icon">🃏</span>Карточка</button>
                         <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
                     </div>
                     
@@ -12778,6 +12901,7 @@
                     <button class="mode-btn active" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
                     <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
                     <button class="mode-btn" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
+                    <button class="mode-btn" onclick="setMode('termcard')"><span class="mode-icon">🃏</span>Карточка</button>
                     <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
                 </div>
             `;
@@ -14834,6 +14958,9 @@
             }
             if (currentMode === 'questions') {
                 state.questionsCardFlipped = false;
+            }
+            if (currentMode === 'termcard') {
+                state.termCardFlipped = false;
             }
             render();
             // Это другой материал, а не обновление текущего: начинаем сверху.
