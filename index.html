@@ -6451,8 +6451,28 @@
             return [...new Set(indices.map(Number).filter(Number.isInteger))].sort((a, b) => a - b);
         }
 
+        // Память групп на время одной отрисовки. Группы спрашивают для каждого слова
+        // текста, и каждый вопрос пересобирал их заново — вместе с Set из всех скрытых
+        // слов. Внутри render() текст не меняется, поэтому ответ можно переиспользовать;
+        // вне отрисовки память выключена: там разметку меняют, и устаревший ответ был
+        // бы ошибкой.
+        let renderGroupsMemo = null;
+
         function getHiddenWordGroups(text) {
+            if (renderGroupsMemo) {
+                const cached = renderGroupsMemo.get(text);
+                if (cached) return cached.groups;
+            }
+            const groups = computeHiddenWordGroups(text);
+            if (renderGroupsMemo) renderGroupsMemo.set(text, { groups, byIndex: null });
+            return groups;
+        }
+
+        function computeHiddenWordGroups(text) {
             ensureTextStudyData(text);
+            // У большинства материалов групп нет вовсе — тогда и Set из всех скрытых
+            // слов собирать незачем.
+            if (!Object.keys(text.hiddenWordGroups || {}).length) return [];
             const hiddenSet = new Set(text.hiddenWords || []);
             return Object.keys(text.hiddenWordGroups || {})
                 .map(key => {
@@ -6468,6 +6488,19 @@
 
         function getHiddenWordGroupByIndex(text, index) {
             const groups = getHiddenWordGroups(text);
+            if (!groups.length) return null;
+            const cached = renderGroupsMemo && renderGroupsMemo.get(text);
+            if (cached) {
+                // Первая подходящая группа в порядке ведущих — та же, что нашёл бы
+                // перебор ниже, поэтому при сборке карты побеждает первая запись.
+                if (!cached.byIndex) {
+                    cached.byIndex = new Map();
+                    groups.forEach(group => group.indices.forEach(i => {
+                        if (!cached.byIndex.has(i)) cached.byIndex.set(i, group);
+                    }));
+                }
+                return cached.byIndex.get(index) || null;
+            }
             for (let i = 0; i < groups.length; i++) {
                 if (groups[i].indices.includes(index)) return groups[i];
             }
@@ -8394,6 +8427,15 @@
                 return;
             }
             renderQueuedWhileHidden = false;
+            renderGroupsMemo = new Map();
+            try {
+                renderScreen();
+            } finally {
+                renderGroupsMemo = null;
+            }
+        }
+
+        function renderScreen() {
             const app = document.getElementById('app');
             if (!app) return;
             document.body.classList.toggle('practice-layout', state.view === 'practice' && state.mode === 'practice');
@@ -8538,6 +8580,10 @@
                 `;
             }
 
+            const hiddenSet = new Set(text.hiddenWords || []);
+            const solvedSet = new Set(solvedWords);
+            const hardSet = new Set(text.hardWords || []);
+            const hiddenSeq = buildHiddenSequence(hiddenSorted);
             const lineNumbers = getTokenLineNumbers(words);
             const focusLine = getTypeFocusLine(words, lineNumbers, currentTargetIndex);
             const firstFocusToken = focusLine === null
@@ -8552,7 +8598,7 @@
                     if (focusLine !== null && word.includes('\n')) return '';
                     return escapeHtml(normalizeDisplayWhitespaceToken(word, i === firstFocusToken));
                 }
-                const isMarked = text.hiddenWords && text.hiddenWords.includes(i);
+                const isMarked = hiddenSet.has(i);
                 if (isMarked) {
                     // Открыто ровно то, что вписано верно, — а не всё подряд до
                     // счётчика. Слово может быть открыто, хотя предыдущее ещё нет:
@@ -8560,11 +8606,11 @@
                     // Отметка «сложное» ставится в практике, но относится к самому
                     // слову, а не к режиму: если слово трудно вспоминается, знать об
                     // этом надо и когда его вписываешь.
-                    const hard = isHardWord(text, i) ? 'hard-word' : '';
-                    if (solvedWords.includes(i)) {
+                    const hard = hardSet.has(i) ? 'hard-word' : '';
+                    if (solvedSet.has(i)) {
                         return '<span class="word revealed' + (hard ? ' ' + hard : '') + '">' + escapeHtml(word) + '</span>';
                     } else {
-                        const hiddenDisplay = getTypeModeHiddenWordDisplay(text, words, i);
+                        const hiddenDisplay = getTypeModeHiddenWordDisplay(text, words, i, hiddenSeq(i));
                         const hiddenClassName = ['hidden-word', hiddenDisplay.className, hard, i === currentTargetIndex ? 'focused' : '']
                             .filter(Boolean)
                             .join(' ');
@@ -8723,10 +8769,33 @@
             return false;
         }
 
-        function getTypeModeHiddenWordDisplay(text, words, index) {
+        // Порядковый номер скрытого слова — то же, что hiddenSorted.indexOf(i) + 1
+        // (0, если слова в списке нет), но за O(1): номер спрашивают для каждого чипа.
+        // При повторах в списке побеждает первое вхождение, как у indexOf.
+        function buildHiddenSequence(hiddenSorted) {
+            const order = new Map();
+            hiddenSorted.forEach((index, position) => {
+                if (!order.has(index)) order.set(index, position);
+            });
+            return index => (order.has(index) ? order.get(index) : -1) + 1;
+        }
+
+        // Отступы шаблона между тегами — не текст, а лишние узлы DOM. У карточки
+        // материала их было больше, чем элементов: треть разметки и половина узлов
+        // списка уходили на пробелы, которые браузер разбирал, раскладывал и хранил.
+        // Убираем только пробелы между тегами и только в списках, где все контейнеры —
+        // flex: там такие пробелы не рисовались и раньше, так что вид не меняется.
+        function compactMarkup(html) {
+            return html.replace(/>\s+</g, '><');
+        }
+
+        function getTypeModeHiddenWordDisplay(text, words, index, knownSeqNum) {
             const hint = text.wordHints && text.wordHints[index];
-            const hiddenSorted = [...(text.hiddenWords || [])].sort((a, b) => a - b);
-            const seqNum = hiddenSorted.indexOf(index) + 1;
+            // Номер можно передать готовым: список сортировался на каждый чип, и на
+            // длинном тексте это была основная работа всей отрисовки режима.
+            const seqNum = knownSeqNum !== undefined
+                ? knownSeqNum
+                : buildHiddenSequence([...(text.hiddenWords || [])].sort((a, b) => a - b))(index);
 
             if (state.typeDisplayMode === 'letters') {
                 return { text: getFirstLetterOnly(words[index]), className: 'has-letters' };
@@ -9877,7 +9946,7 @@
                         <div class="home-section-title">Карточки в папке</div>
                     </div>
                     <div class="flashcard-list">
-                        ${folder.cards.map((card, index) => `
+                        ${compactMarkup(folder.cards.map((card, index) => `
                             <div class="flashcard-row ${card.image ? '' : 'no-media'}">
                                 ${card.image ? `
                                     <div class="flashcard-row-media">
@@ -9899,7 +9968,7 @@
                                     </button>
                                 </div>
                             </div>
-                        `).join('')}
+                        `).join(''))}
                     </div>
                 ` : `
                     <div class="folder-empty-card">В этой папке пока нет карточек. Нажмите на кнопку + внизу, чтобы добавить первую карточку.</div>
@@ -11422,7 +11491,7 @@
                         </div>
                     ` : allTextsCount > 0 ? `
                         <div class="text-list">
-                            ${textsWithIndex.map((text, vi) => `
+                            ${compactMarkup(textsWithIndex.map((text, vi) => `
                                 <div class="term-card ${text.attention ? 'attention' : ''}${state.textsSelectionMode && isTextSelected(vi) ? ' selected' : ''}" data-term-index="${vi}" onclick="${state.textsSelectionMode ? `toggleTextSelection(${vi})` : `openText(${vi})`}" style="animation-delay: ${vi * 0.05}s" draggable="false">
                                     <div class="term-header">
                                         ${state.textsSelectionMode ? `
@@ -11444,7 +11513,7 @@
                                         </div>
                                     </div>
                                 </div>
-                            `).join('')}
+                            `).join(''))}
                         </div>
                     ` : ''}
                     <div class="swipe-hint">Свайпните вверх для добавления</div>
@@ -11871,6 +11940,16 @@
 
             const words = text.content.split(/(\s+)/);
             const hiddenSorted = [...(text.hiddenWords || [])].sort((a, b) => a - b);
+            // Всё, что цикл ниже спрашивает про каждое слово, — заранее в Set и Map.
+            // Раньше это были includes и indexOf по массивам внутри цикла по словам,
+            // то есть квадрат от длины текста: на 580 словах и 172 скрытых — десятки
+            // тысяч сравнений на каждую перерисовку, а перерисовка идёт на каждое нажатие.
+            const hiddenSet = new Set(text.hiddenWords || []);
+            const revealedSet = new Set(text.revealedWords || []);
+            const halfRevealedSet = new Set(text.halfRevealedWords || []);
+            const pendingSet = new Set(state.pendingWords);
+            const hardSet = new Set(text.hardWords || []);
+            const hiddenSeq = buildHiddenSequence(hiddenSorted);
             const focusableHiddenSorted = getRenderableHiddenIndices(text);
             const focusTargets = isPracticeFocusModeEnabled() ? getPracticeFocusTargets(text) : [];
             if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled) {
@@ -11934,10 +12013,10 @@
                     ? getHiddenWordGroupByIndex(text, i)
                     : null;
                 const isGroupLeader = group && group.leader === i;
-                const isMarked = text.hiddenWords && text.hiddenWords.includes(i);
+                const isMarked = hiddenSet.has(i);
                 const hint = text.wordHints && text.wordHints[i];
-                const isRevealed = text.revealedWords && text.revealedWords.includes(i);
-                const isPending = state.pendingWords.includes(i);
+                const isRevealed = revealedSet.has(i);
+                const isPending = pendingSet.has(i);
                 const isPracticeFocusWord = isMarked && practiceFocusSpan.has(i);
                 const pendingGroup = getPendingHintGroupByIndex(i);
 
@@ -11983,26 +12062,26 @@
                     const groupIndices = group.indices;
                     const lastIndex = groupIndices[groupIndices.length - 1];
                     const joinedWords = words.slice(i, lastIndex + 1).join('');
-                    const allRevealed = groupIndices.every(index => text.revealedWords.includes(index));
-                    const anyRevealed = groupIndices.some(index => text.revealedWords.includes(index));
-                    const anyHalfRevealed = groupIndices.some(index => text.halfRevealedWords && text.halfRevealedWords.includes(index));
+                    const allRevealed = groupIndices.every(index => revealedSet.has(index));
+                    const anyRevealed = groupIndices.some(index => revealedSet.has(index));
+                    const anyHalfRevealed = groupIndices.some(index => halfRevealedSet.has(index));
                     if (allRevealed || anyRevealed) {
-                        practiceParts.push(`<span class="word revealed${isPracticeFocusWord ? ' practice-focus-active' : ''}${isHardWord(text, i) ? ' hard-word' : ''}" data-widx="${i}" onclick="hideWordAgain(${i})">${escapeHtml(joinedWords)}</span>`);
+                        practiceParts.push(`<span class="word revealed${isPracticeFocusWord ? ' practice-focus-active' : ''}${hardSet.has(i) ? ' hard-word' : ''}" data-widx="${i}" onclick="hideWordAgain(${i})">${escapeHtml(joinedWords)}</span>`);
                     } else {
                         const displayHint = anyHalfRevealed
                             ? groupIndices.map(index => getFirstLettersOnly(words[index], getVisibleHintLetters(text, index))).join(' ')
-                            : (((hint && hint !== '') ? hint : hiddenSorted.indexOf(i) + 1) + ' (' + groupIndices.length + ')');
+                            : (((hint && hint !== '') ? hint : hiddenSeq(i)) + ' (' + groupIndices.length + ')');
                         const hintClass = anyHalfRevealed ? 'has-letters' : ((hint && hint !== '') ? 'has-custom-hint' : '');
-                        practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass, i, isPracticeFocusWord, false, isHardWord(text, i)));
+                        practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass, i, isPracticeFocusWord, false, hardSet.has(i)));
                     }
                     continue;
                 }
 
-                const isHalfRevealed = text.halfRevealedWords && text.halfRevealedWords.includes(i);
+                const isHalfRevealed = halfRevealedSet.has(i);
                 if (isMarked && !isRevealed && !isHalfRevealed) {
                     let displayHint;
                     let hintClass;
-                    const seqNum = hiddenSorted.indexOf(i) + 1;
+                    const seqNum = hiddenSeq(i);
                     if (state.practiceMode === 'firstletter') {
                         displayHint = getFirstLetterOnly(word);
                         hintClass = 'has-letters';
@@ -12013,13 +12092,13 @@
                         displayHint = seqNum;
                         hintClass = '';
                     }
-                    practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass, i, isPracticeFocusWord, i === nextRevealIndex, isHardWord(text, i)));
+                    practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass, i, isPracticeFocusWord, i === nextRevealIndex, hardSet.has(i)));
                 } else if (isMarked && isHalfRevealed && !isRevealed) {
                     practiceParts.push(renderPracticeHiddenWord(
                         getFirstLettersOnly(word, getVisibleHintLetters(text, i)),
-                        'has-letters', i, isPracticeFocusWord, i === nextRevealIndex, isHardWord(text, i)));
+                        'has-letters', i, isPracticeFocusWord, i === nextRevealIndex, hardSet.has(i)));
                 } else if (isMarked && isRevealed) {
-                    practiceParts.push(`<span class="word revealed${isPracticeFocusWord ? ' practice-focus-active' : ''}${isHardWord(text, i) ? ' hard-word' : ''}" data-widx="${i}" onclick="hideWordAgain(${i})">${escapeHtml(word)}</span>`);
+                    practiceParts.push(`<span class="word revealed${isPracticeFocusWord ? ' practice-focus-active' : ''}${hardSet.has(i) ? ' hard-word' : ''}" data-widx="${i}" onclick="hideWordAgain(${i})">${escapeHtml(word)}</span>`);
                 } else if (isPracticeFocusActive && practiceFocusSpan.has(i)) {
                     practiceParts.push(`<span class="word practice-focus-active">${escapeHtml(word)}</span>`);
                 } else {
