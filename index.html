@@ -16991,13 +16991,15 @@
                     e.preventDefault();
                     if (focusNextPracticeWord()) return;
                 }
-                // Shift делает тот же шаг, что главная кнопка. Раньше он открывал
-                // слово под фокусом напрямую, а теперь под фокусом бывает обычное
-                // слово — его номер попал бы в список открытых скрытых слов.
-                if (e.key === 'Shift' && !e.repeat && isPracticeFocusModeEnabled() && state.practiceFocusEnabled &&
-                    state.practiceFocusWordIndex !== null) {
+                // Shift — это кнопка «Подсказка» («Ещё букву»): по одной букве за
+                // нажатие, у того же слова, к которому относится кнопка. Раньше Shift
+                // повторял «Открыть следующее слово», но это и так делает пробел, а
+                // подсказка оставалась без клавиши, хотя нажимают её чаще.
+                // Только чистый Shift: с Cmd или Ctrl это уже сочетание, и перехват
+                // сломал бы, например, Cmd+Shift в окне правки текста.
+                if (e.key === 'Shift' && !e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) {
                     e.preventDefault();
-                    revealNextWordAndScroll();
+                    revealNextHintLetter();
                     return;
                 }
                 if (e.key === 'ArrowUp' && !e.repeat) {
