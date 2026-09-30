@@ -1,4 +1,4 @@
-const CACHE = 'zapominalka-v89';
+const CACHE = 'zapominalka-v90';
 
 // Файлы приложения меняются с каждой версией — их всегда берём из сети.
 const APP_ASSETS = [

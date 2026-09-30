@@ -1350,6 +1350,17 @@
             box-shadow: 0 0 0 3px var(--accent-primary);
         }
 
+        /* Слово, которое вписывают сейчас, и при этом отмеченное сложным. Селектор
+           из четырёх классов перебивает и красную заливку, и зелёную рамку фокуса:
+           заливка остаётся красной — это свойство слова, а не режима, — а обводка
+           берёт красный тон, чтобы «сейчас вписываем это» читалось по-прежнему. */
+        .word.hidden-word.hard-word.focused {
+            background: linear-gradient(135deg, #d4564c 0%, #ab3a3a 100%);
+            color: #ffffff;
+            font-weight: 800;
+            box-shadow: 0 0 0 3px #d4564c;
+        }
+
         .word.hidden-word.has-custom-hint {
             background: var(--gradient-orange);
             font-style: italic;
@@ -8447,11 +8458,15 @@
                     // Открыто ровно то, что вписано верно, — а не всё подряд до
                     // счётчика. Слово может быть открыто, хотя предыдущее ещё нет:
                     // в одной отправке можно ошибиться в середине и угадать дальше.
+                    // Отметка «сложное» ставится в практике, но относится к самому
+                    // слову, а не к режиму: если слово трудно вспоминается, знать об
+                    // этом надо и когда его вписываешь.
+                    const hard = isHardWord(text, i) ? 'hard-word' : '';
                     if (solvedWords.includes(i)) {
-                        return '<span class="word revealed">' + escapeHtml(word) + '</span>';
+                        return '<span class="word revealed' + (hard ? ' ' + hard : '') + '">' + escapeHtml(word) + '</span>';
                     } else {
                         const hiddenDisplay = getTypeModeHiddenWordDisplay(text, words, i);
-                        const hiddenClassName = ['hidden-word', hiddenDisplay.className, i === currentTargetIndex ? 'focused' : '']
+                        const hiddenClassName = ['hidden-word', hiddenDisplay.className, hard, i === currentTargetIndex ? 'focused' : '']
                             .filter(Boolean)
                             .join(' ');
                         return '<span class="word ' + hiddenClassName + '">' + escapeHtml(String(hiddenDisplay.text)) + '</span>';
