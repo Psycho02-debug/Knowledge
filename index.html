@@ -7954,7 +7954,46 @@
                 saveData(true);
             }
             state.view = 'home';
-            render();
+            if (!openStartupFolder()) render();
+        }
+
+        // ——— Папка, которая открывается сразу при запуске ———
+        // Приложение открывают, чтобы повторять материалы, и почти всегда — одни и те
+        // же. Поэтому вместо главного экрана сразу показываем список материалов папки
+        // «Термины». Ищем по названию, а не по номеру: папки можно переставлять,
+        // удалять и заводить заново, а название — то, что знает пользователь. Регистр,
+        // пробелы по краям и «ё/е» не важны. Если такой папки нет, запуск идёт как
+        // раньше — на главный экран.
+        const STARTUP_FOLDER_NAME = 'Термины';
+
+        function normalizeFolderName(name) {
+            return String(name || '').trim().toLowerCase().replace(/ё/g, 'е');
+        }
+
+        function openStartupFolder() {
+            const target = normalizeFolderName(STARTUP_FOLDER_NAME);
+            const folders = Array.isArray(state.folders) ? state.folders : [];
+
+            const rootIndex = folders.findIndex(folder => folder && normalizeFolderName(folder.name) === target);
+            if (rootIndex !== -1) {
+                // Штатное открытие папки: то же состояние, что после нажатия на неё,
+                // поэтому «Назад» ведёт в список папок, как обычно.
+                openFolder(rootIndex);
+                return true;
+            }
+
+            // Папку могли переложить внутрь другой — тогда это модуль. Верхний
+            // уровень в приоритете: с ним совпадение ищется первым.
+            for (let i = 0; i < folders.length; i++) {
+                const subfolders = (folders[i] && folders[i].subfolders) || [];
+                const subIndex = subfolders.findIndex(sub => sub && normalizeFolderName(sub.name) === target);
+                if (subIndex !== -1) {
+                    state.currentFolder = i;
+                    openSubfolder(subIndex);
+                    return true;
+                }
+            }
+            return false;
         }
 
         function saveData(immediate) {
