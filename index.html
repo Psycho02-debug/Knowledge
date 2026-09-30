@@ -8824,6 +8824,29 @@
         // списка уходили на пробелы, которые браузер разбирал, раскладывал и хранил.
         // Убираем только пробелы между тегами и только в списках, где все контейнеры —
         // flex: там такие пробелы не рисовались и раньше, так что вид не меняется.
+        // ——— Каскад появления карточек материалов ———
+        // Каждая карточка появлялась с задержкой «номер × 0.05 с», и при 69
+        // материалах последняя начинала анимацию через 3.4 с, а заканчивала через
+        // 3.8 с. Всё это время на iPhone нажатия работали плохо: Safari следит, не
+        // открыло ли нажатие скрытое содержимое (как наведение мышью), и когда
+        // в момент касания очередная карточка проявляется из прозрачности, может
+        // счесть касание «наведением» и не отдать его кнопке. Вдобавок каждая
+        // стартующая анимация снова занимала поток отрисовкой. Так кнопка сортировки
+        // рядом с поиском и не нажималась первые секунды после запуска.
+        //
+        // Каскад нужен только для того, что видно при открытии экрана, а на телефоне
+        // карточки вообще начинаются ниже края — под модулями, поиском и режимами
+        // игры. Поэтому ступенек восемь: для видимой части эффект прежний, а вся
+        // анимация укладывается в 0.75 с вместо 3.8. Остальные карточки появляются
+        // вместе с восьмой — к тому моменту, как до них докрутят, они давно на месте.
+        const TERM_CARD_STAGGER_STEPS = 8;
+        const TERM_CARD_STAGGER_SECONDS = 0.05;
+
+        function getTermCardEntryDelay(index) {
+            const step = Math.min(index, TERM_CARD_STAGGER_STEPS - 1);
+            return +(step * TERM_CARD_STAGGER_SECONDS).toFixed(2);
+        }
+
         function compactMarkup(html) {
             return html.replace(/>\s+</g, '><');
         }
@@ -11531,7 +11554,7 @@
                     ` : allTextsCount > 0 ? `
                         <div class="text-list">
                             ${compactMarkup(textsWithIndex.map((text, vi) => `
-                                <div class="term-card ${text.attention ? 'attention' : ''}${state.textsSelectionMode && isTextSelected(vi) ? ' selected' : ''}" data-term-index="${vi}" onclick="${state.textsSelectionMode ? `toggleTextSelection(${vi})` : `openText(${vi})`}" style="animation-delay: ${vi * 0.05}s" draggable="false">
+                                <div class="term-card ${text.attention ? 'attention' : ''}${state.textsSelectionMode && isTextSelected(vi) ? ' selected' : ''}" data-term-index="${vi}" onclick="${state.textsSelectionMode ? `toggleTextSelection(${vi})` : `openText(${vi})`}" style="animation-delay: ${getTermCardEntryDelay(vi)}s" draggable="false">
                                     <div class="term-header">
                                         ${state.textsSelectionMode ? `
                                             <div class="term-select-mark">${isTextSelected(vi) ? '✓' : ''}</div>
