@@ -1391,6 +1391,19 @@
             color: #ffffff;
         }
 
+        /* Плашка без надписи — порядковые номера с неё убраны. Невидимая цифра держит
+           прежний размер: иначе пустая плашка схлопнулась бы в полоску толщиной
+           с отступы. Именно цифра, а не фиксированная ширина: так плашка растёт
+           вместе с размером текста из «Aa» и стоит на одной линии с соседними
+           словами. Для практики пустым бывает внутренний ярлык, для «Вписать» —
+           сама плашка и её двойник в строке «Сейчас слово». */
+        .word-hidden-label:empty::before,
+        .word.hidden-word:empty::before,
+        .type-current-chip:empty::before {
+            content: '0';
+            visibility: hidden;
+        }
+
         .word-hidden-label {
             display: block;
             line-height: 1.12;
@@ -8622,7 +8635,6 @@
             const hiddenSet = new Set(text.hiddenWords || []);
             const solvedSet = new Set(solvedWords);
             const hardSet = new Set(text.hardWords || []);
-            const hiddenSeq = buildHiddenSequence(hiddenSorted);
             const lineNumbers = getTokenLineNumbers(words);
             const focusLine = getTypeFocusLine(words, lineNumbers, currentTargetIndex);
             const firstFocusToken = focusLine === null
@@ -8649,7 +8661,7 @@
                     if (solvedSet.has(i)) {
                         return '<span class="word revealed' + (hard ? ' ' + hard : '') + '">' + escapeHtml(word) + '</span>';
                     } else {
-                        const hiddenDisplay = getTypeModeHiddenWordDisplay(text, words, i, hiddenSeq(i));
+                        const hiddenDisplay = getTypeModeHiddenWordDisplay(text, words, i);
                         const hiddenClassName = ['hidden-word', hiddenDisplay.className, hard, i === currentTargetIndex ? 'focused' : '']
                             .filter(Boolean)
                             .join(' ');
@@ -8808,17 +8820,6 @@
             return false;
         }
 
-        // Порядковый номер скрытого слова — то же, что hiddenSorted.indexOf(i) + 1
-        // (0, если слова в списке нет), но за O(1): номер спрашивают для каждого чипа.
-        // При повторах в списке побеждает первое вхождение, как у indexOf.
-        function buildHiddenSequence(hiddenSorted) {
-            const order = new Map();
-            hiddenSorted.forEach((index, position) => {
-                if (!order.has(index)) order.set(index, position);
-            });
-            return index => (order.has(index) ? order.get(index) : -1) + 1;
-        }
-
         // Отступы шаблона между тегами — не текст, а лишние узлы DOM. У карточки
         // материала их было больше, чем элементов: треть разметки и половина узлов
         // списка уходили на пробелы, которые браузер разбирал, раскладывал и хранил.
@@ -8851,13 +8852,11 @@
             return html.replace(/>\s+</g, '><');
         }
 
-        function getTypeModeHiddenWordDisplay(text, words, index, knownSeqNum) {
+        // Надпись на плашке скрытого слова. Порядкового номера нет — плашка просто
+        // цветная; текст остаётся, только если он подсказывает: первая буква или свой
+        // вопрос к слову.
+        function getTypeModeHiddenWordDisplay(text, words, index) {
             const hint = text.wordHints && text.wordHints[index];
-            // Номер можно передать готовым: список сортировался на каждый чип, и на
-            // длинном тексте это была основная работа всей отрисовки режима.
-            const seqNum = knownSeqNum !== undefined
-                ? knownSeqNum
-                : buildHiddenSequence([...(text.hiddenWords || [])].sort((a, b) => a - b))(index);
 
             if (state.typeDisplayMode === 'letters') {
                 return { text: getFirstLetterOnly(words[index]), className: 'has-letters' };
@@ -8866,9 +8865,9 @@
                 if (hint && hint !== '') {
                     return { text: hint, className: 'has-custom-hint' };
                 }
-                return { text: seqNum, className: '' };
+                return { text: '', className: '' };
             }
-            return { text: seqNum, className: '' };
+            return { text: '', className: '' };
         }
 
         function setTypeDisplayMode(mode) {
@@ -12011,7 +12010,6 @@
             const halfRevealedSet = new Set(text.halfRevealedWords || []);
             const pendingSet = new Set(state.pendingWords);
             const hardSet = new Set(text.hardWords || []);
-            const hiddenSeq = buildHiddenSequence(hiddenSorted);
             const focusableHiddenSorted = getRenderableHiddenIndices(text);
             const focusTargets = isPracticeFocusModeEnabled() ? getPracticeFocusTargets(text) : [];
             if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled) {
@@ -12132,7 +12130,7 @@
                     } else {
                         const displayHint = anyHalfRevealed
                             ? groupIndices.map(index => getFirstLettersOnly(words[index], getVisibleHintLetters(text, index))).join(' ')
-                            : (((hint && hint !== '') ? hint : hiddenSeq(i)) + ' (' + groupIndices.length + ')');
+                            : ((hint && hint !== '') ? hint + ' (' + groupIndices.length + ')' : '');
                         const hintClass = anyHalfRevealed ? 'has-letters' : ((hint && hint !== '') ? 'has-custom-hint' : '');
                         practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass, i, isPracticeFocusWord, false, hardSet.has(i)));
                     }
@@ -12141,17 +12139,19 @@
 
                 const isHalfRevealed = halfRevealedSet.has(i);
                 if (isMarked && !isRevealed && !isHalfRevealed) {
+                    // Порядковых номеров на плашках нет: плашка — просто цветной квадрат.
+                    // Надпись остаётся только там, где она что-то подсказывает, — первая
+                    // буква в «П_» и свой вопрос к слову в «?».
                     let displayHint;
                     let hintClass;
-                    const seqNum = hiddenSeq(i);
                     if (state.practiceMode === 'firstletter') {
                         displayHint = getFirstLetterOnly(word);
                         hintClass = 'has-letters';
                     } else if (state.practiceMode === 'hints') {
-                        displayHint = (hint && hint !== '') ? hint : seqNum;
+                        displayHint = (hint && hint !== '') ? hint : '';
                         hintClass = (hint && hint !== '') ? 'has-custom-hint' : '';
                     } else {
-                        displayHint = seqNum;
+                        displayHint = '';
                         hintClass = '';
                     }
                     practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass, i, isPracticeFocusWord, i === nextRevealIndex, hardSet.has(i)));
