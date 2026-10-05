@@ -5893,101 +5893,10 @@
     </style>
 </head>
 <body>
-    <div id="app">
-                <div class="header">
-                    <h1>📚 Мои папки</h1>
-                    <div style="display:flex;align-items:center;gap:8px;">
-                        
-                <div style="display:flex;align-items:center;gap:8px;">
-                    
-                    <button onclick="state.view=&#39;stats&#39;;render();setTimeout(loadStats,100);" style="background:none;border:none;font-size:13px;color:var(--text-secondary);cursor:pointer;font-family:inherit;padding:2px;">📊</button>
-                    <a href="javascript:void(0)" style="font-size:12px;color:var(--text-tertiary);text-decoration:none;padding:4px;">Локально</a>
-                </div>
-            
-                        <button class="theme-toggle" onclick="toggleTheme()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></button>
-                    </div>
-                </div>
-                <div class="container">
-                    
-                        <div class="folder-list">
-                            
-                                <div class="folder-card" style="animation-delay: 0s" onclick="openFolder(0)">
-                                    <div class="folder-info">
-                                        <h3><span class="folder-icon">📁</span> Материалы</h3>
-                                        <div class="folder-meta">
-                                            <span class="term-count-badge">47 материалов</span>
-                                        </div>
-                                    </div>
-                                    <div style="display:flex;align-items:center;gap:2px;">
-                                        <button onclick="event.stopPropagation();shareFolder(0)" style="background:none;border:none;font-size:18px;cursor:pointer;padding:6px;" title="Поделиться">🔗</button>
-                                        <button onclick="event.stopPropagation();deleteFolderFromList(0)" style="background:none;border:none;cursor:pointer;padding:6px;color:var(--text-tertiary);transition:color 0.2s;" title="Удалить папку" onmouseover="this.style.color=&#39;#ef4444&#39;" onmouseout="this.style.color=&#39;var(--text-tertiary)&#39;">
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                                        </button>
-                                        <span class="folder-arrow" onclick="openFolder(0)">
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                                        </span>
-                                    </div>
-                                </div>
-                            
-                                <div class="folder-card" style="animation-delay: 0.06s" onclick="openFolder(1)">
-                                    <div class="folder-info">
-                                        <h3><span class="folder-icon">📁</span> Канал</h3>
-                                        <div class="folder-meta">
-                                            <span class="term-count-badge">1 материал</span>
-                                        </div>
-                                    </div>
-                                    <div style="display:flex;align-items:center;gap:2px;">
-                                        <button onclick="event.stopPropagation();shareFolder(1)" style="background:none;border:none;font-size:18px;cursor:pointer;padding:6px;" title="Поделиться">🔗</button>
-                                        <button onclick="event.stopPropagation();deleteFolderFromList(1)" style="background:none;border:none;cursor:pointer;padding:6px;color:var(--text-tertiary);transition:color 0.2s;" title="Удалить папку" onmouseover="this.style.color=&#39;#ef4444&#39;" onmouseout="this.style.color=&#39;var(--text-tertiary)&#39;">
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                                        </button>
-                                        <span class="folder-arrow" onclick="openFolder(1)">
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                                        </span>
-                                    </div>
-                                </div>
-                            
-                                <div class="folder-card" style="animation-delay: 0.12s" onclick="openFolder(2)">
-                                    <div class="folder-info">
-                                        <h3><span class="folder-icon">📁</span> Dota 2</h3>
-                                        <div class="folder-meta">
-                                            <span class="term-count-badge">13 материалов</span>
-                                        </div>
-                                    </div>
-                                    <div style="display:flex;align-items:center;gap:2px;">
-                                        <button onclick="event.stopPropagation();shareFolder(2)" style="background:none;border:none;font-size:18px;cursor:pointer;padding:6px;" title="Поделиться">🔗</button>
-                                        <button onclick="event.stopPropagation();deleteFolderFromList(2)" style="background:none;border:none;cursor:pointer;padding:6px;color:var(--text-tertiary);transition:color 0.2s;" title="Удалить папку" onmouseover="this.style.color=&#39;#ef4444&#39;" onmouseout="this.style.color=&#39;var(--text-tertiary)&#39;">
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                                        </button>
-                                        <span class="folder-arrow" onclick="openFolder(2)">
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                                        </span>
-                                    </div>
-                                </div>
-                            
-                                <div class="folder-card" style="animation-delay: 0.18s" onclick="openFolder(3)">
-                                    <div class="folder-info">
-                                        <h3><span class="folder-icon">📁</span> Нейросети</h3>
-                                        <div class="folder-meta">
-                                            <span class="term-count-badge">5 материалов</span>
-                                        </div>
-                                    </div>
-                                    <div style="display:flex;align-items:center;gap:2px;">
-                                        <button onclick="event.stopPropagation();shareFolder(3)" style="background:none;border:none;font-size:18px;cursor:pointer;padding:6px;" title="Поделиться">🔗</button>
-                                        <button onclick="event.stopPropagation();deleteFolderFromList(3)" style="background:none;border:none;cursor:pointer;padding:6px;color:var(--text-tertiary);transition:color 0.2s;" title="Удалить папку" onmouseover="this.style.color=&#39;#ef4444&#39;" onmouseout="this.style.color=&#39;var(--text-tertiary)&#39;">
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                                        </button>
-                                        <span class="folder-arrow" onclick="openFolder(3)">
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                                        </span>
-                                    </div>
-                                </div>
-                            
-                        </div>
-                    
-                </div>
-                <button class="add-btn" onclick="showFolderModal()">+</button>
-            </div>
+    <!-- Экран целиком рисует render() при запуске. Раньше здесь лежал сохранённый
+         когда-то снимок экрана папок: телефон разбирал его, начинал анимировать
+         карточки — и тут же стирал, а на медленном запуске он успевал мелькнуть. -->
+    <div id="app"></div>
     
     <div class="modal" id="folderModal">
         <div class="modal-content">
@@ -6455,10 +6364,19 @@
 
         // Токен из одних знаков препинания. Такие никогда не выделяются: скрывать
         // запятую или скобку бессмысленно, а при «выделить все» они засоряли выборку.
+        // Отрисовка спрашивает это про соседей каждого пробела — тысячи раз за
+        // нажатие, и почти всегда ответ «нет»: токен начинается с буквы. Поэтому
+        // сначала смотрим на первый символ: если он не из набора знаков, регулярное
+        // выражение не нужно — оно требует, чтобы знаками были ВСЕ символы.
+        const PUNCTUATION_TOKEN_CODES = new Set(
+            Array.from('.,!?;:…—–«»„“”‘’‹›"\'()[]{}-', ch => ch.charCodeAt(0))
+        );
+
         function isPunctuationToken(token) {
             if (typeof token !== 'string') return false;
             const trimmed = token.trim();
-            return trimmed !== '' && /^[.,!?;:…—–«»„“”‘’‹›"'()\[\]{}\-]+$/u.test(trimmed);
+            if (trimmed === '' || !PUNCTUATION_TOKEN_CODES.has(trimmed.charCodeAt(0))) return false;
+            return /^[.,!?;:…—–«»„“”‘’‹›"'()\[\]{}\-]+$/u.test(trimmed);
         }
 
         // Знак препинания, прилипший к слову, попадает в чип вместе с ним: скрывается
@@ -6766,6 +6684,10 @@
         }
 
         function normalizeDisplayWhitespaceToken(token, isAtStart = false) {
+            // Девять из десяти разделителей — одиночный пробел или перевод строки,
+            // для них цепочка замен ничего не меняет. Отвечаем сразу.
+            if (token === ' ') return isAtStart ? '' : ' ';
+            if (token === '\n') return '\n';
             let normalized = String(token || '')
                 .replace(/\r\n?/g, '\n')
                 .replace(/[ \t]+\n/g, '\n')
@@ -7791,14 +7713,51 @@
             normalizeFoldersTree(state.folders);
             state.flashcardFolders = normalizeFlashcardFoldersTree(state.flashcardFolders);
             state.courseFolders = normalizeCourseFoldersTree(state.courseFolders);
-            const payload = JSON.stringify({
-                folders: state.folders,
-                flashcardFolders: state.flashcardFolders,
-                courseFolders: state.courseFolders
-            });
+            const payload = stringifyPersistentData();
             if (payload === lastSavedData) return;
             localStorage.setItem('wordMemorizer', payload);
             lastSavedData = payload;
+        }
+
+        // Открытые слова (revealedWords) и слова с подсказкой (halfRevealedWords) —
+        // состояние открытого экрана, а не данные: любой вход в материал и переход
+        // к соседнему их обнуляет, и читают их только экраны практики. Но лежат
+        // они внутри материала, поэтому раньше каждое открытое слово делало данные
+        // «изменившимися» — и переход к следующему материалу переписывал на диск
+        // ВСЕ материалы целиком. На диск эти два поля уходят пустыми, а в памяти,
+        // пока материал открыт, остаются как были. Теперь запись случается, только
+        // когда изменилось что-то настоящее: разметка, отметки, тексты.
+        function stringifyPersistentData() {
+            const restore = [];
+            const blankSession = text => {
+                if (!text) return;
+                const revealed = text.revealedWords;
+                const half = text.halfRevealedWords;
+                const hasRevealed = Array.isArray(revealed) && revealed.length > 0;
+                const hasHalf = Array.isArray(half) && half.length > 0;
+                if (!hasRevealed && !hasHalf) return;
+                restore.push([text, revealed, half]);
+                if (hasRevealed) text.revealedWords = [];
+                if (hasHalf) text.halfRevealedWords = [];
+            };
+            const walk = folder => {
+                if (!folder) return;
+                (folder.texts || []).forEach(blankSession);
+                (folder.subfolders || []).forEach(walk);
+            };
+            try {
+                state.folders.forEach(walk);
+                return JSON.stringify({
+                    folders: state.folders,
+                    flashcardFolders: state.flashcardFolders,
+                    courseFolders: state.courseFolders
+                });
+            } finally {
+                restore.forEach(([text, revealed, half]) => {
+                    text.revealedWords = revealed;
+                    text.halfRevealedWords = half;
+                });
+            }
         }
 
         function flushLocalStats() {
@@ -7829,15 +7788,16 @@
         function getLocalData() {
             try {
                 const saved = localStorage.getItem('wordMemorizer');
-                if (!saved) return { folders: [], flashcardFolders: [], courseFolders: [] };
+                if (!saved) return { folders: [], flashcardFolders: [], courseFolders: [], raw: '' };
                 const parsed = JSON.parse(saved);
                 return {
                     folders: Array.isArray(parsed.folders) ? parsed.folders : [],
                     flashcardFolders: Array.isArray(parsed.flashcardFolders) ? parsed.flashcardFolders : [],
-                    courseFolders: Array.isArray(parsed.courseFolders) ? parsed.courseFolders : []
+                    courseFolders: Array.isArray(parsed.courseFolders) ? parsed.courseFolders : [],
+                    raw: saved
                 };
             } catch (e) {
-                return { folders: [], flashcardFolders: [], courseFolders: [] };
+                return { folders: [], flashcardFolders: [], courseFolders: [], raw: '' };
             }
         }
 
@@ -7851,11 +7811,12 @@
             normalizeFoldersTree(state.folders);
             const normalizedMaterials = normalizeAllMaterialsPunctuation();
             const seededFlashcards = ensureBuiltInFlashcardFolders();
-            lastSavedData = JSON.stringify({
-                folders: state.folders,
-                flashcardFolders: state.flashcardFolders,
-                courseFolders: state.courseFolders
-            });
+            // Точка отсчёта для «не писать, если ничего не изменилось» — ровно то,
+            // что лежит на диске. Раньше её получали, заново превращая в строку все
+            // данные, — полный проход по ним на каждом запуске, ещё до первого кадра.
+            // Строка из хранилища и есть эта точка: запись пропускается, только если
+            // новые данные совпадут с ней буква в букву, то есть на диске уже они.
+            lastSavedData = localData.raw;
             if (seededFlashcards || normalizedMaterials > 0) {
                 lastSavedData = '';
                 saveData(true);
@@ -8740,6 +8701,22 @@
         function getTermCardEntryDelay(index) {
             const step = Math.min(index, TERM_CARD_STAGGER_STEPS - 1);
             return +(step * TERM_CARD_STAGGER_SECONDS).toFixed(2);
+        }
+
+        // Анимацию появления получают только первые карточки. Раньше она шла у всех:
+        // при трёхстах материалах — триста одновременных анимаций на каждый вход в
+        // список, включая запуск приложения, и каждая на время анимации занимала
+        // видеокарту отдельным слоем. Видны при открытии от силы десять карточек
+        // (на телефоне список начинается под модулями, поиском и режимами игры),
+        // остальные ниже края экрана — им анимация не нужна: к тому моменту, как
+        // до них докрутят, она давно закончилась бы. Запас взят на высокий экран
+        // планшета. Итоговый вид у всех карточек тот же.
+        const TERM_CARD_ANIMATED_LIMIT = 16;
+
+        function getTermCardEntryStyle(index) {
+            return index < TERM_CARD_ANIMATED_LIMIT
+                ? 'animation-delay: ' + getTermCardEntryDelay(index) + 's'
+                : 'animation: none';
         }
 
         function compactMarkup(html) {
@@ -11447,7 +11424,7 @@
                     ` : allTextsCount > 0 ? `
                         <div class="text-list">
                             ${compactMarkup(textsWithIndex.map((text, vi) => `
-                                <div class="term-card ${text.attention ? 'attention' : ''}${state.textsSelectionMode && isTextSelected(vi) ? ' selected' : ''}" data-term-index="${vi}" onclick="${state.textsSelectionMode ? `toggleTextSelection(${vi})` : `openText(${vi})`}" style="animation-delay: ${getTermCardEntryDelay(vi)}s" draggable="false">
+                                <div class="term-card ${text.attention ? 'attention' : ''}${state.textsSelectionMode && isTextSelected(vi) ? ' selected' : ''}" data-term-index="${vi}" onclick="${state.textsSelectionMode ? `toggleTextSelection(${vi})` : `openText(${vi})`}" style="${getTermCardEntryStyle(vi)}" draggable="false">
                                     <div class="term-header">
                                         ${state.textsSelectionMode ? `
                                             <div class="term-select-mark">${isTextSelected(vi) ? '✓' : ''}</div>
@@ -11637,6 +11614,18 @@
         // только на её первое слово — остальных членов группы на экране
         // отдельно нет. Подавление здесь то же, что при отрисовке.
         function getPracticeFocusTargets(text) {
+            // Внутри одной отрисовки цели спрашивают трижды (сам экран, связка под
+            // фокусом, подсказка), а текст и режим за это время не меняются —
+            // считаем один раз. Вне отрисовки памяти нет, как и у групп.
+            const memoKey = renderGroupsMemo ? 'focusTargets:' + state.practiceMode : null;
+            const memo = memoKey ? renderGroupsMemo.get(memoKey) : null;
+            if (memo && memo.text === text) return memo.targets;
+            const targets = computePracticeFocusTargets(text);
+            if (memoKey) renderGroupsMemo.set(memoKey, { text, targets });
+            return targets;
+        }
+
+        function computePracticeFocusTargets(text) {
             ensureTextStudyData(text);
             const words = text.content.split(/(\s+)/);
             const suppressed = new Set();
@@ -11800,10 +11789,17 @@
 
         // Вызывается на каждом кадре прокрутки через touchmove, поэтому первым
         // делом дешёвая проверка: отменять обычно нечего.
+        // Слушатель движения пальца нужен, только пока идёт отсчёт долгого нажатия:
+        // сдвинул палец — это прокрутка, а не нажатие. Раньше он висел на документе
+        // постоянно и вызывался на каждое движение при любой прокрутке — длинного
+        // текста, списка материалов, — десятки раз в секунду впустую. Теперь он
+        // подключается в момент касания слова и снимается вместе с таймером, так
+        // что обычная прокрутка не будит JavaScript вовсе.
         function cancelHardPress() {
             if (hardPressTimer === null) return;
             clearTimeout(hardPressTimer);
             hardPressTimer = null;
+            document.removeEventListener('touchmove', cancelHardPress);
         }
 
         function startHardPress(target) {
@@ -11811,8 +11807,10 @@
             const index = findPracticeWordIndex(target);
             if (index === null) return;
             hardPressHandled = false;
+            document.addEventListener('touchmove', cancelHardPress, { passive: true });
             hardPressTimer = setTimeout(() => {
                 hardPressTimer = null;
+                document.removeEventListener('touchmove', cancelHardPress);
                 if (toggleHardWord(index)) {
                     // Гасим клик, который придёт следом за долгим нажатием: иначе
                     // слово заодно раскрылось бы, хотя игрок его только помечал.
@@ -11823,7 +11821,6 @@
         }
 
         document.addEventListener('touchstart', e => startHardPress(e.target), { passive: true });
-        document.addEventListener('touchmove', cancelHardPress, { passive: true });
         document.addEventListener('touchend', cancelHardPress, { passive: true });
         document.addEventListener('touchcancel', cancelHardPress, { passive: true });
         document.addEventListener('mousedown', e => { if (e.button === 0) startHardPress(e.target); });
@@ -11898,7 +11895,11 @@
             const halfRevealedSet = new Set(text.halfRevealedWords || []);
             const pendingSet = new Set(state.pendingWords);
             const hardSet = new Set(text.hardWords || []);
-            const focusTargets = isPracticeFocusModeEnabled() ? getPracticeFocusTargets(text) : [];
+            // Цели фокуса нужны, только пока фокус включён: без него ни одна ветка
+            // ниже их не читает, а это полный проход по тексту на каждое нажатие.
+            const focusTargets = isPracticeFocusModeEnabled() && state.practiceFocusEnabled
+                ? getPracticeFocusTargets(text)
+                : [];
             if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled) {
                 // Открытое слово остаётся законной целью — фокус идёт по всем словам.
                 // Сдвигать его приходится, только если слова больше нет в тексте
@@ -11964,9 +11965,9 @@
                 const isRevealed = revealedSet.has(i);
                 const isPending = pendingSet.has(i);
                 const isPracticeFocusWord = isMarked && practiceFocusSpan.has(i);
-                const pendingGroup = getPendingHintGroupByIndex(i);
 
                 if (state.mode === 'edit') {
+                    const pendingGroup = getPendingHintGroupByIndex(i);
                     // Знак препинания — не содержательная часть текста, выделять его
                     // нечего. Спан рисуется без обработчика, чтобы промах по запятой
                     // рядом со словом просто ничего не делал. Исключение — знак,
@@ -14497,7 +14498,11 @@
             }
         }
 
-        document.addEventListener('selectionchange', saveCurrentSelection);
+        // Слушатель selectionchange здесь больше не висит. Он запоминал выделение
+        // для смысловых ключей, а их экран отключён (keys и keys_edit ведут на
+        // выбор режима), поле #semanticKeyText не рисуется — и обработчик впустую
+        // срабатывал на каждое движение каретки, то есть на каждую букву в
+        // «Вписать». createSemanticKey по-прежнему вызывает его сам.
 
         function createSemanticKey() {
             var text = getCurrentFolder().texts[state.currentText];
@@ -14688,10 +14693,24 @@
             return true;
         }
 
+        // Экранирует строку для вставки в разметку как текст. Раньше это делалось
+        // через DOM — создать div, положить текстовый узел, прочитать innerHTML, —
+        // а вызывается функция на каждое слово при каждой перерисовке: на длинном
+        // тексте это больше двух тысяч созданных элементов на одно нажатие и
+        // половина всего времени сборки разметки. Строковая замена делает то же
+        // в десять раз быстрее и не оставляет мусора для сборщика.
+        //
+        // Результат обязан совпадать с прежним до байта. Сериализатор HTML в
+        // текстовом узле заменяет ровно четыре символа: &, <, > и неразрывный
+        // пробел (U+00A0 -> &nbsp;). Кавычки он не трогает — поэтому и здесь они
+        // остаются как есть; для атрибутов есть escapeHtmlAttr.
+        const ESCAPE_HTML_TEST = /[&<>\u00A0]/;
+        const ESCAPE_HTML_RE = /[&<>\u00A0]/g;
+        const ESCAPE_HTML_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '\u00A0': '&nbsp;' };
+
         function escapeHtml(str) {
-            var div = document.createElement('div');
-            div.appendChild(document.createTextNode(str));
-            return div.innerHTML;
+            const text = String(str);
+            return ESCAPE_HTML_TEST.test(text) ? text.replace(ESCAPE_HTML_RE, ch => ESCAPE_HTML_MAP[ch]) : text;
         }
 
         function escapeHtmlAttr(str) {

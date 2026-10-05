@@ -4,7 +4,7 @@
 
 Номера строк ниже приблизительные: файл правится постоянно, и они сдвигаются. Ищите по имени — `grep -n "function имя(" index.html`. Свежую карту всех функций с номерами строк даёт команда из раздела [«Как быстро сориентироваться»](#как-быстро-сориентироваться).
 
-Сверено с кодом: версия кэша `zapominalka-v98`, `index.html` — 17 312 строк, 818 КБ.
+Сверено с кодом: версия кэша `zapominalka-v99`, `index.html` — около 17 150 строк, 790 КБ.
 
 ---
 
@@ -72,11 +72,11 @@
 | Строки (≈) | Что там |
 |---|---|
 | 1–12 | `<head>`: viewport без масштабирования, manifest, мета-теги для iOS, `fonts.css` |
-| 13–5999 | `<style>` — все стили, около 6 тысяч строк |
-| 6001–6097 | `<div id="app">` — **устаревший снимок** экрана папок, сохранённый когда-то вместе с файлом. Первый же `render()` заменяет его целиком, поэтому правки там ничего не дают. В нём встречаются `shareFolder(0)`…`shareFolder(3)` — это не настоящие вызовы |
-| 6098–6380 | Тринадцать модальных окон статичной разметкой (список в §8) |
-| 6381–17302 | Основной `<script>` |
-| 17305–17311 | Регистрация service worker по событию `load` |
+| 13–5893 | `<style>` — все стили, около 6 тысяч строк |
+| ≈5899 | `<div id="app"></div>` — пустой: экран целиком рисует `render()` при запуске. Раньше здесь лежал устаревший снимок экрана папок — его убрали, он лишь разбирался, начинал анимацию и тут же стирался |
+| ≈5901–6183 | Тринадцать модальных окон статичной разметкой (список в §8) |
+| 6184–17136 | Основной `<script>`. Номера строк в таблице ниже сняты до последних правок и сдвинулись примерно на 150–200 строк вверх — ищите по именам |
+| 17139–17145 | Регистрация service worker по событию `load` |
 
 ### Стили
 
@@ -280,8 +280,8 @@
 | `image` | строка | Картинка в base64 или URL |
 | `attention` | bool | Материал помечен сложным: свайп вправо, `S`, кнопка ☆ |
 | `hiddenWords` | `number[]` | **Индексы токенов** `content.split(/(\s+)/)` — скрытые слова |
-| `revealedWords` | `number[]` | Открытые сейчас. Сохраняются на диск, но сбрасываются при каждом входе в материал и при переходе между материалами — фактически это состояние сеанса |
-| `halfRevealedWords` | `number[]` | Слова с живой подсказкой; сбрасываются там же |
+| `revealedWords` | `number[]` | Открытые сейчас. Состояние экрана, а не данные: сбрасываются при каждом входе в материал и при переходе между материалами. **На диск уходят пустыми** (`stringifyPersistentData`), в памяти живут, пока материал открыт |
+| `halfRevealedWords` | `number[]` | Слова с живой подсказкой; сбрасываются там же и так же не пишутся на диск |
 | `hintLetters` | `{индекс: число}` | Сколько букв открыто подсказкой. Читается только для слов из `halfRevealedWords`, поэтому старые записи не чистятся |
 | `hardWords` | `number[]` | Слова, отмеченные сложными (красные чипы) |
 | `wordHints` | `{индекс: строка}` | Свои вопросы к словам; пустая строка — вопроса нет |
@@ -315,13 +315,17 @@ hiddenWords: [2]  →  скрыто «вычислений»
              ├─ hasPendingSaveData = true
              └─ setTimeout(180 мс) → requestIdleCallback(timeout 500) → flushSaveData()
                                                                           ├─ нормализация деревьев
-                                                                          ├─ JSON.stringify
+                                                                          ├─ stringifyPersistentData() — JSON без открытых слов
                                                                           └─ если ≠ lastSavedData → localStorage.setItem
 saveData(true)              — записать сразу
 flushPendingPersistence()   — сбросить всё ожидающее (visibilitychange→hidden, pagehide, beforeunload)
 ```
 
 Не каждое действие вызывает `saveData()`: раскрытие слов (`revealWord`, `toggleAllWordsReveal`) меняет `revealedWords` без записи — эти поля всё равно обнуляются при следующем входе.
+
+`stringifyPersistentData()` на время сериализации подменяет непустые `revealedWords` и `halfRevealedWords` пустыми массивами и возвращает их в `finally`. Без этого каждое открытое слово делало данные «изменившимися», и `navigateToTerm` (он вызывает `saveData()`) переписывал на диск все материалы при каждом переходе: на пяти материалах — 5.8 МБ записи вместо нуля. Новое поле, которое тоже только состояние экрана, обнуляйте там же.
+
+`lastSavedData` при запуске — это строка, прочитанная из хранилища (`getLocalData().raw`), а не повторная сериализация данных: запись пропускается, только если новые данные совпадают с тем, что уже лежит на диске.
 
 ### Запуск: `loadData()` (≈7950)
 
@@ -445,7 +449,8 @@ render()
 - **CSS-переходы срабатывают при патче**: узел остаётся тем же, и у него есть прежнее значение, от которого можно анимировать.
 - **Отрисовка не совсем чистая.** `renderTextsView` пишет `textsViewEntriesCache`, а при пропавшей папке меняет `view` и вызывает `render()`. `renderPracticeView` переносит `practiceFocusWordIndex`, если слово исчезло после правки текста. Менять разметку скрытия (`hiddenWords`, `hiddenWordGroups`) внутри отрисовки нельзя из-за `renderGroupsMemo`.
 - `compactMarkup(html)` убирает пробелы между тегами в списках материалов и карточек — только там, где контейнеры flex (CLAUDE.md).
-- `getTermCardEntryDelay(i)` ограничивает каскад появления карточек восемью шагами по 0.05 с.
+- `getTermCardEntryDelay(i)` ограничивает каскад появления карточек восемью шагами по 0.05 с, а `getTermCardEntryStyle(i)` даёт анимацию только первым `TERM_CARD_ANIMATED_LIMIT` (16) карточкам — остальные ниже края экрана и появляются сразу (`animation: none`).
+- Цели фокуса (`getPracticeFocusTargets`) внутри одной отрисовки считаются один раз — память лежит в той же `renderGroupsMemo` под строковым ключом `focusTargets:<practiceMode>`; при выключенном фокусе `renderPracticeView` их не считает вовсе.
 
 ### Анатомия чипа слова (практика)
 
@@ -476,10 +481,9 @@ render()
 | 8052–8053 | `window` `pagehide`, `beforeunload` | `flushPendingPersistence` |
 | 8059 | `window` `resize` | `syncDockSpacing` не чаще раза за кадр |
 | 9130 | `visualViewport` `resize` | В «Вписать» — подстроить высоту текста под экранную клавиатуру |
-| 11936–11942 | `document` touch- и mouse-события | Долгое нажатие (480 мс) — отметить слово сложным |
+| ≈11823 | `document` `touchstart`, `touchend`, `touchcancel`, `mousedown`, `mouseup`, `mouseleave` | Долгое нажатие (480 мс) — отметить слово сложным. `touchmove` подключается **только на время отсчёта** (`startHardPress` → `cancelHardPress`), чтобы обычная прокрутка не вызывала JavaScript |
 | 11944 | `document` `click` (захват) | Погасить клик после сработавшего долгого нажатия |
 | 11951 | `document` `contextmenu` | Правая кнопка мыши — отметить слово сложным |
-| 14612 | `document` `selectionchange` | Смысловые ключи (мёртвое; без их поля ничего не делает) |
 | 16186–16205 | `keydown` и `keyup` (захват), `mousedown`, `blur` | Cmd+Shift в окне материала: сохранить и выделить слова |
 | 17006 | `document` `keydown` | **Главный диспетчер клавиатуры** |
 
@@ -716,10 +720,9 @@ getStudyNavigationMeta / navigateToTerm ◄── studyQueue ◄── openText 
 | `syncToServer`, `checkAuth`, `authUser`, `sharedToken`, `serverVersion` | Остатки серверной версии; сервера нет |
 | `importSharedFolder`, `linkAccountWithSite`, экран `shared` | Заглушки: кнопки есть, но первая только показывает сообщение, а вторая ставит флаг в профиле |
 | `renderLandingView` | Только перенаправляет в `renderHomeView` и нигде не вызывается |
-| `renderSemanticKeysEditView`, `renderSemanticKeysView`, `revealNextSemanticKey` и связанные `createSemanticKey`, `toggleSemanticKey`, `saveCurrentSelection` со слушателем `selectionchange` | Смысловые ключи. Экраны `keys` и `keys_edit` перенаправлены на `term_chooser`, а `openSemanticKeysEdit/View` ведут туда же |
+| `renderSemanticKeysEditView`, `renderSemanticKeysView`, `revealNextSemanticKey` и связанные `createSemanticKey`, `toggleSemanticKey`, `saveCurrentSelection` (глобальный слушатель `selectionchange` для него снят) | Смысловые ключи. Экраны `keys` и `keys_edit` перенаправлены на `term_chooser`, а `openSemanticKeysEdit/View` ведут туда же |
 | `goToPractice`, `setPracticeMode`, `revealWordFully`, `showAllWords`, `nextQuizQuestion`, `deleteText`, `isHardWord` | Не вызываются ниоткуда (проверено поиском по файлу) |
 | `text.hintTypes` | Пишется, не читается |
-| Содержимое `<div id="app">` в разметке | Снимок старого экрана, заменяется первым `render()` |
 | `state.practiceMode === 'combined'` | Устаревшее значение; превращается в `default` |
 
 ---
