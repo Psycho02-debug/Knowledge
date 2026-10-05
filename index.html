@@ -1415,112 +1415,6 @@
            мгновенно. Здесь раньше стоял ещё и filter: saturate()/brightness(), но
            filter — это отдельный проход отрисовки на КАЖДОЕ слово (а их в тексте
            бывает под сотню). Одной opacity достаточно, и она в разы дешевле. */
-        /* Слово, которое откроется следующим по кнопке. Видно всегда, даже когда
-           режим фокуса выключен.
-
-           Приём здесь намеренно другой, чем в режиме фокуса. Там соседние чипы
-           приглушены, поэтому активному слову идёт плотная заливка. Без фокуса
-           гасить нечего, и та же заливка превращалась в кричащее пятно среди
-           одинаково ярких чипов. Поэтому следующее слово отличается не заливкой,
-           а контуром: чип остаётся в общем ритме, но обведён светлым кольцом.
-           Заливку намеренно не трогаем — осветление роняло контраст текста с
-           4.9:1 до 2.6:1, то есть выделение покупалось бы ценой читаемости.
-
-           Кольцо задано inset-тенью, а не border: рамка добавила бы чипу два
-           пикселя, и при переходе подсветки на другое слово текст перекладывался
-           бы. Тень не занимает места и не трогает вёрстку. Размытие нулевое —
-           контур резкий и почти ничего не стоит видеокарте. */
-        .word.hidden-word.next-reveal {
-            /* Толщина привязана к кеглю чипа: на крупном тексте кольцо шире и
-               держит вес, на мелком не съедает внутренность. Нижняя граница в
-               2px нужна, чтобы контур не истончался до невидимого при сильно
-               уменьшенном тексте. Первая строка — запасная на случай, если
-               max() не поддержан: без неё всё правило отвалилось бы целиком и
-               подсветка пропала бы совсем.
-
-               Кольцо полупрозрачное, а не чисто белое: белое на 100% давало
-               самый резкий перепад на экране и било по глазам — просили убрать
-               сияние. Просвечивающая заливка приглушает его до светло-зелёного,
-               контур при этом остаётся отчётливым. Свечение по той же причине
-               заметно слабее того, что было изначально.
-
-               Числа подобраны в два захода: сначала подсветку убавили целиком,
-               потом попросили вернуть немного силы. Прибавка ушла в кольцо
-               (резкий контур с нулевым размытием читается как чёткость, а не
-               как блеск) и лишь чуть-чуть в ореол — он и есть источник сияния,
-               поэтому растить его опаснее всего. */
-            box-shadow: inset 0 0 0 2.25px rgba(255, 255, 255, 0.88),
-                        0 0 0.46em rgba(181, 204, 113, 0.34),
-                        0 0 1em rgba(154, 184, 83, 0.18);
-            box-shadow: inset 0 0 0 max(2.25px, 0.085em) rgba(255, 255, 255, 0.88),
-                        0 0 0.46em rgba(181, 204, 113, 0.34),
-                        0 0 1em rgba(154, 184, 83, 0.18);
-            color: #ffffff;
-            font-weight: 700;
-        }
-
-        /* Заливка чипа становится насыщеннее по цвету, но НЕ светлее. Это
-           принципиально: осветление подняло бы яркость за счёт контраста с
-           белым текстом, а рост чистоты цвета даёт тот же эффект «чип ожил»
-           бесплатно. Насыщенность 49% -> 70% при той же светлоте: яркость
-           чипа (0.24 и 0.18) практически совпадает с обычным (0.24 и 0.15),
-           то есть подсветка не добавляет экрану света вообще. Именно сюда
-           ушла основная часть просьбы «сделать выделение сильнее»: чистота
-           цвета усиливает сигнал, ничего не прибавляя к яркости экрана.
-
-           Оранжевые чипы (скрытие через вопросы к словам) намеренно исключены:
-           оранжевый в приложении означает «к слову есть свой вопрос», и подмена
-           его на зелёный читалась бы как смена типа чипа, а не как подсветка.
-
-           Яркость заливки упирается в читаемость: ровно та яркость, что на
-           макете, даёт белому тексту контраст 2.2:1 при норме 4.5:1. Здесь
-           белый держится увереннее — 3.6:1 на светлом краю градиента и 4.6:1
-           на тёмном. Это заодно и ответ на просьбу убавить сияние: чип стал
-           спокойнее, а текст на нём читается лучше, чем раньше. */
-        .word.hidden-word.next-reveal:not(.has-custom-hint):not(.hard-word) {
-            background: linear-gradient(135deg, #6a941a 0%, #578217 100%);
-        }
-
-        /* Красному чипу сложного слова — красный ореол. Селектор из четырёх классов
-           перебивает и зелёный, и оранжевый варианты: если слово сложное, цвет
-           подсветки идёт от него. */
-        .word.hidden-word.hard-word.next-reveal {
-            box-shadow: inset 0 0 0 2.25px rgba(255, 255, 255, 0.88),
-                        0 0 0.46em rgba(233, 128, 120, 0.34),
-                        0 0 1em rgba(196, 69, 59, 0.18);
-            box-shadow: inset 0 0 0 max(2.25px, 0.085em) rgba(255, 255, 255, 0.88),
-                        0 0 0.46em rgba(233, 128, 120, 0.34),
-                        0 0 1em rgba(196, 69, 59, 0.18);
-        }
-
-        /* Оранжевым чипам — свой, тёплый ореол. Зелёное свечение вокруг
-           оранжевого читалось бы как грязь на границе двух чужих оттенков. */
-        .word.hidden-word.has-custom-hint.next-reveal {
-            box-shadow: inset 0 0 0 2.25px rgba(255, 255, 255, 0.88),
-                        0 0 0.46em rgba(246, 166, 35, 0.34),
-                        0 0 1em rgba(255, 106, 0, 0.17);
-            box-shadow: inset 0 0 0 max(2.25px, 0.085em) rgba(255, 255, 255, 0.88),
-                        0 0 0.46em rgba(246, 166, 35, 0.34),
-                        0 0 1em rgba(255, 106, 0, 0.17);
-        }
-
-        /* Пока подсветка следующего слова активна, остальные скрытые чипы слегка
-           уводим назад. Это НЕ режим фокуса: там соседи гасятся до 0.34, чтобы
-           остался ровно один читаемый чип. Здесь задача мягче — просто отделить
-           «следующее» от «всех прочих», поэтому затухание едва заметное и цифры
-           на чипах остаются спокойно читаемыми.
-
-           Класс висит на карточке, а не на каждом чипе: состояние появляется
-           только когда подсветке есть на что указывать. Когда все слова открыты,
-           гасить нечего и правило само перестаёт применяться.
-
-           Уже открытые слова (.revealed) под селектор не попадают намеренно —
-           по мере раскрытия текст должен оставаться в полную яркость, иначе
-           читать становится нечего. */
-        .text-display.next-highlight-mode .word.hidden-word:not(.next-reveal) {
-            opacity: 0.72;
-        }
-
         /* Приглушаем ТОЛЬКО ещё не открытые чипы. Обычный текст и уже открытые
            слова остаются в полную яркость — иначе по мере раскрытия читать
            становилось нечего, весь смысл терялся. Активное слово выделяется не
@@ -11794,12 +11688,6 @@
             return (text.hiddenWords || []).includes(last) ? last : null;
         }
 
-        // Скрытое слово под фокусом, которое ещё есть что открыть.
-        function isFocusedWordStillHidden(text, index) {
-            return index !== null && (text.hiddenWords || []).includes(index) &&
-                !isFocusTargetFullyRevealed(text, index);
-        }
-
         // Следующий шаг по тексту; после последнего — снова первый. Отсчитываем от
         // КОНЦА текущей связки, иначе фокус остался бы внутри неё и прошёл бы те же
         // обычные слова по одному.
@@ -11874,10 +11762,11 @@
             return Number.isFinite(index) ? index : null;
         }
 
-        // Слово, на которое сейчас показывает экран: в режиме фокуса — то, что под
-        // фокусом, иначе — подсвеченное «следующее». Именно его читает горячая
-        // клавиша отметки: на экране в этот момент выделено ровно одно слово, и
-        // отмечать что-то другое было бы неожиданно.
+        // Слово, которое отмечает горячая клавиша: в режиме фокуса — то, что под
+        // фокусом, иначе — первое ещё не открытое слово текста. Отдельной подсветки
+        // у него без фокуса нет (её убрали вместе с кнопкой «Открыть следующее
+        // слово»), но это то же слово, к которому относится подсказка, так что
+        // клавиша и кнопка не расходятся.
         //
         // Порядок тот же, что при отрисовке (getRenderableHiddenIndices), иначе в
         // режиме вопросов клавиша попадала бы в середину объединённой группы, а не
@@ -11958,10 +11847,9 @@
             return !!(text.hardWords && text.hardWords.includes(index));
         }
 
-        function renderPracticeHiddenWord(displayText, extraClassName, wordIndex, isPracticeFocusWord, isNextReveal, isHard) {
+        function renderPracticeHiddenWord(displayText, extraClassName, wordIndex, isPracticeFocusWord, isHard) {
             const className = ['word', 'hidden-word', extraClassName,
                 isPracticeFocusWord ? 'practice-focus-active' : '',
-                isNextReveal ? 'next-reveal' : '',
                 isHard ? 'hard-word' : '']
                 .filter(Boolean)
                 .join(' ');
@@ -12010,7 +11898,6 @@
             const halfRevealedSet = new Set(text.halfRevealedWords || []);
             const pendingSet = new Set(state.pendingWords);
             const hardSet = new Set(text.hardWords || []);
-            const focusableHiddenSorted = getRenderableHiddenIndices(text);
             const focusTargets = isPracticeFocusModeEnabled() ? getPracticeFocusTargets(text) : [];
             if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled) {
                 // Открытое слово остаётся законной целью — фокус идёт по всем словам.
@@ -12031,13 +11918,12 @@
             const practiceFocusSpan = isPracticeFocusActive
                 ? new Set(getPracticeFocusSpan(text, state.practiceFocusWordIndex))
                 : new Set();
-            // Слово, которое откроется следующим по кнопке. Подсвечиваем его всегда,
-            // а не только в режиме фокуса: иначе после открытия очередного слова
-            // было непонятно, какое из оставшихся будет следующим. Если режим фокуса
-            // включён, ведущим считается он — двух подсветок сразу быть не должно.
-            const nextRevealIndex = state.mode === 'practice' && !isPracticeFocusActive
-                ? focusableHiddenSorted.find(idx => !isFocusTargetFullyRevealed(text, idx))
-                : undefined;
+            // Подсветки «следующего слова» нет: кнопка «Открыть следующее слово»
+            // убрана, слова открываются нажатием на них, в любом порядке. Экран
+            // открывается ровным — все скрытые чипы одинаковые, ни один не выделен
+            // и соседи не приглушены. Выделение бывает только у режима фокуса, и
+            // включает его только кнопка «Фокус на следующем слове» (или стрелка
+            // вниз — та же функция).
             const practiceParts = [];
             const suppressedIndexes = new Set();
 
@@ -12132,7 +12018,7 @@
                             ? groupIndices.map(index => getFirstLettersOnly(words[index], getVisibleHintLetters(text, index))).join(' ')
                             : ((hint && hint !== '') ? hint + ' (' + groupIndices.length + ')' : '');
                         const hintClass = anyHalfRevealed ? 'has-letters' : ((hint && hint !== '') ? 'has-custom-hint' : '');
-                        practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass, i, isPracticeFocusWord, false, hardSet.has(i)));
+                        practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass, i, isPracticeFocusWord, hardSet.has(i)));
                     }
                     continue;
                 }
@@ -12154,11 +12040,11 @@
                         displayHint = '';
                         hintClass = '';
                     }
-                    practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass, i, isPracticeFocusWord, i === nextRevealIndex, hardSet.has(i)));
+                    practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass, i, isPracticeFocusWord, hardSet.has(i)));
                 } else if (isMarked && isHalfRevealed && !isRevealed) {
                     practiceParts.push(renderPracticeHiddenWord(
                         getFirstLettersOnly(word, getVisibleHintLetters(text, i)),
-                        'has-letters', i, isPracticeFocusWord, i === nextRevealIndex, hardSet.has(i)));
+                        'has-letters', i, isPracticeFocusWord, hardSet.has(i)));
                 } else if (isMarked && isRevealed) {
                     practiceParts.push(`<span class="word revealed${isPracticeFocusWord ? ' practice-focus-active' : ''}${hardSet.has(i) ? ' hard-word' : ''}" data-widx="${i}" onclick="hideWordAgain(${i})">${escapeHtml(word)}</span>`);
                 } else if (isPracticeFocusActive && practiceFocusSpan.has(i)) {
@@ -12187,9 +12073,10 @@
 
             const progress = isPracticeLayout ? getPracticeProgress(text) : null;
             const nav = isPracticeLayout ? getStudyNavigationMeta() : null;
-            const primaryAction = !progress || progress.total === 0
-                ? ''
-                : (progress.allRevealed ? 'toggleAllWordsReveal()' : 'revealNextWordAndScroll()');
+            // Главная кнопка открывает сразу все скрытые слова — свериться с текстом
+            // целиком. Поштучное раскрытие кнопкой убрано: слово открывают нажатием
+            // на него. Когда открыто всё, та же кнопка прячет слова обратно.
+            const primaryAction = !progress || progress.total === 0 ? '' : 'toggleAllWordsReveal()';
             // Пока фокус выключен, кнопка нужна, чтобы его включить, — если в тексте
             // осталось что вспоминать. Когда включён, она ведёт по всем словам текста,
             // поэтому нужна, пока есть куда перейти: хотя бы два слова.
@@ -12197,7 +12084,8 @@
             const canFocusNext = isPracticeLayout &&
                 isPracticeFocusModeEnabled() &&
                 (state.practiceFocusEnabled ? focusTargets.length > 1 : unrevealedCount > 0);
-            // Подсказка относится к тому же слову, что и «Открыть следующее слово».
+            // Подсказка относится к слову под фокусом, а без фокуса — к первому ещё
+            // не открытому слову текста (см. getActivePracticeTargetIndex).
             const hintTargetIndex = isPracticeLayout ? getActivePracticeTargetIndex(text) : null;
             const canHint = isPracticeLayout && canRevealHintLetter(text, hintTargetIndex);
             const hintLabel = isPracticeLayout && getVisibleHintLetters(text, hintTargetIndex) > 0
@@ -12205,7 +12093,7 @@
                 : 'Подсказка';
             const primaryLabel = !progress || progress.total === 0
                 ? 'Нет скрытых слов'
-                : (progress.allRevealed ? '↺ Скрыть все слова' : 'Открыть следующее слово');
+                : (progress.allRevealed ? '↺ Скрыть все слова' : 'Показать все скрытые слова');
 
             return `
                 ${getTermNavHeader(text)}
@@ -12245,7 +12133,7 @@
                     `}
 
                     ${text.image ? `<div style="text-align:center;margin-bottom:12px;"><img src="${text.image}" loading="lazy" decoding="async" style="max-width:100%;max-height:150px;border-radius:12px;object-fit:cover;"></div>` : ''}
-                    <div class="text-display-row"><div class="text-display ${sizeClass}${isPracticeFocusActive ? ' practice-focus-mode' : ''}${nextRevealIndex !== undefined ? ' next-highlight-mode' : ''}" style="${fitStyle}"><div class="text-display-inner">${practiceParts.join('')}</div></div></div>
+                    <div class="text-display-row"><div class="text-display ${sizeClass}${isPracticeFocusActive ? ' practice-focus-mode' : ''}" style="${fitStyle}"><div class="text-display-inner">${practiceParts.join('')}</div></div></div>
 
                     ${isPracticeLayout ? '' : `
                         <div class="action-buttons">
@@ -16740,9 +16628,9 @@
         }
         
         // Слово, с которым игрок работает прямо сейчас: подсвеченное фокусом, а если
-        // фокус выключен — следующее по порядку. Это тот же выбор, что делает кнопка
-        // «Открыть следующее слово», поэтому подсказка и раскрытие всегда про одно
-        // и то же слово и не расходятся между собой.
+        // фокус выключен — первое ещё не открытое по порядку текста. Слова открывают
+        // нажатием сверху вниз, поэтому застревают обычно именно на нём. К этому
+        // слову относятся подсказка и клавиша отметки сложного.
         function getActivePracticeTargetIndex(text) {
             const sorted = getRenderableHiddenIndices(text);
             const focused = state.practiceFocusWordIndex;
@@ -16826,7 +16714,8 @@
                 }
             });
             // Раньше фокус уходил с открытого слова сам: открытые не были целями.
-            // Теперь они цели, поэтому шаг вперёд делаем явно — как у кнопки.
+            // Теперь они цели, поэтому шаг вперёд делаем явно: открыл слово под
+            // фокусом — фокус переходит к следующему.
             if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled &&
                 getPracticeFocusSpan(text, state.practiceFocusWordIndex).includes(index)) {
                 advancePracticeFocus(text);
@@ -16858,65 +16747,6 @@
             render();
         }
         
-        function revealNextWord() {
-            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
-            if (!text.hiddenWords || text.hiddenWords.length === 0) return;
-            const sorted = getRenderableHiddenIndices(text);
-
-            // В режиме фокуса кнопка — шаг по тексту на одно слово: скрытое слово под
-            // фокусом открывается, обычное просто остаётся позади. Иначе на обычном
-            // слове кнопка либо ничего не делала бы, либо перепрыгивала к скрытому
-            // слову дальше — и фокус снова шёл бы не по всем словам.
-            if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled && state.practiceFocusWordIndex !== null) {
-                // Открываем скрытое слово из связки, а не её первое слово: связка
-                // начинается с обычных слов, а открывать надо то, ради чего она и
-                // тянулась до скрытого.
-                const focusedIndex = getPracticeFocusSpanHiddenIndex(text, state.practiceFocusWordIndex);
-                if (focusedIndex !== null && isFocusedWordStillHidden(text, focusedIndex)) {
-                    const group = state.practiceMode === 'hints' ? getHiddenWordGroupByIndex(text, focusedIndex) : null;
-                    (group ? group.indices : [focusedIndex]).forEach(targetIndex => {
-                        const halfPos = text.halfRevealedWords.indexOf(targetIndex);
-                        if (halfPos !== -1) text.halfRevealedWords.splice(halfPos, 1);
-                        if (!text.revealedWords.includes(targetIndex)) text.revealedWords.push(targetIndex);
-                    });
-                }
-                advancePracticeFocus(text);
-                render();
-                return;
-            }
-
-            // Если слово подсвечено фокусом — открываем именно его, а не первое по
-            // порядку. Иначе после «Пропустить» кнопка открывала бы пропущенное
-            // слово, и подсветка расходилась бы с тем, что реально происходит.
-            const focused = state.practiceFocusWordIndex;
-            const focusIsActive = isPracticeFocusModeEnabled() &&
-                state.practiceFocusEnabled &&
-                focused !== null &&
-                sorted.includes(focused) &&
-                !isFocusTargetFullyRevealed(text, focused);
-            const order = focusIsActive
-                ? [focused, ...sorted.filter(idx => idx !== focused)]
-                : sorted;
-
-            for (let i = 0; i < order.length; i++) {
-                const idx = order[i];
-                const group = state.practiceMode === 'hints' ? getHiddenWordGroupByIndex(text, idx) : null;
-                const targetIndexes = group ? group.indices : [idx];
-                const isAlreadyRevealed = targetIndexes.every(targetIndex => text.revealedWords.includes(targetIndex));
-                if (!isAlreadyRevealed) {
-                    targetIndexes.forEach(targetIndex => {
-                        const halfPos = text.halfRevealedWords ? text.halfRevealedWords.indexOf(targetIndex) : -1;
-                        if (halfPos !== -1) text.halfRevealedWords.splice(halfPos, 1);
-                        if (!text.revealedWords.includes(targetIndex)) {
-                            text.revealedWords.push(targetIndex);
-                        }
-                    });
-                    render();
-                    return;
-                }
-            }
-        }
-
         function getPracticeProgress(text) {
             const total = (text.hiddenWords || []).length;
             const revealedSet = new Set(text.revealedWords || []);
@@ -16937,24 +16767,6 @@
             if (card) card.style.setProperty('--user-text-scale', String(scale));
             const label = document.getElementById('practiceTextScaleLabel');
             if (label) label.textContent = Math.round(scale * 100) + '%';
-        }
-
-        function scrollToUpcomingHiddenWord() {
-            requestAnimationFrame(() => {
-                const folder = getCurrentFolder();
-                if (!folder || state.currentText === null) return;
-                const text = ensureTextStudyData(folder.texts[state.currentText]);
-                const sorted = getRenderableHiddenIndices(text);
-                const nextIdx = sorted.find(idx => !text.revealedWords.includes(idx));
-                if (nextIdx === undefined) return;
-                scrollWordIntoViewIfBelow(document.querySelector('[data-widx="' + nextIdx + '"]'));
-            });
-        }
-
-        function revealNextWordAndScroll() {
-            revealNextWord();
-            if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled) scrollToFocusedWord();
-            else scrollToUpcomingHiddenWord();
         }
 
         function resetReveal() {
@@ -17248,8 +17060,9 @@
                 }
                 // Shift — это кнопка «Подсказка» («Ещё букву»): по одной букве за
                 // нажатие, у того же слова, к которому относится кнопка. Раньше Shift
-                // повторял «Открыть следующее слово», но это и так делает пробел, а
-                // подсказка оставалась без клавиши, хотя нажимают её чаще.
+                // повторял «Открыть следующее слово», а подсказка оставалась без
+                // клавиши, хотя нажимают её чаще. Поштучного раскрытия кнопкой теперь
+                // нет вовсе — слова открывают нажатием на них.
                 // Только чистый Shift: с Cmd или Ctrl это уже сочетание, и перехват
                 // сломал бы, например, Cmd+Shift в окне правки текста.
                 if (e.key === 'Shift' && !e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -17292,9 +17105,6 @@
             } else if ((e.key === 's' || e.key === 'S' || e.key === 'ы' || e.key === 'Ы') && (state.view === 'practice' || state.view === 'term_chooser')) {
                 e.preventDefault();
                 toggleAttention(state.currentText);
-            } else if (e.key === ' ' && state.mode === 'practice') {
-                e.preventDefault();
-                revealNextWordAndScroll();
             }
         });
 

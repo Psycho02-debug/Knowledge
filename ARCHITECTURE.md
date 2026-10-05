@@ -4,7 +4,7 @@
 
 Номера строк ниже приблизительные: файл правится постоянно, и они сдвигаются. Ищите по имени — `grep -n "function имя(" index.html`. Свежую карту всех функций с номерами строк даёт команда из раздела [«Как быстро сориентироваться»](#как-быстро-сориентироваться).
 
-Сверено с кодом: версия кэша `zapominalka-v96`, `index.html` — 17 312 строк, 818 КБ.
+Сверено с кодом: версия кэша `zapominalka-v97`, `index.html` — 17 312 строк, 818 КБ.
 
 ---
 
@@ -84,7 +84,7 @@
 - `body.dark-theme` (≈63) — вторая палитра, ещё глубже. Светлой темы нет: обе тёмные.
 - `@media (prefers-reduced-motion: reduce)` (≈307) — гасит анимации.
 - `.no-entry-anim` (≈315) — выключает анимации появления при обновлении того же экрана.
-- Чипы слов: `.word`, `.word.hidden-word`, `.has-letters`, `.has-custom-hint`, `.hard-word`, `.practice-focus-active`, `.next-reveal` и затухание соседей — ≈1261–1560.
+- Чипы слов: `.word`, `.word.hidden-word`, `.has-letters`, `.has-custom-hint`, `.hard-word`, `.practice-focus-active` и затухание соседей в режиме фокуса — ≈1261–1460.
 - Альбомная ориентация: `@media (orientation: landscape) and (max-height: 560px)` (≈1159, ≈1640).
 - Режим «Вписать» — ≈2562–2860, карточка термина — ≈4797, курсы — ≈5719 (`/* ===== COURSES ===== */`).
 - Узкие экраны — `@media (max-width: 860px)` и `(max-width: 480px)` (≈5602).
@@ -136,7 +136,7 @@
 | 16007–16206 | Закрытие окон, Escape, Cmd+Shift в окне материала | `closeModal`, `handleEscapeAction`, `saveTextAndSelectWords`, `runModalShortcut` |
 | 16207–16464 | Сохранение из окон, загрузка списка материалов, порядок и удаление папок | `saveFolder`, `saveFlashcard`, `saveText`, `processBulkImport`, `moveFolder`, `deleteFolder` |
 | 16465–16745 | Выбор слов: отметка, скрытие, вопросы к словам | `toggleMark`, `applyBatchHide`, `selectAllPendingWords`, `showBatchHintModal`, `saveCurrentWordHint`, `finishBatchHint`, `saveHint` |
-| 16746–17002 | Практика: раскрытие и подсказки | `getActivePracticeTargetIndex`, `revealNextHintLetter`, `revealWord`, `revealNextWord`, `toggleAllWordsReveal`, `resetReveal`, `setPracticeTextScale`, `clearMarks` |
+| 16746–17002 | Практика: раскрытие и подсказки | `getActivePracticeTargetIndex`, `revealNextHintLetter`, `revealWord`, `toggleAllWordsReveal`, `resetReveal`, `setPracticeTextScale`, `clearMarks` |
 | 17003–17302 | Запуск: тема и масштаб, **диспетчер клавиатуры**, `loadData()` | безымянный обработчик `keydown` |
 
 ---
@@ -321,7 +321,7 @@ saveData(true)              — записать сразу
 flushPendingPersistence()   — сбросить всё ожидающее (visibilitychange→hidden, pagehide, beforeunload)
 ```
 
-Не каждое действие вызывает `saveData()`: раскрытие слова (`revealWord`, `revealNextWord`) меняет `revealedWords` без записи — эти поля всё равно обнуляются при следующем входе.
+Не каждое действие вызывает `saveData()`: раскрытие слов (`revealWord`, `toggleAllWordsReveal`) меняет `revealedWords` без записи — эти поля всё равно обнуляются при следующем входе.
 
 ### Запуск: `loadData()` (≈7950)
 
@@ -451,7 +451,7 @@ render()
 
 ```html
 <span class="word hidden-word [has-letters|has-custom-hint] [hard-word]
-             [practice-focus-active] [next-reveal]"
+             [practice-focus-active]"
       data-widx="12" onclick="revealWord(12)">…</span>
 ```
 
@@ -505,7 +505,7 @@ render()
 14. Тест (материала или папки): `↑` `↓` `Enter`.
 15. «Вписать»: `↓` — фокус на строке.
 16. Практика: `Delete`/`Backspace` — выключить фокус, `↓` — фокус дальше, `Shift` — ещё букву, `↑` — открыть или скрыть все, `M` — сложное слово.
-17. Нужен открытый материал: `←` `→` — соседний (на экране выбора — `navigateChooser`), `R` — скрыть всё снова (практика), `S` — сложный материал, `Пробел` — открыть следующее слово.
+17. Нужен открытый материал: `←` `→` — соседний (на экране выбора — `navigateChooser`), `R` — скрыть всё снова (практика), `S` — сложный материал. `Пробел` ничего не делает: поштучное раскрытие убрано.
 
 Буквы сверяются по `e.key` сразу в обеих раскладках: `e`/`у`, `m`/`м`/`ь`, `n`/`н`/`т`. `Cmd+C` — по `e.code`.
 
@@ -537,8 +537,9 @@ render()
 
 ### Тексты: практика (`mode = 'practice'`)
 
-- **Следующее слово** — `getActivePracticeTargetIndex()`: первое не открытое из `getRenderableHiddenIndices()`, где в режиме `hints` у группы остаётся только ведущее слово. В фокусе — скрытое слово под ним.
-- **Раскрытие**: `revealNextWord()` (кнопка и `Пробел`), `revealWord(i)` (клик по чипу), `toggleAllWordsReveal()` (`↑`), `resetReveal()` (`R`), `hideWordAgain(i)` (клик по открытому).
+- **Экран открывается без выделения.** Подсветки «следующего слова» (`.next-reveal`, `.next-highlight-mode`) больше нет — убрана вместе с кнопкой «Открыть следующее слово». Выделяет слово только режим фокуса, а включает его только `focusNextPracticeWord()` (кнопка «Фокус на следующем слове» и `↓`).
+- **Слово для подсказки и `M`** — `getActivePracticeTargetIndex()` / `getHighlightedPracticeWordIndex()`: в фокусе — скрытое слово под ним, без фокуса — первое не открытое из `getRenderableHiddenIndices()` (в режиме `hints` у группы остаётся только ведущее слово). Видимой подсветки у него без фокуса нет.
+- **Раскрытие**: `revealWord(i)` — нажатие на чип (в фокусе ещё и сдвигает фокус дальше), `toggleAllWordsReveal()` — главная кнопка «Показать все скрытые слова» / «↺ Скрыть все слова» и `↑`, `resetReveal()` (`R`), `hideWordAgain(i)` — нажатие на открытое. Поштучного раскрытия кнопкой или пробелом нет.
 - **Подсказка по буквам**: `revealNextHintLetter()` (кнопка и `Shift`) добавляет слово в `halfRevealedWords` и увеличивает `hintLetters[i]`. Предел — `getMaxHintLetters(word)`: число букв и цифр минус одна, так что последняя буква не открывается никогда. `getVisibleHintLetters` учитывает первую букву режима `firstletter`.
 - **Фокус** (`practiceFocusEnabled`): цели — все слова, кроме знаков препинания, номеров пунктов и «/»; в режиме `hints` участники группы прячутся за ведущим (`getPracticeFocusTargets`). Шаг (`getPracticeFocusSpan`) — одно скрытое слово либо связка обычных слов до следующего скрытого. `advancePracticeFocus` переходит к концу связки, `focusNextPracticeWord` — клавиша `↓`.
 - **Сложные слова**: `toggleHardWord(i)` пишет `hardWords` и сохраняет; долгое нажатие, правая кнопка мыши, `M`.
