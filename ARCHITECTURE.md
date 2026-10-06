@@ -4,7 +4,7 @@
 
 Номера строк ниже приблизительные: файл правится постоянно, и они сдвигаются. Ищите по имени — `grep -n "function имя(" index.html`. Свежую карту всех функций с номерами строк даёт команда из раздела [«Как быстро сориентироваться»](#как-быстро-сориентироваться).
 
-Сверено с кодом: версия кэша `zapominalka-v99`, `index.html` — около 17 150 строк, 790 КБ.
+Сверено с кодом: версия кэша `zapominalka-v100`, `index.html` — около 17 150 строк, 790 КБ.
 
 ---
 
@@ -173,7 +173,7 @@
 | `batchHintUnits`, `batchHintIndex`, `batchSkippedWords` | Пошаговое окно «Скрыть через вопросы» |
 | `pendingWordIndex` | Слово в окне одиночного вопроса |
 | `practiceFocusEnabled`, `practiceFocusWordIndex` | Режим фокуса в практике и слово под ним |
-| `typeState` | `{ currentIndex, solved[], wrongWords[], value, answered, isCorrect, singleWrongWord }`. Создаётся `resetTypeState()`; начальное значение в объявлении `state` неполное — без `solved` и `wrongWords`, поэтому чтение идёт через `getSolvedTypeWords()` |
+| `typeState` | `{ currentIndex, solved[], peeked[], wrongWords[], value, answered, isCorrect, singleWrongWord }`. `peeked` — слова, открытые нажатием; они входят и в `solved`. Создаётся `resetTypeState()`; начальное значение в объявлении `state` неполное — без `solved` и `wrongWords`, поэтому чтение идёт через `getSolvedTypeWords()` |
 | `typeFocusLineEnabled` | Фокус на строке в «Вписать» |
 | `lineCardFlipped`, `lineCardCueMode` (`letter` или `word`), `termCardFlipped`, `questionsCardFlipped` | Стороны карточек |
 | `gameState`, `quizState` | «Собери текст» и тест по материалу |
@@ -567,7 +567,8 @@ Enter / «Проверить» → checkTypeWord()
 - `getWordInputLanguage` рисует метку RU или EN у текущего слова.
 - Когда открыта клавиатура, `syncTypeTextClamp()` ограничивает высоту текста (`.type-text-clamped`, `--type-text-max-height`) и поднимает поле (`.type-keyboard-open`, `--type-keyboard-inset`). Открытую клавиатуру выдаёт разница `innerHeight − visualViewport.height` больше 120 px.
 - Фокус на строке: `getTokenLineNumbers` → `getTypeFocusLine` → в разметке остаётся одна строка.
-- Завершение — то же `.type-card` с полным текстом. `Enter` на нём ведёт к следующему материалу (диспетчер, пункт 3).
+- Нажатие на скрытый чип — `revealTypeWord(i)`: слово попадает в `solved` и `peeked`. Нажатие на открытое так слово (`.type-peeked`) — `hideTypeWord(i)`, убирает из обоих. Вписанное слово (в `solved`, но не в `peeked`) обработчика не имеет. Оба пути — `setTypeWordPeeked`; если из-за этого сменилось слово, которое просят вписать, сообщение об ошибке и неверный набор сбрасываются. У чипов `onmousedown="event.preventDefault()"`, чтобы нажатие не забирало фокус у поля и не закрывало клавиатуру.
+- Завершение — то же `.type-card` с полным текстом; если часть слов открыта нажатием, заголовок «Текст открыт» и счёт «вписано N из M». `Enter` на нём ведёт к следующему материалу (диспетчер, пункт 3).
 
 ### Тексты: остальные режимы
 

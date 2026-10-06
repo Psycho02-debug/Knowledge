@@ -8489,6 +8489,7 @@
 
             const hiddenSet = new Set(text.hiddenWords || []);
             const solvedSet = new Set(solvedWords);
+            const peekedSet = new Set(Array.isArray(ts.peeked) ? ts.peeked : []);
             const hardSet = new Set(text.hardWords || []);
             const lineNumbers = getTokenLineNumbers(words);
             const focusLine = getTypeFocusLine(words, lineNumbers, currentTargetIndex);
@@ -8512,15 +8513,26 @@
                     // Отметка «сложное» ставится в практике, но относится к самому
                     // слову, а не к режиму: если слово трудно вспоминается, знать об
                     // этом надо и когда его вписываешь.
+                    //
+                    // Скрытое слово открывается нажатием, как в практике. Открытое
+                    // так слово повторное нажатие прячет обратно, а вписанное — нет:
+                    // случайное касание не должно отменять набранное. Отдельный
+                    // класс у открытого нажатием нужен и точечному обновлению: оно
+                    // сверяет чипы по классу, а обработчик клика у них разный.
+                    // mousedown гасим, как у «Проверить»: иначе нажатие забирает
+                    // фокус у поля, и на телефоне закрывается клавиатура.
                     const hard = hardSet.has(i) ? 'hard-word' : '';
                     if (solvedSet.has(i)) {
+                        if (peekedSet.has(i)) {
+                            return '<span class="word revealed type-peeked' + (hard ? ' ' + hard : '') + '" data-widx="' + i + '" onmousedown="event.preventDefault()" onclick="hideTypeWord(' + i + ')">' + escapeHtml(word) + '</span>';
+                        }
                         return '<span class="word revealed' + (hard ? ' ' + hard : '') + '">' + escapeHtml(word) + '</span>';
                     } else {
                         const hiddenDisplay = getTypeModeHiddenWordDisplay(text, words, i);
                         const hiddenClassName = ['hidden-word', hiddenDisplay.className, hard, i === currentTargetIndex ? 'focused' : '']
                             .filter(Boolean)
                             .join(' ');
-                        return '<span class="word ' + hiddenClassName + '">' + escapeHtml(String(hiddenDisplay.text)) + '</span>';
+                        return '<span class="word ' + hiddenClassName + '" data-widx="' + i + '" onmousedown="event.preventDefault()" onclick="revealTypeWord(' + i + ')">' + escapeHtml(String(hiddenDisplay.text)) + '</span>';
                     }
                 }
                 return '<span class="word">' + escapeHtml(word) + '</span>';
@@ -8544,6 +8556,13 @@
             // Дальше — «Пройти снова», стрелка внизу или Enter на следующий термин.
             if (currentTargetIndex === undefined && !ts.singleWrongWord) {
                 const completeNav = getStudyNavigationMeta();
+                // Слова, открытые нажатием, не вписаны — поздравлять с ними как
+                // с вписанными было бы неправдой. Показываем, сколько чего.
+                const peekedCount = hiddenSorted.filter(i => peekedSet.has(i)).length;
+                const completeTitle = peekedCount ? 'Текст открыт' : 'Отлично!';
+                const completeText = peekedCount
+                    ? `Текст перед вами целиком. Вписано ${hiddenSorted.length - peekedCount} из ${hiddenSorted.length}, открыто нажатием — ${peekedCount}.`
+                    : 'Все слова вписаны верно — текст перед вами целиком.';
                 return `
                     ${getTermNavHeader(text)}
                     <div class="container type-shell">
@@ -8554,8 +8573,8 @@
                         <div class="type-input-wrap active">
                             <div class="game-complete">
                                 <div class="confetti">🎉</div>
-                                <h2>Отлично!</h2>
-                                <p>Все слова вписаны верно — текст перед вами целиком.</p>
+                                <h2>${completeTitle}</h2>
+                                <p>${completeText}</p>
                                 <button class="action-btn btn-save" onclick="restartTypeMode()">Пройти снова</button>
                                 <p class="type-complete-hint">${completeNav.hasNext ? 'Enter или → — следующий термин' : 'Это последний термин'}</p>
                             </div>
@@ -8756,6 +8775,10 @@
             state.typeState = {
                 currentIndex: 0,
                 solved: [],
+                // Открытые нажатием, а не вписанные. Они тоже в solved — для
+                // разбора ввода и счётчика открытое слово одинаково, — но
+                // прятать обратно нажатием можно только их.
+                peeked: [],
                 wrongWords: [],
                 value: '',
                 answered: false,
@@ -9031,6 +9054,51 @@
 
             if (allDone && !ts.singleWrongWord) return;
             focusTypeInputField(!!ts.singleWrongWord);
+        }
+
+        // ——— Открыть слово нажатием, как в практике ———
+        // Открытое нажатием слово считается открытым: счётчик растёт, ввод
+        // переходит к следующему слову, а набрать его всё равно можно — открытые
+        // слова в разборе ввода необязательны. Прятать обратно нажатием можно
+        // только такие слова; вписанные от случайного касания не теряются.
+        function revealTypeWord(index) {
+            setTypeWordPeeked(index, true);
+        }
+
+        function hideTypeWord(index) {
+            setTypeWordPeeked(index, false);
+        }
+
+        function setTypeWordPeeked(index, open) {
+            if (state.view !== 'type' || state.currentFolder === null || state.currentText === null) return;
+            const text = getCurrentFolder().texts[state.currentText];
+            if (!text || !(text.hiddenWords || []).includes(index)) return;
+            const ts = state.typeState;
+            const hiddenSorted = [...text.hiddenWords].sort((a, b) => a - b);
+            const solved = getSolvedTypeWords(ts);
+            const peeked = Array.isArray(ts.peeked) ? ts.peeked : [];
+            const targetBefore = hiddenSorted.find(i => !solved.includes(i));
+            if (open) {
+                if (solved.includes(index)) return;
+                ts.solved = [...solved, index].sort((a, b) => a - b);
+                ts.peeked = [...peeked, index];
+            } else {
+                if (!peeked.includes(index)) return;
+                ts.solved = solved.filter(i => i !== index);
+                ts.peeked = peeked.filter(i => i !== index);
+            }
+            ts.currentIndex = hiddenSorted.filter(i => ts.solved.includes(i)).length;
+            // Сообщение об ошибке относится к слову, которое просили вписать.
+            // Сменилось это слово — сообщение устарело, а несовпавший набор,
+            // оставленный в поле, уже не к месту.
+            const targetAfter = hiddenSorted.find(i => !ts.solved.includes(i));
+            const hasError = !!ts.singleWrongWord || (Array.isArray(ts.wrongWords) && ts.wrongWords.length > 0);
+            if (targetAfter !== targetBefore && hasError) {
+                if (ts.value === ts.singleWrongWord) ts.value = '';
+                ts.wrongWords = [];
+                ts.singleWrongWord = '';
+            }
+            render();
         }
 
         function restartTypeMode() {
