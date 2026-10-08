@@ -17438,7 +17438,7 @@
                 startFlashcardStudy(false);
                 return;
             }
-            // Флеш-карточки, классический режим «Карточки»: пробел — «Перевернуть»,
+            // Флеш-карточки, классический режим «Карточки»: пробел и ↑ — «Перевернуть»,
             // ← → — «Назад» и «Дальше», Enter — тоже «Дальше». На последней
             // карточке «Дальше» — это «Завершить», как и у кнопки. После
             // завершения клавиши молчат: каждое лишнее «Дальше» записало бы
@@ -17448,7 +17448,9 @@
             if (state.view === 'card_study' && state.flashcardStudyState &&
                 state.flashcardStudyState.mode === 'flashcards' && !state.flashcardStudyState.completed &&
                 !e.metaKey && !e.ctrlKey && !e.altKey && !document.querySelector('.modal.show')) {
-                if (e.key === ' ' || e.code === 'Space') {
+                // ↑ стоит в одном блоке со стрелками ← →, поэтому переворот, как и
+                // листание, — одной рукой. Прокрутку страницы вверх гасим.
+                if (e.key === ' ' || e.code === 'Space' || e.key === 'ArrowUp') {
                     e.preventDefault();
                     if (!e.repeat) flipFlashcard();
                     return;
