@@ -17425,6 +17425,33 @@
                     return;
                 }
             }
+            // Флеш-карточки, классический режим «Карточки»: пробел — «Перевернуть»,
+            // ← → — «Назад» и «Дальше», Enter — тоже «Дальше». На последней
+            // карточке «Дальше» — это «Завершить», как и у кнопки. После
+            // завершения клавиши молчат: каждое лишнее «Дальше» записало бы
+            // занятие в статистику ещё раз. preventDefault обязателен и тогда, когда
+            // фокус стоит на кнопке (после нажатия мышью — на самой карточке):
+            // иначе браузер сам «нажал» бы её, и действие сработало бы дважды.
+            if (state.view === 'card_study' && state.flashcardStudyState &&
+                state.flashcardStudyState.mode === 'flashcards' && !state.flashcardStudyState.completed &&
+                !e.metaKey && !e.ctrlKey && !e.altKey && !document.querySelector('.modal.show')) {
+                if (e.key === ' ' || e.code === 'Space') {
+                    e.preventDefault();
+                    if (!e.repeat) flipFlashcard();
+                    return;
+                }
+                if (e.key === 'ArrowRight' || e.key === 'Enter') {
+                    e.preventDefault();
+                    if (e.key === 'Enter' && e.repeat) return;
+                    stepFlashcard(1);
+                    return;
+                }
+                if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    stepFlashcard(-1);
+                    return;
+                }
+            }
             if (state.currentText === null || state.currentFolder === null) return;
             if (e.key === 'ArrowRight') {
                 e.preventDefault();
