@@ -4589,6 +4589,22 @@
             justify-content: center;
         }
 
+        /* Режим «Выбрать карточки»: вся строка — одна большая галочка. Галочка
+           встаёт на место кнопок правки и удаления, поэтому строка не меняет
+           размер ни в ряд, ни в столбик (на узком экране). */
+        .flashcard-row.is-selectable {
+            cursor: pointer;
+        }
+
+        .flashcard-row.selected {
+            border-color: var(--accent-primary);
+        }
+
+        .flashcard-row.selected .term-select-mark {
+            background: var(--accent-strong);
+            border-color: var(--accent-strong);
+        }
+
         .flashcard-row-actions .folder-mini-action.active {
             color: var(--accent-primary);
             background: rgba(181, 204, 113, 0.14);
@@ -6103,7 +6119,7 @@
     <div class="modal" id="flashcardImportModal">
         <div class="modal-content flashcard-import-modal">
             <h3>Загрузить список карточек</h3>
-            <p class="import-lead">Карточки идут подряд: сверху лицевая сторона, под ней оборотная, между карточками пустая строка. Оборотная сторона может занимать несколько строк. Язык любой — русский и английский можно вперемешку.</p>
+            <p class="import-lead">Карточки идут подряд: сверху лицевая сторона, под ней оборотная, между карточками пустая строка. Оборотная сторона может занимать несколько строк. Язык любой — русский и английский можно вперемешку. Сюда же вставляется то, что скопировано кнопками «Скопировать папку» или «Скопировать выбранные» на другом устройстве, — вместе с отметками «сложная» и картинками.</p>
 
             <details class="import-template">
                 <summary>Шаблон — что просить у нейросети</summary>
@@ -7762,6 +7778,10 @@
             pendingFolderImport: null,
             textsSelectionMode: false,
             selectedTextKeys: [],
+            // Режим «Выбрать карточки» в папке флеш-карточек: номера карточек в
+            // папке. Сбрасывается при любом уходе из папки.
+            cardSelectionMode: false,
+            selectedCardIndexes: [],
             questionsCardFlipped: false,
             editingQuestionIndex: null,
             studyQueue: [],
@@ -9568,6 +9588,7 @@
             // Уходим из материала совсем — полноэкранная «Карточка» не должна
             // остаться включённой до следующего захода в этот режим.
             resetTermCardFullscreen();
+            resetFlashcardSelectionState();
             state.learningBranch = branch;
             if (branch === 'texts') {
                 setPrimaryView('folders');
@@ -10101,9 +10122,25 @@
                     <div class="home-section-header flashcard-list-section">
                         <div class="home-section-title">Карточки в папке</div>
                     </div>
+                    ${state.cardSelectionMode ? `
+                        <div class="selection-bar">
+                            <div class="selection-bar-row">
+                                <button class="selection-plain-btn" onclick="selectAllFlashcards()">${state.selectedCardIndexes.length === folder.cards.length ? 'Снять все' : 'Выбрать все'}</button>
+                                <button class="selection-plain-btn" onclick="cancelFlashcardSelection()">Отмена</button>
+                            </div>
+                            <button class="selection-copy-btn" onclick="copySelectedFlashcards()" ${state.selectedCardIndexes.length ? '' : 'disabled'}>Скопировать выбранные (${state.selectedCardIndexes.length})</button>
+                        </div>
+                    ` : `
+                        <div class="folder-transfer-row">
+                            <button class="copy-folder-btn" onclick="copyFlashcardFolder()" title="Скопировать папку целиком, чтобы вставить её на другом устройстве">Скопировать папку</button>
+                            <button class="copy-folder-btn" onclick="startFlashcardSelection()" title="Выбрать отдельные карточки и скопировать только их">Выбрать карточки</button>
+                        </div>
+                    `}
                     <div class="flashcard-list">
-                        ${compactMarkup(folder.cards.map((card, index) => `
-                            <div class="flashcard-row ${card.image ? '' : 'no-media'}">
+                        ${compactMarkup(folder.cards.map((card, index) => {
+                            const isSelected = state.cardSelectionMode && state.selectedCardIndexes.includes(index);
+                            return `
+                            <div class="flashcard-row ${card.image ? '' : 'no-media'}${state.cardSelectionMode ? ' is-selectable' : ''}${isSelected ? ' selected' : ''}" ${state.cardSelectionMode ? `onclick="toggleFlashcardSelection(${index})"` : ''}>
                                 ${card.image ? `
                                     <div class="flashcard-row-media">
                                         <img src="${card.image}" loading="lazy" decoding="async" alt="">
@@ -10116,15 +10153,17 @@
                                     <div class="flashcard-row-desc">${escapeHtml(card.back)}</div>
                                 </div>
                                 <div class="flashcard-row-actions">
+                                    ${state.cardSelectionMode ? `<span class="term-select-mark">${isSelected ? '✓' : ''}</span>` : `
                                     <button class="folder-mini-action" onclick="showEditFlashcardModal(${index})" title="Редактировать">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                     </button>
                                     <button class="folder-mini-action" onclick="deleteFlashcard(${index})" title="Удалить">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                    </button>
+                                    </button>`}
                                 </div>
                             </div>
-                        `).join(''))}
+                        `;
+                        }).join(''))}
                     </div>
                 ` : `
                     <div class="folder-empty-card">В этой папке пока нет карточек. Нажмите на кнопку + внизу, чтобы добавить первую карточку.</div>
@@ -13845,6 +13884,7 @@
         }
 
         function openFlashcardFolder(index) {
+            resetFlashcardSelectionState();
             state.learningBranch = 'cards';
             state.currentFlashcardFolder = index;
             state.editingFlashcardIndex = null;
@@ -13854,6 +13894,7 @@
         }
 
         function goBackToFlashcardFolders() {
+            resetFlashcardSelectionState();
             state.currentFlashcardFolder = null;
             state.editingFlashcardIndex = null;
             state.flashcardStudyState = getDefaultFlashcardStudyState();
@@ -13902,6 +13943,66 @@
             folder.cards.splice(index, 1);
             saveData();
             render();
+        }
+
+        // ——— Перенос карточек: копирование папки и выбранных карточек ———
+        // Как у текстов: «Скопировать папку» — вся папка с названием (вставляется
+        // в название новой папки карточек), «Выбрать карточки» → «Скопировать
+        // выбранные» — только карточки (вставляются в «Загрузить список карточек»
+        // любой папки). Подтверждение — на самой кнопке, теми же функциями.
+        function resetFlashcardSelectionState() {
+            state.cardSelectionMode = false;
+            state.selectedCardIndexes = [];
+        }
+
+        function startFlashcardSelection() {
+            state.cardSelectionMode = true;
+            state.selectedCardIndexes = [];
+            render();
+        }
+
+        function cancelFlashcardSelection() {
+            resetFlashcardSelectionState();
+            render();
+        }
+
+        function toggleFlashcardSelection(index) {
+            if (!state.cardSelectionMode) return;
+            const pos = state.selectedCardIndexes.indexOf(index);
+            if (pos === -1) state.selectedCardIndexes.push(index);
+            else state.selectedCardIndexes.splice(pos, 1);
+            render();
+        }
+
+        function selectAllFlashcards() {
+            const folder = getCurrentFlashcardFolder();
+            if (!folder) return;
+            const all = folder.cards.map((_, index) => index);
+            state.selectedCardIndexes = state.selectedCardIndexes.length === all.length ? [] : all;
+            render();
+        }
+
+        async function copyFlashcardFolder() {
+            const folder = getCurrentFlashcardFolder();
+            if (!folder) return;
+            const exported = buildFlashcardFolderExport(folder);
+            const ok = await copyPlainTextToClipboard(exported);
+            if (ok) flashFolderCopyDone();
+            else prompt('Не удалось скопировать автоматически. Скопируйте текст вручную:', exported);
+        }
+
+        async function copySelectedFlashcards() {
+            const folder = getCurrentFlashcardFolder();
+            if (!folder || !state.selectedCardIndexes.length) return;
+            const cards = state.selectedCardIndexes
+                .slice()
+                .sort((a, b) => a - b)
+                .map(index => folder.cards[index])
+                .filter(Boolean);
+            const exported = buildFlashcardsExport(cards);
+            const ok = await copyPlainTextToClipboard(exported);
+            if (ok) flashSelectionCopyDone();
+            else prompt('Не удалось скопировать автоматически. Скопируйте текст вручную:', exported);
         }
 
         function toggleFlashcardAttention(index) {
@@ -14367,6 +14468,7 @@
         }
 
         function startFlashcardMode(mode, shuffle, onlyHard) {
+            resetFlashcardSelectionState();
             const folder = getCurrentFlashcardFolder();
             if (!folder || !folder.cards.length) return;
             const study = getDefaultFlashcardStudyState();
@@ -15704,6 +15806,23 @@
         function handleFolderNamePaste(event) {
             const clipboardData = event.clipboardData || window.clipboardData;
             const rawText = clipboardData ? clipboardData.getData('text') : '';
+            // Новая папка карточек: вставка «Скопировать папку» с другого устройства
+            // создаёт её сразу со всеми карточками.
+            if (state.folderModalMode === 'card_root') {
+                const parsedCards = parseFlashcardExport(rawText);
+                if (!parsedCards || !parsedCards.cards.length) return;
+                event.preventDefault();
+                state.pendingFolderImport = Object.assign({ kind: 'cards' }, parsedCards);
+                document.getElementById('folderName').value = parsedCards.name || 'Импортированные карточки';
+                const hardCount = parsedCards.cards.filter(card => card.attention).length;
+                const cardsHint = document.getElementById('folderImportHint');
+                if (cardsHint) {
+                    cardsHint.textContent = `Будет вставлено карточек: ${parsedCards.cards.length}` +
+                        (hardCount ? `, из них сложных: ${hardCount}` : '');
+                    cardsHint.classList.remove('is-hidden');
+                }
+                return;
+            }
             if (!isFolderImportText(rawText)) return;
             event.preventDefault();
             const parsed = parseProcessedFolderImport(rawText);
@@ -15926,6 +16045,10 @@
         // исходный файл. Таблицы (Excel, Word, CSV) заранее превращаются в строки
         // «лицевая⇥оборотная», поэтому здесь достаточно трёх правил.
         function parseFlashcardBulkImport(raw) {
+            // Перенос с другого устройства («Скопировать папку» или «Скопировать
+            // выбранные») разбирается своим путём — со всеми полями карточки.
+            const exported = parseFlashcardExport(raw);
+            if (exported) return { cards: exported.cards, skipped: exported.skipped, folderName: exported.name };
             const text = String(raw || '')
                 .replace(/\r\n?/g, '\n')
                 .replace(/ /g, ' ')
@@ -15977,6 +16100,152 @@
                 push(plain[i], plain[i + 1]);
             }
             return { cards, skipped };
+        }
+
+        // ——— Перенос карточек между устройствами ———
+        // Текст, а не файл: его можно переслать себе чем угодно (Telegram, заметки)
+        // и вставить на другом устройстве. Формат держится на ключевых словах, а не
+        // на пустых строках, как шаблон для нейросети, — поэтому переносится всё без
+        // потерь: многострочные стороны (и пустые строки внутри них), отметка
+        // «сложная», картинка, источник.
+        //
+        //   Папка карточек: Английский        ← только при копировании папки целиком
+        //
+        //   Лицевая: Evidence
+        //   Оборотная: доказательство
+        //   Сложная: да                       ← только у отмеченных
+        //
+        //   Лицевая: race condition
+        //   Оборотная:                        ← многострочное значение — строками ниже
+        //   состояние гонки —
+        //   результат зависит от того, кто успел первым
+        //
+        // Строка содержимого, которая сама начинается с ключевого слова, при
+        // выгрузке получает обратную косую черту в начале, а при разборе теряет её —
+        // так «Лицевая:» внутри текста не начнёт новую карточку.
+        const FLASHCARD_EXPORT_KEYWORDS = 'Папка карточек|Описание|Лицевая|Оборотная|Сложная|Картинка|Источник|Ссылка';
+        const FLASHCARD_EXPORT_LINE_RE = new RegExp('^\\s*(' + FLASHCARD_EXPORT_KEYWORDS + ')\\s*:[ \\t]?(.*)$', 'i');
+        const FLASHCARD_EXPORT_ESCAPE_RE = new RegExp('^(\\s*)(\\\\*(?:' + FLASHCARD_EXPORT_KEYWORDS + ')\\s*:)', 'i');
+        const FLASHCARD_EXPORT_UNESCAPE_RE = new RegExp('^(\\s*)\\\\(\\\\*(?:' + FLASHCARD_EXPORT_KEYWORDS + ')\\s*:)', 'i');
+
+        function escapeFlashcardExportLine(line) {
+            return line.replace(FLASHCARD_EXPORT_ESCAPE_RE, '$1\\$2');
+        }
+
+        function unescapeFlashcardExportLine(line) {
+            return line.replace(FLASHCARD_EXPORT_UNESCAPE_RE, '$1$2');
+        }
+
+        function toSingleExportLine(value) {
+            return String(value || '').replace(/\s*\n\s*/g, ' ').trim();
+        }
+
+        function formatFlashcardExportField(keyword, value) {
+            const lines = String(value || '').replace(/\r\n?/g, '\n').split('\n').map(escapeFlashcardExportLine);
+            return lines.length === 1 ? [keyword + ': ' + lines[0]] : [keyword + ':'].concat(lines);
+        }
+
+        function buildFlashcardsExport(cards) {
+            const out = [];
+            (cards || []).forEach(card => {
+                if (!card) return;
+                if (out.length) out.push('');
+                out.push(...formatFlashcardExportField('Лицевая', card.front));
+                out.push(...formatFlashcardExportField('Оборотная', card.back));
+                if (card.attention) out.push('Сложная: да');
+                if (card.image) out.push('Картинка: ' + toSingleExportLine(card.image));
+                if (card.sourceLabel) out.push('Источник: ' + toSingleExportLine(card.sourceLabel));
+                if (card.sourceUrl) out.push('Ссылка: ' + toSingleExportLine(card.sourceUrl));
+            });
+            return out.join('\n');
+        }
+
+        function buildFlashcardFolderExport(folder) {
+            const head = ['Папка карточек: ' + toSingleExportLine(folder.name)];
+            if (folder.description && String(folder.description).trim()) {
+                head.push(...formatFlashcardExportField('Описание', folder.description));
+            }
+            const body = buildFlashcardsExport(folder.cards);
+            return head.join('\n') + (body ? '\n\n' + body : '');
+        }
+
+        function isFlashcardExportText(raw) {
+            return /^\s*(Папка карточек|Лицевая)\s*:/im.test(String(raw || ''));
+        }
+
+        // Возвращает { name, description, cards, skipped } либо null, если текст —
+        // не перенос карточек. name есть только у папки, скопированной целиком.
+        function parseFlashcardExport(raw) {
+            const text = String(raw || '').replace(/\r\n?/g, '\n');
+            if (!isFlashcardExportText(text)) return null;
+            const result = { name: '', description: '', cards: [], skipped: [] };
+            let card = null;
+            let field = null;
+            let descriptionLines = null;
+            const finishCard = () => {
+                if (!card) return;
+                const front = card.front.join('\n').trim();
+                const back = card.back.join('\n').trim();
+                if (front && back) {
+                    result.cards.push({
+                        front, back,
+                        image: card.image,
+                        attention: card.attention,
+                        sourceLabel: card.sourceLabel,
+                        sourceUrl: card.sourceUrl
+                    });
+                } else if (front || back) {
+                    result.skipped.push(front || back);
+                }
+                card = null;
+            };
+            text.split('\n').forEach(line => {
+                const match = line.match(FLASHCARD_EXPORT_LINE_RE);
+                if (match) {
+                    const key = match[1].toLowerCase();
+                    const rest = unescapeFlashcardExportLine(match[2]);
+                    if (key === 'папка карточек') {
+                        if (!result.name) result.name = rest.trim();
+                        field = null;
+                        return;
+                    }
+                    if (key === 'описание' && !card) {
+                        descriptionLines = rest ? [rest] : [];
+                        field = 'description';
+                        return;
+                    }
+                    if (key === 'лицевая') {
+                        finishCard();
+                        card = { front: rest ? [rest] : [], back: [], image: '', attention: false, sourceLabel: '', sourceUrl: '' };
+                        field = 'front';
+                        return;
+                    }
+                    if (card) {
+                        if (key === 'оборотная') {
+                            field = 'back';
+                            if (rest) card.back.push(rest);
+                            return;
+                        }
+                        if (key === 'сложная') {
+                            card.attention = /^(да|yes|true|1|★)$/i.test(rest.trim());
+                            field = null;
+                            return;
+                        }
+                        if (key === 'картинка') { card.image = rest.trim(); field = null; return; }
+                        if (key === 'источник') { card.sourceLabel = rest.trim(); field = null; return; }
+                        if (key === 'ссылка') { card.sourceUrl = rest.trim(); field = null; return; }
+                    }
+                    // Ключевое слово не на своём месте (например, «Описание:» внутри
+                    // карточки) — это просто текст.
+                }
+                const content = unescapeFlashcardExportLine(line);
+                if (field === 'description') descriptionLines.push(content);
+                else if (card && field === 'front') card.front.push(content);
+                else if (card && field === 'back') card.back.push(content);
+            });
+            finishCard();
+            result.description = descriptionLines ? descriptionLines.join('\n').trim() : '';
+            return result;
         }
 
         // ——— Чтение .xlsx и .docx без единой внешней библиотеки ———
@@ -16232,6 +16501,8 @@
             if (count) {
                 const first = parsed.cards[0];
                 parts.push('Первая карточка: «' + first.front + '» → «' + first.back.split('\n')[0] + '».');
+                const hardCount = parsed.cards.filter(card => card.attention).length;
+                if (hardCount) parts.push('Отмеченных сложными: ' + hardCount + '.');
             }
             summary.className = 'import-summary' + (parsed.skipped.length ? ' has-warning' : ' is-ready');
             summary.textContent = parts.join(' ');
@@ -16269,7 +16540,7 @@
                 const parsed = parseFlashcardBulkImport(text);
                 // Если что-то осталось без пары, оставляем файл как есть: пусть
                 // видно будет и проблемные строки, а не только удачные карточки.
-                area.value = (parsed.cards.length && !parsed.skipped.length)
+                area.value = (parsed.cards.length && !parsed.skipped.length && !isFlashcardExportText(text))
                     ? formatFlashcardsAsImportText(parsed.cards)
                     : text;
                 label.textContent = file.name;
@@ -16290,10 +16561,10 @@
                 folder.cards.push({
                     front: card.front,
                     back: card.back,
-                    image: '',
-                    attention: false,
-                    sourceLabel: '',
-                    sourceUrl: ''
+                    image: card.image || '',
+                    attention: Boolean(card.attention),
+                    sourceLabel: card.sourceLabel || '',
+                    sourceUrl: card.sourceUrl || ''
                 });
             });
             saveData(true);
@@ -16375,7 +16646,9 @@
                 return true;
             }
             if (state.view === 'card_folder') {
-                goBackToFlashcardFolders();
+                // Сначала выходим из режима выбора, как в списке материалов.
+                if (state.cardSelectionMode) cancelFlashcardSelection();
+                else goBackToFlashcardFolders();
                 return true;
             }
             if (state.view === 'course_lesson') {
@@ -16510,8 +16783,10 @@
             if (!name) return;
 
             // Если в поле вставляли экспорт папки, материалы и модули уже разобраны.
-            const imported = state.pendingFolderImport;
+            const pending = state.pendingFolderImport;
             state.pendingFolderImport = null;
+            const cardsImport = pending && pending.kind === 'cards' ? pending : null;
+            const imported = pending && !pending.kind ? pending : null;
             const newFolder = imported
                 ? { name: name, texts: imported.texts, subfolders: imported.subfolders }
                 : { name: name, texts: [], subfolders: [] };
@@ -16521,10 +16796,11 @@
                 if (!root) return;
                 root.subfolders.push(newFolder);
             } else if (state.folderModalMode === 'card_root') {
-                state.flashcardFolders.push({
+                state.flashcardFolders.push(normalizeFlashcardFolder({
                     name: name,
-                    cards: []
-                });
+                    description: cardsImport ? cardsImport.description : '',
+                    cards: cardsImport ? cardsImport.cards : []
+                }));
                 state.learningBranch = 'cards';
                 state.currentFlashcardFolder = state.flashcardFolders.length - 1;
                 state.view = 'card_folder';
@@ -17325,6 +17601,13 @@
                     copySelectedMaterials();
                     return;
                 }
+                // Папка флеш-карточек в режиме выбора — «Скопировать выбранные».
+                if (!hasLiveSelection && state.view === 'card_folder' && state.cardSelectionMode) {
+                    if (!state.selectedCardIndexes.length) return;
+                    e.preventDefault();
+                    copySelectedFlashcards();
+                    return;
+                }
             }
             if (e.ctrlKey && !e.metaKey && !e.altKey) {
                 return;
@@ -17405,6 +17688,22 @@
                 if (document.querySelector('.folder-transfer-row')) {
                     e.preventDefault();
                     startTextsSelection();
+                    return;
+                }
+            }
+            // «N» в папке флеш-карточек — то же, что «Выбрать карточки»; повторно —
+            // выход из выбора. Как в списке материалов.
+            if ((e.key === 'n' || e.key === 'N' || e.key === 'н' || e.key === 'Н' || e.key === 'т' || e.key === 'Т') &&
+                !e.metaKey && !e.altKey && state.view === 'card_folder' && !document.querySelector('.modal.show')) {
+                const folder = getCurrentFlashcardFolder();
+                if (state.cardSelectionMode) {
+                    e.preventDefault();
+                    cancelFlashcardSelection();
+                    return;
+                }
+                if (folder && folder.cards.length) {
+                    e.preventDefault();
+                    startFlashcardSelection();
                     return;
                 }
             }
