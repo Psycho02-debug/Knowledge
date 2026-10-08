@@ -4501,6 +4501,33 @@
             font-size: 1.1rem;
         }
 
+        /* Кнопка порядка списка — тот же вид, что у стрелки рядом с поиском материалов. */
+        .list-sort-btn {
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 8px 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .list-sort-btn svg {
+            transition: transform 0.3s;
+        }
+
+        .list-sort-btn.active {
+            background: var(--accent-strong);
+            color: var(--accent-on-strong);
+            border-color: var(--accent-strong);
+        }
+
+        .list-sort-btn.active svg {
+            transform: rotate(180deg);
+        }
+
         .flashcard-action-strip .profile-link-btn[disabled],
         .flashcard-action-strip .module-action-btn[disabled] {
             opacity: 0.45;
@@ -6299,6 +6326,11 @@
     <script>
         let searchQuery = '';
         let sortReversed = false;
+        // Порядок списка «Карточки в папке»: как у материалов — по времени
+        // добавления, «W» или кнопка-стрелка ставит последние добавленные сверху.
+        // Новые карточки всегда дописываются в конец массива, поэтому обратный
+        // порядок массива и есть «сначала новые». Только вид, на диск не пишется.
+        let cardSortReversed = false;
         let quizFocusedOption = 0;
         let textsViewEntriesCache = [];
         let shuffledTextEntryKeys = [];
@@ -10121,6 +10153,9 @@
                 ${folder.cards.length ? `
                     <div class="home-section-header flashcard-list-section">
                         <div class="home-section-title">Карточки в папке</div>
+                        <button class="list-sort-btn${cardSortReversed ? ' active' : ''}" onclick="toggleFlashcardSort()" title="${cardSortReversed ? 'Сначала первые (W)' : 'Сначала последние добавленные (W)'}" aria-label="${cardSortReversed ? 'Сначала первые' : 'Сначала последние добавленные'}">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg>
+                        </button>
                     </div>
                     ${state.cardSelectionMode ? `
                         <div class="selection-bar">
@@ -10137,7 +10172,8 @@
                         </div>
                     `}
                     <div class="flashcard-list">
-                        ${compactMarkup(folder.cards.map((card, index) => {
+                        ${compactMarkup((cardSortReversed ? folder.cards.map((_, index) => index).reverse() : folder.cards.map((_, index) => index)).map(index => {
+                            const card = folder.cards[index];
                             const isSelected = state.cardSelectionMode && state.selectedCardIndexes.includes(index);
                             return `
                             <div class="flashcard-row ${card.image ? '' : 'no-media'}${state.cardSelectionMode ? ' is-selectable' : ''}${isSelected ? ' selected' : ''}" ${state.cardSelectionMode ? `onclick="toggleFlashcardSelection(${index})"` : ''}>
@@ -13966,6 +14002,11 @@
             render();
         }
 
+        function toggleFlashcardSort() {
+            cardSortReversed = !cardSortReversed;
+            render();
+        }
+
         function toggleFlashcardSelection(index) {
             if (!state.cardSelectionMode) return;
             const pos = state.selectedCardIndexes.indexOf(index);
@@ -17711,6 +17752,17 @@
                 e.preventDefault();
                 toggleSort();
                 return;
+            }
+            // «W» в папке флеш-карточек — порядок списка, как у материалов.
+            if ((e.key === 'w' || e.key === 'W' || e.key === 'ц' || e.key === 'Ц') &&
+                !e.metaKey && !e.ctrlKey && !e.altKey && state.view === 'card_folder' &&
+                !document.querySelector('.modal.show')) {
+                const folder = getCurrentFlashcardFolder();
+                if (folder && folder.cards.length) {
+                    e.preventDefault();
+                    toggleFlashcardSort();
+                    return;
+                }
             }
             if ((e.key === 's' || e.key === 'S' || e.key === 'ы' || e.key === 'Ы') && state.view === 'texts') {
                 e.preventDefault();
