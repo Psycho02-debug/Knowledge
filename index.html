@@ -9565,6 +9565,9 @@
         }
 
         function openLearningBranch(branch) {
+            // Уходим из материала совсем — полноэкранная «Карточка» не должна
+            // остаться включённой до следующего захода в этот режим.
+            resetTermCardFullscreen();
             state.learningBranch = branch;
             if (branch === 'texts') {
                 setPrimaryView('folders');
@@ -17324,6 +17327,19 @@
                 }
             }
             if (e.ctrlKey && !e.metaKey && !e.altKey) {
+                return;
+            }
+            // «9» с любого экрана — раздел «Карточки» (папки флеш-карточек), куда
+            // иначе добираются через «Обучение». Из полей ввода диспетчер вышел
+            // выше, так что набранная девятка остаётся девяткой. Пока открыто окно,
+            // клавиша молчит: уход со страницы оставил бы окно висеть поверх
+            // другого экрана. Цифра на клавиатуре и на цифровом блоке — одна и та же.
+            if (e.key === '9' && !e.metaKey && !e.altKey && !e.repeat &&
+                !(activeElement && activeElement.isContentEditable) &&
+                !document.querySelector('.modal.show')) {
+                e.preventDefault();
+                openLearningBranch('cards');
+                window.scrollTo(0, 0);
                 return;
             }
             const isStudyModeHotkey =
