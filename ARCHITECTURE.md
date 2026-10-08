@@ -4,7 +4,7 @@
 
 Номера строк ниже приблизительные: файл правится постоянно, и они сдвигаются. Ищите по имени — `grep -n "function имя(" index.html`. Свежую карту всех функций с номерами строк даёт команда из раздела [«Как быстро сориентироваться»](#как-быстро-сориентироваться).
 
-Сверено с кодом: версия кэша `zapominalka-v100`, `index.html` — около 17 150 строк, 790 КБ.
+Сверено с кодом: версия кэша `zapominalka-v101`, `index.html` — около 17 150 строк, 790 КБ.
 
 ---
 
@@ -176,6 +176,7 @@
 | `typeState` | `{ currentIndex, solved[], peeked[], wrongWords[], value, answered, isCorrect, singleWrongWord }`. `peeked` — слова, открытые нажатием; они входят и в `solved`. Создаётся `resetTypeState()`; начальное значение в объявлении `state` неполное — без `solved` и `wrongWords`, поэтому чтение идёт через `getSolvedTypeWords()` |
 | `typeFocusLineEnabled` | Фокус на строке в «Вписать» |
 | `lineCardFlipped`, `lineCardCueMode` (`letter` или `word`), `termCardFlipped`, `questionsCardFlipped` | Стороны карточек |
+| `termCardFullscreen`, `termCardSizeControlOpen` | «Карточка» во весь экран и открыт ли ползунок «Aa». Полноэкранный сбрасывают `setMode`, `openTermInMode`, `goBackToChooser` (`resetTermCardFullscreen`); переход к соседнему материалу его сохраняет |
 | `gameState`, `quizState` | «Собери текст» и тест по материалу |
 | `folderQuizMode`, `matchingMode`, `matchingState` | Игры по папке. Пока флаг поднят, `renderTextsView` рисует игру вместо списка |
 | `editingText`, `editingTermIndex`, `editingTermSubfolder`, `editingQuestionIndex` | Что именно правит открытое окно |
@@ -288,6 +289,7 @@
 | `hiddenWordGroups` | `{ведущий: number[]}` | Несколько соседних скрытых слов под одной плашкой; ключ — индекс первого слова |
 | `hintTypes` | `{индекс: 'default'}` | **Мёртвое поле:** пишется, но нигде не читается |
 | `questions` | `string[]` | Вопросы к термину целиком (режим «Вопросы») |
+| `cardTextScale` | число 0.5–2 | Размер текста этой карточки в режиме «Карточка». Нет поля — 1; при 100% поле удаляется (`setTermCardTextScale`) |
 | `semanticKeys` | `[{start, end, text}]` | **Мёртвое поле** от смысловых ключей; может встречаться в старых данных |
 
 ### Индексы слов — главный инвариант
@@ -434,6 +436,7 @@ render()
      │                 текст или комментарий → nodeValue
      │                 чип слова (data-widx) с тем же class, data-widx и текстом → пропуск
      │                 иначе → syncElementAttributes (и value у полей) + рекурсия
+     │     другое число узлов верхнего уровня → innerHTML (экран перестроен, а у фрагмента шаблона innerHTML нет)
      │     исключение → innerHTML (запасной путь)
      ├─ после: texts → initTermCardSwipe() (только сенсорный экран) и initDragReorder()
      ├─ syncFlashcardTimer(), syncDockSpacing()
@@ -485,6 +488,7 @@ render()
 | 11944 | `document` `click` (захват) | Погасить клик после сработавшего долгого нажатия |
 | 11951 | `document` `contextmenu` | Правая кнопка мыши — отметить слово сложным |
 | 16186–16205 | `keydown` и `keyup` (захват), `mousedown`, `blur` | Cmd+Shift в окне материала: сохранить и выделить слова |
+| ≈12625 | `document` `fullscreenchange` | Вышли из полноэкранного режима браузера (Esc съедает браузер) — свернуть и полноэкранную карточку |
 | 17006 | `document` `keydown` | **Главный диспетчер клавиатуры** |
 
 3. **После каждой отрисовки экрана «Материалы»** — `initTermCardSwipe()` (свайп вправо — сложный, влево — снять пометку) и `initDragReorder()` (перетаскивание за ручку). Это единственное исключение из правила «не навешивать слушатели после render» — и причина, по которой этот экран не патчится.
@@ -575,7 +579,7 @@ Enter / «Проверить» → checkTypeWord()
 - `game` — `initGame()` перемешивает слова в `gameState.scrambledWords`; `selectWord`, `removeFromResult`, `restartGame`.
 - `quiz` — `initQuiz()` берёт описания до трёх других материалов той же папки как неверные варианты (нужно минимум два материала); `selectQuizOption`, `restartQuiz`.
 - `linecards` — `buildLineCards()` по строкам (`getTextManualLines`), подсказка — первая буква или первое слово (`lineCardCueMode`).
-- `termcard` — `renderTermCardView`: лицевая сторона — `title`, оборотная — `formatContentForReading(content)`, где знаки снова прилеплены к словам. Ничего не хранит.
+- `termcard` — `renderTermCardView`: лицевая сторона — `title`, оборотная — `formatContentForReading(content)`, где знаки снова прилеплены к словам. Хранит только размер текста — `text.cardTextScale` (переменная `--card-text-scale` на карточке; ползунок меняет её прямо в DOM без перерисовки, сохраняет `onchange`). При `state.termCardFullscreen` вместо обычной разметки рисуется слой `.termcard-fullscreen` (fixed, z-index 150, между шапками и окнами); `enterTermCardFullscreen` на компьютере и iPad ещё и вызывает `requestFullscreen`.
 - `questions` — `text.questions`, окно `questionModal`.
 - `example` — `text.example`.
 

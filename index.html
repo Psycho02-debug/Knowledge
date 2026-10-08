@@ -4690,9 +4690,11 @@
 
         /* Карточка «термин ↔ текст»: с лицевой стороны крупное название, чтобы
            его было видно с расстояния, с оборотной — обычный читаемый текст. */
+        /* Размер текста карточки задаёт --card-text-scale: своё значение у каждого
+           материала (text.cardTextScale), по умолчанию 1 — прежний размер. */
         .termcard-title {
             padding: 22px 4px;
-            font-size: 1.5rem;
+            font-size: calc(1.5rem * var(--card-text-scale, 1));
             font-weight: 800;
             line-height: 1.35;
             text-align: center;
@@ -4701,11 +4703,97 @@
 
         .termcard-body {
             padding: 6px 2px;
-            font-size: 1rem;
+            font-size: calc(1rem * var(--card-text-scale, 1));
             line-height: 1.75;
             text-align: left;
             white-space: pre-wrap;
             color: var(--text-primary);
+        }
+
+        .termcard-tools {
+            width: 100%;
+            margin-bottom: 0;
+        }
+
+        .termcard-tools .practice-textsize-row {
+            width: 100%;
+            margin: 0;
+        }
+
+        .termcard-expand-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .termcard-expand-btn svg {
+            flex: 0 0 auto;
+        }
+
+        /* Полноэкранная карточка. Это слой поверх всего приложения, а не
+           Fullscreen API: на iPhone браузер даёт развернуть во весь экран только
+           видео. На компьютере и iPad дополнительно включается и полноэкранный
+           режим браузера — см. enterTermCardFullscreen.
+
+           Слой между шапками и нижними панелями (до 120) и окнами (200): поверх
+           него можно открыть, например, правку материала. Прокручивается сам
+           слой, а панели сверху и снизу прилипают к краям, так что перевернуть
+           и листать можно и на длинном тексте. Анимаций у слоя нет. */
+        .termcard-fullscreen {
+            position: fixed;
+            inset: 0;
+            z-index: 150;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+            background: var(--bg-app-solid);
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+
+        .termcard-fs-bar {
+            position: sticky;
+            z-index: 1;
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            background: var(--bg-app-solid);
+        }
+
+        .termcard-fs-top {
+            top: 0;
+            padding: calc(12px + env(safe-area-inset-top)) 0 4px;
+        }
+
+        .termcard-fs-bottom {
+            bottom: 0;
+            justify-content: center;
+            gap: 18px;
+            padding: 8px 0 calc(12px + env(safe-area-inset-bottom));
+        }
+
+        .termcard-fs-counter {
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .termcard-fs-close {
+            min-width: 44px;
+        }
+
+        .termcard-fullscreen .termcard-card {
+            flex: 1 0 auto;
+            min-height: 0;
+        }
+
+        .termcard-fullscreen .practice-textsize-row {
+            flex: 0 0 auto;
+            margin: 0;
         }
 
         .linecards-card {
@@ -7615,6 +7703,8 @@
             practiceFocusEnabled: false,
             lineCardFlipped: false,
             termCardFlipped: false,
+            termCardFullscreen: false,
+            termCardSizeControlOpen: false,
             lineCardCueMode: 'letter',
             pendingDescriptionImport: null,
             pendingFolderImport: null,
@@ -8321,6 +8411,15 @@
             try {
                 const staging = document.createElement('template');
                 staging.innerHTML = html;
+                // Изменилось число узлов верхнего уровня — экран перестроен, а не
+                // обновлён (так бывает, когда карточка уходит во весь экран).
+                // patchChildNodes в этом случае копирует innerHTML нового родителя,
+                // но здесь родитель — фрагмент шаблона, у которого innerHTML нет:
+                // на экран вышло бы слово «undefined». Собираем начисто.
+                if (container.childNodes.length !== staging.content.childNodes.length) {
+                    container.innerHTML = html;
+                    return;
+                }
                 patchChildNodes(container, staging.content);
             } catch (err) {
                 // Любая неожиданность — возвращаемся к заведомо рабочему пути.
@@ -9112,6 +9211,7 @@
         }
 
         function setMode(mode) {
+            resetTermCardFullscreen();
             state.mode = mode;
             state.pendingWords = [];
             state.pendingHintGroups = [];
@@ -12441,6 +12541,96 @@
             render();
         }
 
+        // ——— Размер текста карточки — свой у каждого материала ———
+        // Короткий термин удобно читать крупно, а длинный текст на обороте —
+        // мельче, поэтому размер запоминается в самом материале (cardTextScale),
+        // а не один на всё приложение, как в практике. Хранится вместе с
+        // материалом и переезжает вместе с ним; 1 — размер по умолчанию, его не
+        // храним вовсе.
+        const TERM_CARD_SCALE_MIN = 0.5;
+        const TERM_CARD_SCALE_MAX = 2;
+
+        function getTermCardTextScale(text) {
+            const value = Number(text && text.cardTextScale);
+            return Number.isFinite(value) && value >= TERM_CARD_SCALE_MIN && value <= TERM_CARD_SCALE_MAX ? value : 1;
+        }
+
+        function toggleTermCardSizeControl() {
+            state.termCardSizeControlOpen = !state.termCardSizeControlOpen;
+            render();
+        }
+
+        // Пока тянут ползунок, экран не перерисовываем: меняем переменную прямо на
+        // карточке и подпись. Сохраняем один раз — когда ползунок отпустили.
+        function setTermCardTextScale(value) {
+            if (state.currentFolder === null || state.currentText === null) return;
+            const text = getCurrentFolder().texts[state.currentText];
+            if (!text) return;
+            const scale = Math.max(TERM_CARD_SCALE_MIN, Math.min(TERM_CARD_SCALE_MAX, Number(value) / 100 || 1));
+            if (Math.abs(scale - 1) < 0.001) delete text.cardTextScale;
+            else text.cardTextScale = Math.round(scale * 100) / 100;
+            document.querySelectorAll('.termcard-card').forEach(card => {
+                card.style.setProperty('--card-text-scale', String(getTermCardTextScale(text)));
+            });
+            const label = document.getElementById('termCardTextScaleLabel');
+            if (label) label.textContent = Math.round(getTermCardTextScale(text) * 100) + '%';
+        }
+
+        function commitTermCardTextScale() {
+            saveData();
+        }
+
+        // ——— Полноэкранная карточка ———
+        // Слой во весь экран без шапки, панели режимов и нижней навигации — только
+        // карточка, «Перевернуть» и стрелки. Режим держится при переходе к
+        // соседнему материалу, чтобы листать карточки подряд, и выключается при
+        // выходе из режима «Карточка». На компьютере и iPad вдобавок включается
+        // полноэкранный режим браузера; на iPhone браузер его не даёт, а приложение
+        // с домашнего экрана и так без панелей браузера.
+        let termCardNativeFullscreen = false;
+
+        function enterTermCardFullscreen() {
+            state.termCardFullscreen = true;
+            render();
+            const root = document.documentElement;
+            if (typeof root.requestFullscreen === 'function' && !document.fullscreenElement) {
+                try {
+                    root.requestFullscreen()
+                        .then(() => { termCardNativeFullscreen = true; })
+                        .catch(() => {});
+                } catch (e) {
+                    // Нет — значит нет: слой во весь экран работает и без этого.
+                }
+            }
+        }
+
+        // Сбрасывает режим без перерисовки — для переходов, которые рисуют сами.
+        function resetTermCardFullscreen() {
+            state.termCardFullscreen = false;
+            if (termCardNativeFullscreen && document.fullscreenElement && typeof document.exitFullscreen === 'function') {
+                document.exitFullscreen().catch(() => {});
+            }
+            termCardNativeFullscreen = false;
+        }
+
+        function exitTermCardFullscreen() {
+            if (!state.termCardFullscreen) return;
+            resetTermCardFullscreen();
+            render();
+        }
+
+        // Вышли из полноэкранного режима браузера сами — Esc или жестом системы.
+        // Браузер при этом съедает Esc, и до нашего обработчика он не доходит,
+        // поэтому слой выключаем здесь, иначе он остался бы висеть.
+        document.addEventListener('fullscreenchange', () => {
+            if (document.fullscreenElement || !termCardNativeFullscreen) return;
+            termCardNativeFullscreen = false;
+            if (state.termCardFullscreen) {
+                state.termCardFullscreen = false;
+                render();
+            }
+        });
+
         function renderTermCardView(text) {
             const flipped = state.termCardFlipped;
             const content = String(text.content || '').trim();
@@ -12478,18 +12668,63 @@
                 `;
             }
 
+            const scale = getTermCardTextScale(text);
+            const scalePercent = Math.round(scale * 100);
+            const sizeButton = `<button class="practice-textsize-btn ${state.termCardSizeControlOpen ? 'active' : ''}" onclick="toggleTermCardSizeControl()" aria-label="Размер текста" title="Размер текста этой карточки">Aa</button>`;
+            // Ползунок: oninput меняет размер вживую, onchange сохраняет один раз,
+            // когда его отпустили.
+            const sizeRow = state.termCardSizeControlOpen ? `
+                <div class="practice-textsize-row">
+                    <span class="practice-textsize-icon">A</span>
+                    <input type="range" class="practice-textsize-slider" min="50" max="200" step="5" value="${scalePercent}" oninput="setTermCardTextScale(this.value)" onchange="commitTermCardTextScale()" aria-label="Размер текста карточки">
+                    <span class="practice-textsize-icon big">A</span>
+                    <span class="practice-textsize-label" id="termCardTextScaleLabel">${scalePercent}%</span>
+                </div>
+            ` : '';
+            const card = `
+                <button class="flashcard-study-card termcard-card ${flipped ? 'is-flipped' : ''}" style="--card-text-scale: ${scale}" onclick="flipTermCard()">
+                    <div class="flashcard-study-face-label">${flipped ? 'Полный текст' : 'Термин'}</div>
+                    ${flipped
+                        ? `<div class="termcard-body">${escapeHtml(formatContentForReading(content))}</div>`
+                        : `<div class="termcard-title">${escapeHtml(text.title || '')}</div>`}
+                    <div class="flashcard-study-hint">${flipped ? 'Нажмите, чтобы вернуться к термину' : 'Нажмите, чтобы увидеть полный текст'}</div>
+                </button>
+            `;
+
+            if (state.termCardFullscreen) {
+                const nav = getStudyNavigationMeta();
+                return `
+                    <div class="termcard-fullscreen">
+                        <div class="termcard-fs-bar termcard-fs-top">
+                            ${sizeButton}
+                            <span class="termcard-fs-counter">${nav.current + 1}/${nav.total}</span>
+                            <button class="practice-textsize-btn termcard-fs-close" onclick="exitTermCardFullscreen()" aria-label="Выйти из полноэкранного режима" title="Свернуть (Esc)">✕</button>
+                        </div>
+                        ${sizeRow}
+                        ${card}
+                        <div class="termcard-fs-bar termcard-fs-bottom">
+                            <button class="term-nav-btn-inline" onclick="navigateToTerm(-1)" ${!nav.hasPrev ? 'disabled' : ''} aria-label="Предыдущий термин">‹</button>
+                            <button class="profile-link-btn" onclick="flipTermCard()">Перевернуть</button>
+                            <button class="term-nav-btn-inline" onclick="navigateToTerm(1)" ${!nav.hasNext ? 'disabled' : ''} aria-label="Следующий термин">›</button>
+                        </div>
+                    </div>
+                `;
+            }
+
             return `
                 ${getTermNavHeader(text)}
                 <div class="container">
                     ${modeButtons}
                     <div class="flashcard-study-layout">
-                        <button class="flashcard-study-card termcard-card ${flipped ? 'is-flipped' : ''}" onclick="flipTermCard()">
-                            <div class="flashcard-study-face-label">${flipped ? 'Полный текст' : 'Термин'}</div>
-                            ${flipped
-                                ? `<div class="termcard-body">${escapeHtml(formatContentForReading(content))}</div>`
-                                : `<div class="termcard-title">${escapeHtml(text.title || '')}</div>`}
-                            <div class="flashcard-study-hint">${flipped ? 'Нажмите, чтобы вернуться к термину' : 'Нажмите, чтобы увидеть полный текст'}</div>
-                        </button>
+                        <div class="practice-meta-row termcard-tools">
+                            ${sizeButton}
+                            <button class="practice-textsize-btn termcard-expand-btn" onclick="enterTermCardFullscreen()" title="Показать карточку во весь экран">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H3v5"/><path d="M16 3h5v5"/><path d="M21 16v5h-5"/><path d="M3 16v5h5"/></svg>
+                                Во весь экран
+                            </button>
+                        </div>
+                        ${sizeRow}
+                        ${card}
                         <div class="flashcard-study-buttons">
                             <button class="profile-link-btn" onclick="flipTermCard()">Перевернуть</button>
                         </div>
@@ -14408,6 +14643,7 @@
         }
 
         function openTermInMode(index, mode, practiceSubMode) {
+            resetTermCardFullscreen();
             state.currentText = index;
             state.view = (mode === 'type') ? 'type' : 'practice';
             state.mode = mode;
@@ -14514,6 +14750,7 @@
         }
 
         function goBackToChooser() {
+            resetTermCardFullscreen();
             const text = getCurrentFolder().texts[state.currentText];
             if (text) {
                 text.revealedWords = [];
@@ -14824,6 +15061,8 @@
             render();
             // Это другой материал, а не обновление текущего: начинаем сверху.
             window.scrollTo(0, 0);
+            const fullscreenCard = document.querySelector('.termcard-fullscreen');
+            if (fullscreenCard) fullscreenCard.scrollTop = 0;
             if (currentMode === 'type') {
                 focusTypeInputField();
             }
@@ -16036,6 +16275,10 @@
                 return true;
             }
 
+            if (state.view === 'practice' && state.mode === 'termcard' && state.termCardFullscreen) {
+                exitTermCardFullscreen();
+                return true;
+            }
             if (state.view === 'type' || state.view === 'practice') {
                 goBackToChooser();
                 return true;
