@@ -7391,14 +7391,53 @@
             ];
         }
 
-        function ensureBuiltInFlashcardFolders() {
+        // Готовые наборы карточек предлагаются один раз. Раньше набор искался по
+        // названию при каждом запуске и, если его не было, подкладывался снова —
+        // удалённый (или переименованный) набор возвращался, удалить его насовсем
+        // было нельзя. Теперь названия уже предложенных наборов запоминаются
+        // отдельно (ключ BUILT_IN_SETS_KEY), и предложенный однажды набор больше
+        // не появляется, что бы с ним ни сделали. Набор, добавленный в будущей
+        // версии, придёт как новый — его названия в списке ещё нет.
+        const BUILT_IN_SETS_KEY = 'wordMemorizerBuiltInSets';
+
+        function ensureBuiltInFlashcardFolders(isFreshInstall) {
+            const builtIns = getBuiltInFlashcardFolders();
+            let offered = null;
+            try {
+                const parsed = JSON.parse(localStorage.getItem(BUILT_IN_SETS_KEY) || 'null');
+                if (Array.isArray(parsed)) offered = parsed.filter(name => typeof name === 'string');
+            } catch (e) {
+                offered = null;
+            }
+            let offeredChanged = false;
+            if (offered === null) {
+                offered = [];
+                offeredChanged = true;
+                // Ключа ещё нет. Если данные уже были, прежние версии подкладывали
+                // эти наборы при каждом запуске — значит, раз набора сейчас нет, его
+                // удалили, и возвращать его нельзя. На чистой установке наборы
+                // подкладываются как раньше.
+                if (!isFreshInstall) builtIns.forEach(folder => offered.push(folder.name));
+            }
+            const offeredNames = new Set(offered);
             const existingNames = new Set((state.flashcardFolders || []).map(folder => folder && folder.name).filter(Boolean));
             let changed = false;
-            getBuiltInFlashcardFolders().forEach(folder => {
+            builtIns.forEach(folder => {
+                if (offeredNames.has(folder.name)) return;
+                offered.push(folder.name);
+                offeredNames.add(folder.name);
+                offeredChanged = true;
                 if (existingNames.has(folder.name)) return;
                 state.flashcardFolders.push(normalizeFlashcardFolder(folder));
                 changed = true;
             });
+            if (offeredChanged) {
+                try {
+                    localStorage.setItem(BUILT_IN_SETS_KEY, JSON.stringify(offered));
+                } catch (e) {
+                    // Не записалось — в худшем случае набор предложат ещё раз.
+                }
+            }
             return changed;
         }
 
@@ -7900,7 +7939,7 @@
             state.profile = getLocalProfile();
             normalizeFoldersTree(state.folders);
             const normalizedMaterials = normalizeAllMaterialsPunctuation();
-            const seededFlashcards = ensureBuiltInFlashcardFolders();
+            const seededFlashcards = ensureBuiltInFlashcardFolders(!localData.raw);
             // Точка отсчёта для «не писать, если ничего не изменилось» — ровно то,
             // что лежит на диске. Раньше её получали, заново превращая в строку все
             // данные, — полный проход по ним на каждом запуске, ещё до первого кадра.
