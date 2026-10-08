@@ -4601,6 +4601,17 @@
             align-items: center;
         }
 
+        /* Номер карточки и отметка «сложная» — одной строкой над карточкой.
+           Кнопка — та же, что «☆ Сложный» в практике: на телефоне клавиши S нет,
+           и отмечать карточку можно только нажатием. */
+        .flashcard-study-meta {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
         .flashcard-study-progress {
             color: var(--accent-primary);
             font-size: 0.96rem;
@@ -7451,6 +7462,8 @@
         function getDefaultFlashcardStudyState() {
             return {
                 mode: 'flashcards',
+                // Изучаются только карточки, отмеченные сложными.
+                onlyHard: false,
                 order: [],
                 current: 0,
                 currentCardIndex: null,
@@ -10021,6 +10034,7 @@
                 <div class="flashcard-action-strip">
                     <button class="profile-link-btn" onclick="startFlashcardStudy(false)" ${folder.cards.length ? '' : 'disabled'}>Изучать</button>
                     <button class="module-action-btn secondary" onclick="startFlashcardStudy(true)" ${folder.cards.length ? '' : 'disabled'}>Перемешать</button>
+                    <button class="module-action-btn secondary" onclick="startFlashcardStudy(false, true)" ${difficultCount ? '' : 'disabled'} title="${difficultCount ? 'Изучать только карточки, отмеченные сложными' : 'Сложных карточек пока нет — отметьте их клавишей S или кнопкой «☆ Сложная»'}">Только сложные${difficultCount ? ' (' + difficultCount + ')' : ''}</button>
                 </div>
 
                 <button class="module-action-btn secondary flashcard-import-btn" onclick="showFlashcardImportModal()">Загрузить список карточек</button>
@@ -10894,7 +10908,7 @@
                 <div class="app-toolbar">
                     <div>
                         <div class="app-page-title">${escapeHtml(folder.name)}</div>
-                        <div class="app-page-subtitle">${escapeHtml(meta.subtitle)}</div>
+                        <div class="app-page-subtitle">${escapeHtml(meta.subtitle)}${study.onlyHard ? ' Только сложные карточки.' : ''}</div>
                     </div>
                     <button class="icon-ghost-btn" onclick="goBackToFlashcardFolder()" aria-label="Назад">←</button>
                 </div>
@@ -11174,7 +11188,7 @@
 
             if (study.mode === 'flashcards') {
                 if (!Array.isArray(study.order) || !study.order.length) {
-                    study.order = getFlashcardOrder(folder, study.shuffle);
+                    study.order = getFlashcardOrder(folder, study.shuffle, study.onlyHard);
                     study.current = 0;
                     study.currentCardIndex = study.order[0] ?? null;
                 }
@@ -11187,7 +11201,10 @@
                 return renderShell(`
                     ${renderFlashcardModeToolbar(folder, study)}
                     <div class="flashcard-study-layout">
-                        <div class="flashcard-study-progress">${study.current + 1} / ${study.order.length}</div>
+                        <div class="flashcard-study-meta">
+                            <div class="flashcard-study-progress">${study.current + 1} / ${study.order.length}</div>
+                            <button class="practice-attention-btn ${card.attention ? 'active' : ''}" onclick="toggleCurrentFlashcardAttention()" title="Отметить карточку сложной (S)">${card.attention ? '★ Сложная' : '☆ Сложная'}</button>
+                        </div>
                         <button class="flashcard-study-card ${study.flipped ? 'is-flipped' : ''}" onclick="flipFlashcard()">
                             <div class="flashcard-study-face-label">${study.flipped ? 'Оборотная сторона' : 'Лицевая сторона'}</div>
                             <div class="flashcard-study-text">${escapeHtml(study.flipped ? card.back : card.front)}</div>
@@ -13944,8 +13961,9 @@
             return Math.min(300, Math.max(5, raw));
         }
 
-        function getFlashcardOrder(folder, shuffle) {
+        function getFlashcardOrder(folder, shuffle, onlyHard) {
             let order = folder.cards.map((_, index) => index);
+            if (onlyHard) order = order.filter(index => folder.cards[index] && folder.cards[index].attention);
             if (shuffle) order = shuffleArray(order);
             return order;
         }
@@ -14345,7 +14363,7 @@
             return true;
         }
 
-        function startFlashcardMode(mode, shuffle) {
+        function startFlashcardMode(mode, shuffle, onlyHard) {
             const folder = getCurrentFlashcardFolder();
             if (!folder || !folder.cards.length) return;
             const study = getDefaultFlashcardStudyState();
@@ -14356,7 +14374,16 @@
             study.stats.startedAt = Date.now();
 
             if (mode === 'flashcards') {
-                study.order = getFlashcardOrder(folder, shuffle);
+                study.onlyHard = Boolean(onlyHard);
+                study.order = getFlashcardOrder(folder, shuffle, study.onlyHard);
+                // Сложных не осталось (например, «Пройти снова» после того, как все
+                // отметки сняли) — возвращаемся к папке, а не подсовываем всю колоду.
+                if (!study.order.length) {
+                    state.flashcardStudyState = getDefaultFlashcardStudyState();
+                    state.view = 'card_folder';
+                    render();
+                    return;
+                }
                 study.current = 0;
                 study.currentCardIndex = study.order[0] ?? null;
                 state.flashcardStudyState = study;
@@ -14409,13 +14436,27 @@
             }
         }
 
-        function startFlashcardStudy(shuffle) {
-            startFlashcardMode('flashcards', Boolean(shuffle));
+        function startFlashcardStudy(shuffle, onlyHard) {
+            startFlashcardMode('flashcards', Boolean(shuffle), Boolean(onlyHard));
         }
 
         function restartFlashcardStudy(shuffle) {
             const currentMode = state.flashcardStudyState.mode || 'flashcards';
-            startFlashcardMode(currentMode, typeof shuffle === 'boolean' ? shuffle : state.flashcardStudyState.shuffle);
+            startFlashcardMode(currentMode, typeof shuffle === 'boolean' ? shuffle : state.flashcardStudyState.shuffle,
+                state.flashcardStudyState.onlyHard);
+        }
+
+        // Отметка «сложная» у карточки, открытой в режиме «Карточки». Порядок
+        // занятия не меняется: снятая отметка не выкидывает карточку из текущего
+        // прохода «только сложных», а поставленная не добавляет новую — состав
+        // обновится при следующем запуске.
+        function toggleCurrentFlashcardAttention() {
+            if (state.view !== 'card_study') return;
+            const study = state.flashcardStudyState;
+            if (!study || study.mode !== 'flashcards' || study.completed) return;
+            const index = study.order[study.current];
+            if (index === undefined) return;
+            toggleFlashcardAttention(index);
         }
 
         function setFlashcardTimerEnabled(enabled) {
@@ -17503,6 +17544,13 @@
                 if (e.key === 'ArrowLeft') {
                     e.preventDefault();
                     stepFlashcard(-1);
+                    return;
+                }
+                // S — отметить карточку сложной или снять отметку. «ы» — та же
+                // клавиша в русской раскладке.
+                if ((e.key === 's' || e.key === 'S' || e.key === 'ы' || e.key === 'Ы') && !e.repeat) {
+                    e.preventDefault();
+                    toggleCurrentFlashcardAttention();
                     return;
                 }
             }
