@@ -4397,6 +4397,17 @@
             margin-bottom: 18px;
         }
 
+        .flashcard-sides-notice {
+            margin: -6px 0 16px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
         .flashcard-import-modal {
             max-width: 560px;
             max-height: 86vh;
@@ -6332,6 +6343,10 @@
         // порядок массива и есть «сначала новые». Тот же порядок берёт изучение
         // без перемешивания (getFlashcardOrder). На диск не пишется.
         let cardSortReversed = false;
+        // Подсказка «стороны поменяны» после E/У в папке карточек: видна пару
+        // секунд, потом убирается без перерисовки.
+        let flashcardSidesNotice = false;
+        let flashcardSidesNoticeTimer = null;
         let quizFocusedOption = 0;
         let textsViewEntriesCache = [];
         let shuffledTextEntryKeys = [];
@@ -10093,6 +10108,7 @@
                     <button class="module-action-btn secondary" onclick="startFlashcardStudy(true)" ${folder.cards.length ? '' : 'disabled'}>Перемешать</button>
                     <button class="module-action-btn secondary" onclick="startFlashcardStudy(false, true)" ${difficultCount ? '' : 'disabled'} title="${difficultCount ? 'Изучать только карточки, отмеченные сложными' : 'Сложных карточек пока нет — отметьте их клавишей S или кнопкой «☆ Сложная»'}">Только сложные${difficultCount ? ' (' + difficultCount + ')' : ''}</button>
                 </div>
+                ${flashcardSidesNotice ? '<div class="flashcard-sides-notice" role="status">Лицевая и оборотная стороны всех карточек поменялись местами. Нажмите E ещё раз, чтобы вернуть.</div>' : ''}
 
                 <button class="module-action-btn secondary flashcard-import-btn" onclick="showFlashcardImportModal()">Загрузить список карточек</button>
 
@@ -14003,6 +14019,31 @@
             render();
         }
 
+        // E/У в папке карточек: лицевая и оборотная стороны всех карточек меняются
+        // местами — пользователь сам решает, какая сторона главная. Меняются сами
+        // данные, поэтому новый порядок сторон действует во всех режимах и при
+        // переносе папки. Повторное нажатие возвращает как было. Картинка
+        // показывается на обеих сторонах и остаётся при карточке.
+        function swapFlashcardSides() {
+            const folder = getCurrentFlashcardFolder();
+            if (!folder || !folder.cards.length) return;
+            folder.cards.forEach(card => {
+                const front = card.front;
+                card.front = card.back;
+                card.back = front;
+            });
+            saveData();
+            flashcardSidesNotice = true;
+            if (flashcardSidesNoticeTimer !== null) clearTimeout(flashcardSidesNoticeTimer);
+            flashcardSidesNoticeTimer = setTimeout(() => {
+                flashcardSidesNoticeTimer = null;
+                flashcardSidesNotice = false;
+                const notice = document.querySelector('.flashcard-sides-notice');
+                if (notice) notice.remove();
+            }, 2600);
+            render();
+        }
+
         function toggleFlashcardSort() {
             cardSortReversed = !cardSortReversed;
             render();
@@ -17786,6 +17827,18 @@
                 e.preventDefault();
                 showEditTextModal();
                 return;
+            }
+            // E/У в папке флеш-карточек — поменять стороны всех карточек местами.
+            // Удержание не считается: иначе автоповтор менял бы стороны туда-обратно.
+            if ((e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У') &&
+                !e.metaKey && !e.ctrlKey && !e.altKey && state.view === 'card_folder' &&
+                !document.querySelector('.modal.show')) {
+                const folder = getCurrentFlashcardFolder();
+                if (folder && folder.cards.length) {
+                    e.preventDefault();
+                    if (!e.repeat) swapFlashcardSides();
+                    return;
+                }
             }
             if (e.key === ']' || e.key === 'х' || e.key === 'Х' || e.key === 'ъ' || e.key === 'Ъ' ||
                 e.key === '`' || e.key === 'ё' || e.key === 'Ё') {
