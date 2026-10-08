@@ -6329,7 +6329,8 @@
         // Порядок списка «Карточки в папке»: как у материалов — по времени
         // добавления, «W» или кнопка-стрелка ставит последние добавленные сверху.
         // Новые карточки всегда дописываются в конец массива, поэтому обратный
-        // порядок массива и есть «сначала новые». Только вид, на диск не пишется.
+        // порядок массива и есть «сначала новые». Тот же порядок берёт изучение
+        // без перемешивания (getFlashcardOrder). На диск не пишется.
         let cardSortReversed = false;
         let quizFocusedOption = 0;
         let textsViewEntriesCache = [];
@@ -14108,6 +14109,10 @@
 
         function getFlashcardOrder(folder, shuffle, onlyHard) {
             let order = folder.cards.map((_, index) => index);
+            // Без перемешивания карточки идут так же, как в списке «Карточки в папке»:
+            // после «W» — сначала последние добавленные («Изучать», «1», «Только
+            // сложные», «Просмотр», «Письмо»).
+            if (cardSortReversed) order.reverse();
             if (onlyHard) order = order.filter(index => folder.cards[index] && folder.cards[index].attention);
             if (shuffle) order = shuffleArray(order);
             return order;
