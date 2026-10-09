@@ -16692,7 +16692,13 @@
         }
         
         function closeModal(id) {
-            document.getElementById(id).classList.remove('show');
+            const modal = document.getElementById(id);
+            modal.classList.remove('show');
+            // Фокус не должен оставаться в поле скрытого окна: пока он там, диспетчер
+            // клавиш считает, что идёт ввод, и горячие клавиши экрана молчат —
+            // например, после сохранения карточки по Cmd+Return.
+            const active = document.activeElement;
+            if (active && active !== document.body && modal.contains(active)) active.blur();
         }
 
         function handleEscapeAction() {
@@ -16918,7 +16924,12 @@
             const front = document.getElementById('flashcardFront').value.trim();
             const back = document.getElementById('flashcardBack').value.trim();
             const image = document.getElementById('flashcardImageUrl').value.trim();
-            if (!front || !back) return;
+            // Пустую сторону не сохраняем — ставим курсор в неё, чтобы было видно,
+            // почему окно не закрылось (особенно после Cmd+Return).
+            if (!front || !back) {
+                document.getElementById(front ? 'flashcardBack' : 'flashcardFront').focus();
+                return;
+            }
 
             const existingCard = state.editingFlashcardIndex !== null && folder.cards[state.editingFlashcardIndex]
                 ? folder.cards[state.editingFlashcardIndex]
@@ -17611,6 +17622,23 @@
                 e.preventDefault();
                 if (handleEscapeAction()) return;
             }
+            // Cmd+Return (Ctrl+Enter) в окнах карточек — то же, что кнопка сохранения,
+            // как в окне материала. Стоит до выхода «фокус в поле ввода»: нажимают
+            // его как раз из полей лицевой и оборотной стороны.
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.altKey && !e.isComposing) {
+                const openModal = document.querySelector('.modal.show');
+                if (openModal && openModal.id === 'flashcardModal') {
+                    e.preventDefault();
+                    if (!e.repeat) saveFlashcard();
+                    return;
+                }
+                if (openModal && openModal.id === 'flashcardImportModal') {
+                    e.preventDefault();
+                    const saveButton = document.getElementById('flashcardImportSave');
+                    if (!e.repeat && saveButton && !saveButton.disabled) applyFlashcardImport();
+                    return;
+                }
+            }
             const isTypeCompleted =
                 state.view === 'type' &&
                 state.mode === 'type' &&
@@ -17976,6 +18004,16 @@
                 if ((e.key === 's' || e.key === 'S' || e.key === 'ы' || e.key === 'Ы') && !e.repeat) {
                     e.preventDefault();
                     toggleCurrentFlashcardAttention();
+                    return;
+                }
+                // E — править открытую карточку: то же окно, что карандаш в списке
+                // папки. «у» — та же клавиша в русской раскладке.
+                if (e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У') {
+                    e.preventDefault();
+                    if (e.repeat) return;
+                    const study = state.flashcardStudyState;
+                    const cardIndex = study.order[study.current];
+                    if (cardIndex !== undefined) showEditFlashcardModal(cardIndex);
                     return;
                 }
             }
