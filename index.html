@@ -4740,6 +4740,10 @@
             justify-content: center;
         }
 
+        .flashcard-next-btn {
+            min-width: 180px;
+        }
+
         .flashcard-complete-card {
             padding: 28px 20px;
             text-align: center;
@@ -11306,10 +11310,10 @@
                             ${card.image ? `<img class="flashcard-study-image" src="${card.image}" loading="lazy" decoding="async" alt="">` : ''}
                             <div class="flashcard-study-hint">${study.flipped ? 'Нажмите, чтобы вернуться к лицевой стороне' : 'Нажмите, чтобы увидеть оборотную сторону'}</div>
                         </button>
+                        <!-- Одна кнопка: переворот — только тапом по самой карточке, «Назад»
+                             осталось на клавише ←. -->
                         <div class="flashcard-study-buttons">
-                            <button class="module-action-btn secondary" onclick="stepFlashcard(-1)" ${study.current === 0 ? 'disabled' : ''}>Назад</button>
-                            <button class="profile-link-btn" onclick="flipFlashcard()">Перевернуть</button>
-                            <button class="module-action-btn secondary" onclick="stepFlashcard(1)">${study.current === study.order.length - 1 ? 'Завершить' : 'Дальше'}</button>
+                            <button class="profile-link-btn flashcard-next-btn" onclick="stepFlashcard(1)">${study.current === study.order.length - 1 ? 'Завершить' : 'Дальше'}</button>
                         </div>
                     </div>
                 `, 'learning', 'compact-shell');

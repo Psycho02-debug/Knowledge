@@ -4,7 +4,7 @@
 
 Номера строк ниже приблизительные: файл правится постоянно, и они сдвигаются. Ищите по имени — `grep -n "function имя(" index.html`. Свежую карту всех функций с номерами строк даёт команда из раздела [«Как быстро сориентироваться»](#как-быстро-сориентироваться).
 
-Сверено с кодом: версия кэша `zapominalka-v113`, `index.html` — около 17 150 строк, 790 КБ.
+Сверено с кодом: версия кэша `zapominalka-v114`, `index.html` — около 17 150 строк, 790 КБ.
 
 ---
 
@@ -641,6 +641,7 @@ Enter / «Проверить» → checkTypeWord()
 - `swapFlashcardSides` (`E` в папке) меняет `front` и `back` у всех карточек папки прямо в данных и сохраняет — новая лицевая сторона действует во всех режимах и в переносе. `image` показывается на обеих сторонах, поэтому не трогается.
 - Порядок без перемешивания — как в списке «Карточки в папке»: `getFlashcardOrder` разворачивает индексы, если включён `cardSortReversed` (`W`).
 - «Только сложные»: `startFlashcardStudy(shuffle, onlyHard)` → `startFlashcardMode('flashcards', shuffle, onlyHard)` → `getFlashcardOrder(folder, shuffle, onlyHard)` берёт только карточки с `attention`. Флаг живёт в `flashcardStudyState.onlyHard`, его подхватывает `restartFlashcardStudy`; если сложных не осталось, запуск возвращает к папке, а не подсовывает всю колоду. Отметки по ходу занятия порядок (`order`) не меняют.
+- Экран режима `flashcards`: переворот — тапом по карточке (`button.flashcard-study-card` → `flipFlashcard`), под ней одна кнопка `.flashcard-next-btn` → `stepFlashcard(1)`. Кнопок «Назад» и «Перевернуть» нет намеренно: назад — только клавиша `←`.
 - Сеанс — `state.flashcardStudyState` (`getDefaultFlashcardStudyState`). `startFlashcardMode(mode)` выбирает режим: `flashcards`, `browse`, `learn`, `write`, `test`, `match`. Успехи по карточкам (`cardPerformance`: этап 0–3, верно и неверно) живут только в сеансе.
 - `learn`: `prepareLearnPrompt` выбирает вид вопроса по этапу карточки — 0: выбор из вариантов, 1: «верно / неверно», 2–3: письменный ответ. Верный ответ поднимает этап (до 3 — «выучена»), ошибка опускает его и возвращает карточку в очередь второй по счёту.
 - Таймер ответа: `armFlashcardTimer` / `syncFlashcardTimer` — `setTimeout` до границы следующей секунды; обновляет только сам счётчик. При сворачивании останавливается.
