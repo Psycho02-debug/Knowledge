@@ -1875,6 +1875,46 @@
             resize: vertical;
         }
 
+        /* Поле стороны флеш-карточки с кнопками (2) (3) (4) в правом нижнем углу. */
+        .card-field {
+            position: relative;
+            margin-bottom: 14px;
+        }
+
+        .modal-content .card-field textarea {
+            margin-bottom: 0;
+            padding-bottom: 50px;
+        }
+
+        .card-field-marks {
+            position: absolute;
+            right: 10px;
+            bottom: 10px;
+            display: flex;
+            gap: 6px;
+        }
+
+        .card-mark-chip {
+            min-width: 40px;
+            height: 32px;
+            padding: 0 8px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s, border-color 0.2s;
+        }
+
+        .card-mark-chip.active {
+            background: var(--accent-strong);
+            border-color: var(--accent-strong);
+            color: var(--accent-on-strong);
+        }
+
         .modal-content input:focus,
         .modal-content textarea:focus,
         .modal-content select:focus {
@@ -6147,8 +6187,24 @@
     <div class="modal" id="flashcardModal">
         <div class="modal-content" style="max-height:80vh;overflow-y:auto;">
             <h3 id="flashcardModalTitle">Новая карточка</h3>
-            <textarea id="flashcardFront" placeholder="Лицевая сторона карточки" style="min-height:90px;"></textarea>
-            <textarea id="flashcardBack" placeholder="Оборотная сторона карточки" style="min-height:110px;"></textarea>
+            <!-- Кнопки (2) (3) (4) внутри полей — только в окне флеш-карточки: дописывают
+                 в конец стороны номер значения, «Угроза (2)». Окно материала их не имеет. -->
+            <div class="card-field">
+                <textarea id="flashcardFront" placeholder="Лицевая сторона карточки" style="min-height:90px;" oninput="updateFlashcardMarkChips('flashcardFront')"></textarea>
+                <div class="card-field-marks" role="group" aria-label="Номер значения">
+                    <button type="button" class="card-mark-chip" data-mark="2" onmousedown="event.preventDefault()" onclick="toggleFlashcardNumberMark('flashcardFront', 2)">(2)</button>
+                    <button type="button" class="card-mark-chip" data-mark="3" onmousedown="event.preventDefault()" onclick="toggleFlashcardNumberMark('flashcardFront', 3)">(3)</button>
+                    <button type="button" class="card-mark-chip" data-mark="4" onmousedown="event.preventDefault()" onclick="toggleFlashcardNumberMark('flashcardFront', 4)">(4)</button>
+                </div>
+            </div>
+            <div class="card-field">
+                <textarea id="flashcardBack" placeholder="Оборотная сторона карточки" style="min-height:110px;" oninput="updateFlashcardMarkChips('flashcardBack')"></textarea>
+                <div class="card-field-marks" role="group" aria-label="Номер значения">
+                    <button type="button" class="card-mark-chip" data-mark="2" onmousedown="event.preventDefault()" onclick="toggleFlashcardNumberMark('flashcardBack', 2)">(2)</button>
+                    <button type="button" class="card-mark-chip" data-mark="3" onmousedown="event.preventDefault()" onclick="toggleFlashcardNumberMark('flashcardBack', 3)">(3)</button>
+                    <button type="button" class="card-mark-chip" data-mark="4" onmousedown="event.preventDefault()" onclick="toggleFlashcardNumberMark('flashcardBack', 4)">(4)</button>
+                </div>
+            </div>
             <div id="flashcardImageUploadArea" style="margin-top:8px;">
                 <div id="flashcardImagePreview" style="display:none;margin-bottom:8px;text-align:center;">
                     <img id="flashcardImagePreviewImg" style="max-width:100%;max-height:180px;border-radius:12px;object-fit:cover;">
@@ -16204,6 +16260,8 @@
             document.getElementById('flashcardFront').value = '';
             document.getElementById('flashcardBack').value = '';
             resetFlashcardImagePreview(null);
+            updateFlashcardMarkChips('flashcardFront');
+            updateFlashcardMarkChips('flashcardBack');
             document.getElementById('flashcardModal').classList.add('show');
             setTimeout(() => document.getElementById('flashcardFront').focus(), 100);
         }
@@ -16787,6 +16845,38 @@
             render();
         }
 
+        // (2) (3) (4) в окне флеш-карточки: номер значения в конце стороны —
+        // «Угроза (2)». Нажатие ставит номер (заменяя уже стоящий (2)–(4) в конце),
+        // повторное нажатие того же номера убирает его. Фокус и клавиатура
+        // остаются в поле: кнопки не забирают фокус (mousedown preventDefault).
+        const FLASHCARD_NUMBER_MARK_RE = /\s*\(([2-4])\)\s*$/;
+
+        function toggleFlashcardNumberMark(fieldId, number) {
+            const field = document.getElementById(fieldId);
+            if (!field) return;
+            const match = field.value.match(FLASHCARD_NUMBER_MARK_RE);
+            const base = field.value.replace(FLASHCARD_NUMBER_MARK_RE, '').replace(/\s+$/, '');
+            const mark = '(' + number + ')';
+            field.value = match && match[1] === String(number) ? base : (base ? base + ' ' + mark : mark);
+            updateFlashcardMarkChips(fieldId);
+            if (document.activeElement === field) {
+                const end = field.value.length;
+                field.setSelectionRange(end, end);
+            }
+        }
+
+        function updateFlashcardMarkChips(fieldId) {
+            const field = document.getElementById(fieldId);
+            if (!field) return;
+            const match = field.value.match(FLASHCARD_NUMBER_MARK_RE);
+            const current = match ? match[1] : '';
+            field.parentElement.querySelectorAll('.card-mark-chip').forEach(chip => {
+                const active = chip.dataset.mark === current;
+                chip.classList.toggle('active', active);
+                chip.setAttribute('aria-pressed', active ? 'true' : 'false');
+            });
+        }
+
         function closeFlashcardModal() {
             state.editingFlashcardIndex = null;
             closeModal('flashcardModal');
@@ -16801,6 +16891,8 @@
             document.getElementById('flashcardFront').value = card.front || '';
             document.getElementById('flashcardBack').value = card.back || '';
             resetFlashcardImagePreview(card.image || null);
+            updateFlashcardMarkChips('flashcardFront');
+            updateFlashcardMarkChips('flashcardBack');
             document.getElementById('flashcardModal').classList.add('show');
             setTimeout(() => document.getElementById('flashcardFront').focus(), 100);
         }
