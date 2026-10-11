@@ -11386,11 +11386,10 @@
                             <button class="practice-attention-btn ${card.attention ? 'active' : ''}" onclick="toggleCurrentFlashcardAttention()" title="Отметить карточку сложной (S)">${card.attention ? '★ Сложная' : '☆ Сложная'}</button>
                             <button class="practice-attention-btn" onclick="showEditFlashcardModal(${currentOrderIndex})" title="Изменить карточку (E)">✎ Изменить</button>
                         </div>
+                        <!-- На карточке только её текст: подписи «Лицевая/Оборотная сторона» и подсказка «Нажмите…» убраны намеренно. -->
                         <button class="flashcard-study-card ${study.flipped ? 'is-flipped' : ''}" onclick="flipFlashcard()">
-                            <div class="flashcard-study-face-label">${study.flipped ? 'Оборотная сторона' : 'Лицевая сторона'}</div>
                             <div class="flashcard-study-text">${escapeHtml(study.flipped ? card.back : card.front)}</div>
                             ${card.image ? `<img class="flashcard-study-image" src="${card.image}" loading="lazy" decoding="async" alt="">` : ''}
-                            <div class="flashcard-study-hint">${study.flipped ? 'Нажмите, чтобы вернуться к лицевой стороне' : 'Нажмите, чтобы увидеть оборотную сторону'}</div>
                         </button>
                         <!-- Переворот — только тапом по самой карточке, отдельной кнопки нет. -->
                         <div class="flashcard-study-buttons">
