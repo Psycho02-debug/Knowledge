@@ -1334,6 +1334,11 @@
         }
 
         .word.hidden-word {
+            /* Двойной тап открывает окно ввода: без этого iOS увеличивал бы
+               страницу, а компьютер выделял бы текст чипа. */
+            touch-action: manipulation;
+            -webkit-user-select: none;
+            user-select: none;
             background: var(--gradient-primary);
             color: var(--accent-on-strong);
             border-radius: 0.38em;
@@ -1996,6 +2001,26 @@
         .modal-content input::placeholder,
         .modal-content textarea::placeholder {
             color: var(--text-tertiary);
+        }
+
+        .word-guess-hint {
+            margin-bottom: 12px;
+            color: var(--text-secondary);
+        }
+
+        .word-guess-hint:empty {
+            display: none;
+        }
+
+        .word-guess-feedback {
+            min-height: 1.3em;
+            margin: -6px 0 10px;
+            font-size: 14px;
+            color: var(--accent-wrong-text);
+        }
+
+        .modal-content input.word-guess-wrong {
+            border-color: var(--accent-wrong-text);
         }
 
         .modal-buttons {
@@ -6444,6 +6469,21 @@
             <div class="modal-buttons">
                 <button class="modal-cancel" onclick="closeModal('transferTermsModal')">Отмена</button>
                 <button class="modal-save" onclick="transferSelectedTermsToSubfolder()">Перенести</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Двойной тап по скрытому слову в практике: вписать слово целиком. -->
+    <div class="modal" id="wordGuessModal">
+        <div class="modal-content">
+            <h3>Впишите скрытое слово</h3>
+            <p class="word-guess-hint" id="wordGuessHint"></p>
+            <input type="text" id="wordGuessInput" placeholder="Слово целиком" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" onkeydown="if(event.key===&#39;Enter&#39;){event.preventDefault();checkWordGuess();}" oninput="clearWordGuessFeedback()">
+            <div class="word-guess-feedback" id="wordGuessFeedback" role="status"></div>
+            <div class="modal-buttons">
+                <button class="modal-cancel" onclick="closeWordGuessModal()">Отмена</button>
+                <button class="modal-skip" id="wordGuessGiveUp" onclick="giveUpWordGuess()" style="display:none;">Показать</button>
+                <button class="modal-save" onclick="checkWordGuess()">Проверить</button>
             </div>
         </div>
     </div>
@@ -12394,7 +12434,7 @@
                 isHard ? 'hard-word' : '']
                 .filter(Boolean)
                 .join(' ');
-            return `<span class="${className}" data-widx="${wordIndex}" onclick="revealWord(${wordIndex})"><span class="word-hidden-label">${escapeHtml(String(displayText))}</span></span>`;
+            return `<span class="${className}" data-widx="${wordIndex}" onclick="onPracticeHiddenWordTap(${wordIndex})"><span class="word-hidden-label">${escapeHtml(String(displayText))}</span></span>`;
         }
 
         function renderPracticeView() {
@@ -17825,6 +17865,150 @@
                 advancePracticeFocus(text);
             }
             render();
+        }
+
+        // ——— Двойной тап по скрытому слову: вписать его целиком ———
+        // Одиночный тап по-прежнему открывает слово, но не сразу, а через
+        // PRACTICE_DOUBLE_TAP_MS: иначе первый тап двойного уже показал бы ответ.
+        // Второй тап по тому же слову в этот промежуток отменяет открытие и
+        // открывает окно ввода. Окно открывается синхронно в обработчике тапа —
+        // только так iPhone показывает клавиатуру при фокусе на поле.
+        const PRACTICE_DOUBLE_TAP_MS = 280;
+        let practiceTapTimer = null;
+        let practiceTapIndex = null;
+        let practiceTapScope = '';
+        let wordGuessIndex = null;
+        let wordGuessScope = '';
+
+        function getPracticeTapScope() {
+            return state.currentFolder + ':' + state.currentText;
+        }
+
+        function flushPracticeTap() {
+            if (practiceTapTimer === null) return;
+            clearTimeout(practiceTapTimer);
+            practiceTapTimer = null;
+            const index = practiceTapIndex;
+            practiceTapIndex = null;
+            // Пока ждали второй тап, могли уйти с материала — тогда не открываем.
+            if (state.view !== 'practice' || practiceTapScope !== getPracticeTapScope()) return;
+            if (document.querySelector('.modal.show')) return;
+            revealWord(index);
+        }
+
+        function onPracticeHiddenWordTap(index) {
+            if (practiceTapTimer !== null && practiceTapIndex === index &&
+                practiceTapScope === getPracticeTapScope()) {
+                clearTimeout(practiceTapTimer);
+                practiceTapTimer = null;
+                practiceTapIndex = null;
+                showWordGuessModal(index);
+                return;
+            }
+            // Тап по другому слову, пока ждали второй тап по первому: первое
+            // открываем сразу, второе встаёт в ожидание.
+            flushPracticeTap();
+            practiceTapIndex = index;
+            practiceTapScope = getPracticeTapScope();
+            practiceTapTimer = setTimeout(flushPracticeTap, PRACTICE_DOUBLE_TAP_MS);
+        }
+
+        // Слова, которые надо вписать: одно или вся группа «вместе с предыдущим».
+        function getWordGuessTargets(text, index) {
+            const words = text.content.split(/(\s+)/);
+            const group = state.practiceMode === 'hints' ? getHiddenWordGroupByIndex(text, index) : null;
+            const indexes = group ? group.indices : [index];
+            return indexes.map(i => words[i]).filter(word => word && word.trim());
+        }
+
+        // Сравнение мягче, чем в «Вписать»: регистр, знаки препинания, кавычки,
+        // скобки и ё/е не важны; набранное в другой раскладке тоже засчитывается.
+        function normalizeGuessWord(word) {
+            return String(word || '').toLowerCase().replace(/ё/g, 'е').replace(/[^\p{L}\p{N}]/gu, '');
+        }
+
+        function guessWordMatches(typed, target) {
+            const expected = normalizeGuessWord(target);
+            if (!expected) return true;
+            const raw = String(typed || '').toLowerCase();
+            return normalizeGuessWord(raw) === expected ||
+                normalizeGuessWord(convertKeyboardLayout(raw, KEYBOARD_LAYOUT_EN, KEYBOARD_LAYOUT_RU)) === expected ||
+                normalizeGuessWord(convertKeyboardLayout(raw, KEYBOARD_LAYOUT_RU, KEYBOARD_LAYOUT_EN)) === expected;
+        }
+
+        function showWordGuessModal(index) {
+            if (state.currentFolder === null || state.currentText === null) return;
+            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+            const targets = getWordGuessTargets(text, index);
+            if (!targets.length) return;
+            wordGuessIndex = index;
+            wordGuessScope = getPracticeTapScope();
+            const chip = document.querySelector('.practice-shell .word.hidden-word[data-widx="' + index + '"]');
+            const chipText = chip ? chip.textContent.trim() : '';
+            const hintParts = [];
+            if (chipText) hintParts.push('Подсказка: ' + chipText);
+            if (targets.length > 1) hintParts.push('слов в ответе: ' + targets.length);
+            const hintText = hintParts.join(' · ');
+            document.getElementById('wordGuessHint').textContent = hintText.charAt(0).toUpperCase() + hintText.slice(1);
+            const input = document.getElementById('wordGuessInput');
+            input.value = '';
+            input.classList.remove('word-guess-wrong');
+            document.getElementById('wordGuessFeedback').textContent = '';
+            document.getElementById('wordGuessGiveUp').style.display = 'none';
+            document.getElementById('wordGuessModal').classList.add('show');
+            input.focus();
+        }
+
+        function clearWordGuessFeedback() {
+            document.getElementById('wordGuessInput').classList.remove('word-guess-wrong');
+            document.getElementById('wordGuessFeedback').textContent = '';
+        }
+
+        function closeWordGuessModal() {
+            wordGuessIndex = null;
+            closeModal('wordGuessModal');
+        }
+
+        function getWordGuessText() {
+            if (wordGuessIndex === null || wordGuessScope !== getPracticeTapScope() ||
+                state.currentFolder === null || state.currentText === null) return null;
+            return ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+        }
+
+        function checkWordGuess() {
+            const text = getWordGuessText();
+            if (!text) {
+                closeWordGuessModal();
+                return;
+            }
+            const input = document.getElementById('wordGuessInput');
+            const typedWords = input.value.trim().split(/\s+/).filter(Boolean);
+            if (!typedWords.length) {
+                input.focus();
+                return;
+            }
+            const targets = getWordGuessTargets(text, wordGuessIndex);
+            const correct = typedWords.length === targets.length &&
+                targets.every((target, i) => guessWordMatches(typedWords[i], target));
+            if (correct) {
+                const index = wordGuessIndex;
+                closeWordGuessModal();
+                revealWord(index);
+                return;
+            }
+            input.classList.add('word-guess-wrong');
+            document.getElementById('wordGuessFeedback').textContent = typedWords.length !== targets.length && targets.length > 1
+                ? 'Нужно вписать ' + targets.length + ' слова подряд'
+                : 'Неверно — попробуйте ещё раз';
+            document.getElementById('wordGuessGiveUp').style.display = '';
+            input.select();
+        }
+
+        function giveUpWordGuess() {
+            const text = getWordGuessText();
+            const index = wordGuessIndex;
+            closeWordGuessModal();
+            if (text && index !== null) revealWord(index);
         }
 
         function revealWordFully(index) {
