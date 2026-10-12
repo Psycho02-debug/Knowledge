@@ -1,4 +1,4 @@
-const CACHE = 'zapominalka-v120';
+const CACHE = 'zapominalka-v121';
 
 // Файлы приложения меняются с каждой версией — при установке их всегда проверяем на сервере.
 const APP_ASSETS = [

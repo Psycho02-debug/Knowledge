@@ -4,7 +4,7 @@
 
 Номера строк ниже приблизительные: файл правится постоянно, и они сдвигаются. Ищите по имени — `grep -n "function имя(" index.html`. Свежую карту всех функций с номерами строк даёт команда из раздела [«Как быстро сориентироваться»](#как-быстро-сориентироваться).
 
-Сверено с кодом: версия кэша `zapominalka-v120`, `index.html` — около 17 150 строк, 790 КБ.
+Сверено с кодом: версия кэша `zapominalka-v121`, `index.html` — около 17 150 строк, 790 КБ.
 
 ---
 
@@ -74,7 +74,7 @@
 | 1–12 | `<head>`: viewport без масштабирования, manifest, мета-теги для iOS, `fonts.css` |
 | 13–5893 | `<style>` — все стили, около 6 тысяч строк |
 | ≈5899 | `<div id="app"></div>` — пустой: экран целиком рисует `render()` при запуске. Раньше здесь лежал устаревший снимок экрана папок — его убрали, он лишь разбирался, начинал анимацию и тут же стирался |
-| ≈5901–6183 | Четырнадцать модальных окон статичной разметкой (список в §8) |
+| ≈5901–6183 | Тринадцать модальных окон статичной разметкой (список в §8) |
 | 6184–17136 | Основной `<script>`. Номера строк в таблице ниже сняты до последних правок и сдвинулись примерно на 150–200 строк вверх — ищите по именам |
 | 17139–17145 | Регистрация service worker по событию `load` |
 
@@ -527,9 +527,7 @@ render()
 
 Открытое окно — `.modal.show`, закрывает `closeModal(id)`. Окна статичны, лежат в `<body>` вне `#app` и при `render()` не пересоздаются:
 
-`folderModal` (папка, модуль, папка карточек, курс — одно окно на всех), `questionModal`, `learningCreateModal`, `textModal`, `bulkImportModal`, `flashcardModal`, `flashcardImportModal`, `courseLessonModal`, `courseTaskModal`, `gameSetupModal`, `transferTermsModal`, `hintModal`, `batchHintModal`, `wordGuessModal`.
-
-`wordGuessModal` — двойной тап по скрытому слову в практике. Чип скрытого слова (`renderPracticeHiddenWord`) зовёт не `revealWord`, а `onPracticeHiddenWordTap`: одиночный тап откладывается на `PRACTICE_DOUBLE_TAP_MS` (280 мс) и затем открывает слово (`flushPracticeTap`, с проверкой, что материал тот же), второй тап по тому же слову в этот промежуток отменяет открытие и вызывает `showWordGuessModal` — синхронно, чтобы iPhone показал клавиатуру. Ответ сверяет `checkWordGuess`: `getWordGuessTargets` (одно слово или группа в режиме «?»), `guessWordMatches` — без регистра, знаков, ё/е, с учётом чужой раскладки. Верно или «Показать» — `revealWord(index)`. У `.word.hidden-word` — `touch-action: manipulation` и `user-select: none`, иначе двойной тап увеличивал бы страницу или выделял текст. В «Вписать» двойного тапа нет: там своё поле ввода.
+`folderModal` (папка, модуль, папка карточек, курс — одно окно на всех), `questionModal`, `learningCreateModal`, `textModal`, `bulkImportModal`, `flashcardModal`, `flashcardImportModal`, `courseLessonModal`, `courseTaskModal`, `gameSetupModal`, `transferTermsModal`, `hintModal`, `batchHintModal`.
 
 Окно открывает функция вида `showXxxModal()`: она заполняет поля и ставит фокус через `setTimeout(…, 100)`. Сохраняет `saveXxx()`: читает поля, меняет данные, затем `saveData()`, `closeModal()` и `render()`. `closeModal` снимает фокус с поля внутри закрытого окна: иначе фокус оставался бы в скрытом `TEXTAREA`, диспетчер считал бы, что идёт ввод (шаг 5), и горячие клавиши экрана молчали бы до клика.
 
