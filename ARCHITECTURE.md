@@ -4,7 +4,7 @@
 
 Номера строк ниже приблизительные: файл правится постоянно, и они сдвигаются. Ищите по имени — `grep -n "function имя(" index.html`. Свежую карту всех функций с номерами строк даёт команда из раздела [«Как быстро сориентироваться»](#как-быстро-сориентироваться).
 
-Сверено с кодом: версия кэша `zapominalka-v119`, `index.html` — около 17 150 строк, 790 КБ.
+Сверено с кодом: версия кэша `zapominalka-v120`, `index.html` — около 17 150 строк, 790 КБ.
 
 ---
 
@@ -527,7 +527,9 @@ render()
 
 Открытое окно — `.modal.show`, закрывает `closeModal(id)`. Окна статичны, лежат в `<body>` вне `#app` и при `render()` не пересоздаются:
 
-`folderModal` (папка, модуль, папка карточек, курс — одно окно на всех), `questionModal`, `learningCreateModal`, `textModal`, `bulkImportModal`, `flashcardModal`, `flashcardImportModal`, `courseLessonModal`, `courseTaskModal`, `gameSetupModal`, `transferTermsModal`, `hintModal`, `batchHintModal`.
+`folderModal` (папка, модуль, папка карточек, курс — одно окно на всех), `questionModal`, `learningCreateModal`, `textModal`, `bulkImportModal`, `flashcardModal`, `flashcardImportModal`, `courseLessonModal`, `courseTaskModal`, `gameSetupModal`, `transferTermsModal`, `hintModal`, `batchHintModal`, `wordGuessModal`.
+
+`wordGuessModal` — двойной тап по скрытому слову в практике. Чип скрытого слова (`renderPracticeHiddenWord`) зовёт не `revealWord`, а `onPracticeHiddenWordTap`: одиночный тап откладывается на `PRACTICE_DOUBLE_TAP_MS` (280 мс) и затем открывает слово (`flushPracticeTap`, с проверкой, что материал тот же), второй тап по тому же слову в этот промежуток отменяет открытие и вызывает `showWordGuessModal` — синхронно, чтобы iPhone показал клавиатуру. Ответ сверяет `checkWordGuess`: `getWordGuessTargets` (одно слово или группа в режиме «?»), `guessWordMatches` — без регистра, знаков, ё/е, с учётом чужой раскладки. Верно или «Показать» — `revealWord(index)`. У `.word.hidden-word` — `touch-action: manipulation` и `user-select: none`, иначе двойной тап увеличивал бы страницу или выделял текст. В «Вписать» двойного тапа нет: там своё поле ввода.
 
 Окно открывает функция вида `showXxxModal()`: она заполняет поля и ставит фокус через `setTimeout(…, 100)`. Сохраняет `saveXxx()`: читает поля, меняет данные, затем `saveData()`, `closeModal()` и `render()`. `closeModal` снимает фокус с поля внутри закрытого окна: иначе фокус оставался бы в скрытом `TEXTAREA`, диспетчер считал бы, что идёт ввод (шаг 5), и горячие клавиши экрана молчали бы до клика.
 
