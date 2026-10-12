@@ -12200,7 +12200,12 @@
         // держать в голове, где ты, пока фокус прыгал через половину фразы.
         //
         // Пропускаются только знаки препинания, номера пунктов и разделители «/»:
-        // это не слова, на них нечего читать и нечего вспоминать. В режиме
+        // это не слова, на них нечего читать и нечего вспоминать. Скрытое слово
+        // не пропускается никогда, каким бы оно ни было: раз его скрыли, его
+        // вспоминают. Номер пункта — только число в начале строки («1.», «2)»);
+        // число внутри фразы («24 ГБ», «RTX 4090») — обычное слово. Раньше любое
+        // число считалось номером пункта, и фокус перепрыгивал скрытые числа —
+        // чаще всего как раз те, что отмечены сложными. В режиме
         // вопросов объединённая группа рисуется одним чипом, поэтому фокус встаёт
         // только на её первое слово — остальных членов группы на экране
         // отдельно нет. Подавление здесь то же, что при отрисовке.
@@ -12226,14 +12231,28 @@
                     for (let idx = group.leader + 1; idx <= lastIndex; idx++) suppressed.add(idx);
                 });
             }
+            const hidden = new Set(text.hiddenWords || []);
             const targets = [];
             for (let i = 0; i < words.length; i++) {
                 const token = words[i];
                 if (!token || !token.trim() || suppressed.has(i)) continue;
-                if (isPunctuationToken(token) || isNumericListMarkerToken(token) || isSlashSeparatorToken(token)) continue;
+                if (!hidden.has(i) &&
+                    (isPunctuationToken(token) || isSlashSeparatorToken(token) || isLineStartListMarker(words, i))) continue;
                 targets.push(i);
             }
             return targets;
+        }
+
+        // Номер пункта: число вида «1», «1.», «1)» первым токеном строки. Перед ним
+        // в split(/(\s+)/) стоит либо начало текста,
+        // либо пробельный токен с переводом строки.
+        function isLineStartListMarker(words, index) {
+            if (!isNumericListMarkerToken(words[index])) return false;
+            if (index === 0) return true;
+            const before = words[index - 1];
+            if (before.includes('\n')) return true;
+            // Текст начинается с пробела: ['', ' ', '1.', …] — номер всё равно первый.
+            return index === 2 && words[0] === '';
         }
 
         // Шаг фокуса — не всегда одно слово. Скрытое слово стоит под фокусом само,
