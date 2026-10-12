@@ -5024,6 +5024,45 @@
             color: var(--text-primary);
         }
 
+        /* Режим «Номера»: карточка не кнопка — текст открывают кнопки под ней. */
+        .numbers-card {
+            cursor: default;
+            justify-content: flex-start;
+        }
+
+        .numbers-card .linecards-row {
+            min-height: 1.6em;
+        }
+
+        .numbers-progress {
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-tertiary);
+        }
+
+        .numbers-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+        }
+
+        .numbers-main-btn {
+            min-width: 190px;
+        }
+
+        .numbers-secondary {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+        }
+
+        .numbers-secondary .module-action-btn[disabled] {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
         .flashcard-complete-title {
             font-family: 'Space Grotesk', 'Inter', sans-serif;
             font-size: 2rem;
@@ -8839,6 +8878,7 @@
                     <button class="mode-btn" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
                     <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
                     <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
+                    <button class="mode-btn" onclick="setMode('numbers')"><span class="mode-icon">🔢</span>Номера</button>
                     <button class="mode-btn" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
                     <button class="mode-btn" onclick="setMode('termcard')"><span class="mode-icon">🃏</span>Карточка</button>
                     <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
@@ -9509,6 +9549,10 @@
 
             if (mode === 'linecards') {
                 state.lineCardFlipped = false;
+            }
+
+            if (mode === 'numbers') {
+                resetNumbersReveal();
             }
 
             if (mode === 'questions') {
@@ -12039,6 +12083,9 @@
                         <div class="chooser-card" onclick="openTermInMode(state.currentText, 'type')">
                             <div class="chooser-card-title">Вписать слово</div>
                         </div>
+                        <div class="chooser-card" onclick="openTermInMode(state.currentText, 'numbers')">
+                            <div class="chooser-card-title">Только номера строк</div>
+                        </div>
                     </div>
                     
                     <div class="chooser-section-label">Проверка</div>
@@ -12420,6 +12467,10 @@
                 return renderLineCardsView(text);
             }
 
+            if (state.mode === 'numbers') {
+                return renderNumbersView(text);
+            }
+
             if (state.mode === 'questions') {
                 return renderQuestionsView(text);
             }
@@ -12759,6 +12810,9 @@
                         <button class="mode-btn" onclick="setMode('linecards')">
                             <span class="mode-icon">🗂</span>Строки
                         </button>
+                        <button class="mode-btn" onclick="setMode('numbers')">
+                            <span class="mode-icon">🔢</span>Номера
+                        </button>
                         <button class="mode-btn" onclick="setMode('termcard')">
                             <span class="mode-icon">🃏</span>Карточка
                         </button>
@@ -12834,6 +12888,7 @@
                     <button class="mode-btn" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
                     <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
                     <button class="mode-btn active" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
+                    <button class="mode-btn" onclick="setMode('numbers')"><span class="mode-icon">🔢</span>Номера</button>
                     <button class="mode-btn" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
                     <button class="mode-btn" onclick="setMode('termcard')"><span class="mode-icon">🃏</span>Карточка</button>
                     <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
@@ -12891,6 +12946,170 @@
                     </div>
                     <div class="text-display-row">
                         ${getTermNavInline()}
+                    </div>
+                </div>
+            `;
+        }
+
+        // ——— Режим «Номера»: видны только номера строк ———
+        // Каждая строка материала — свой пункт. Слева номер: свой маркер строки,
+        // если он есть («1.», «2)», «—»), иначе порядковый «N.». Текста не видно
+        // вовсе. Открывается он строго по порядку, от первого слова к последнему:
+        // «Подсказка» — ещё одно слово, «Показать строку» — всё до конца текущей
+        // строки. Сколько слов открыто — одно число; оно сбрасывается при смене
+        // материала или режима (ключ — какой материал открыт).
+        const NUMBERS_MARKER_RE = /^((?:\d+|[A-Za-zА-Яа-яЁё])[.)]|[-–—•*])\s+/;
+        let numbersRevealKey = '';
+        let numbersRevealCount = 0;
+
+        function getNumbersRevealKey(text) {
+            return [state.currentFolder, state.currentSubfolder, state.currentText, String(text.content || '').length].join('|');
+        }
+
+        function getNumbersRevealCount(text) {
+            const key = getNumbersRevealKey(text);
+            if (key !== numbersRevealKey) {
+                numbersRevealKey = key;
+                numbersRevealCount = 0;
+            }
+            return numbersRevealCount;
+        }
+
+        function resetNumbersReveal() {
+            numbersRevealKey = '';
+            numbersRevealCount = 0;
+        }
+
+        // Строки с номером и словами. Текст хранится с пробелами вокруг знаков
+        // препинания, поэтому знак приклеиваем к предыдущему слову: подсказка
+        // открывает слово, а не отдельную запятую.
+        function buildNumbersLines(text) {
+            return getTextManualLines(formatContentForReading(text.content)).map((line, index) => {
+                const markerMatch = line.match(NUMBERS_MARKER_RE);
+                const marker = markerMatch ? markerMatch[1] : (index + 1) + '.';
+                const body = markerMatch ? line.slice(markerMatch[0].length) : line;
+                const words = [];
+                body.split(/\s+/).filter(Boolean).forEach(token => {
+                    if (words.length && isPunctuationToken(token) && !/[(«„“‘\[{]$/.test(token)) {
+                        words[words.length - 1] += token;
+                    } else {
+                        words.push(token);
+                    }
+                });
+                return { marker, words };
+            });
+        }
+
+        function getNumbersTotalWords(lines) {
+            return lines.reduce((sum, line) => sum + line.words.length, 0);
+        }
+
+        function getCurrentNumbersText() {
+            if (state.currentFolder === null || state.currentText === null) return null;
+            return ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+        }
+
+        function numbersHint() {
+            const text = getCurrentNumbersText();
+            if (!text) return;
+            const total = getNumbersTotalWords(buildNumbersLines(text));
+            const count = getNumbersRevealCount(text);
+            if (count >= total) return;
+            numbersRevealCount = count + 1;
+            render();
+        }
+
+        // Открывает строку, в которой стоит следующее закрытое слово, до конца.
+        // Когда открыто всё, та же кнопка прячет текст обратно.
+        function numbersShowLine() {
+            const text = getCurrentNumbersText();
+            if (!text) return;
+            const lines = buildNumbersLines(text);
+            const total = getNumbersTotalWords(lines);
+            const count = getNumbersRevealCount(text);
+            if (count >= total) {
+                numbersRevealCount = 0;
+                render();
+                return;
+            }
+            let end = 0;
+            for (const line of lines) {
+                end += line.words.length;
+                if (end > count) break;
+            }
+            numbersRevealCount = end;
+            render();
+        }
+
+        function renderNumbersView(text) {
+            const lines = buildNumbersLines(text);
+            const total = getNumbersTotalWords(lines);
+            const count = Math.min(getNumbersRevealCount(text), total);
+            const allShown = total > 0 && count >= total;
+            const nav = getStudyNavigationMeta();
+
+            const modeButtons = `
+                <div class="mode-toggle">
+                    <button class="mode-btn" onclick="setMode('edit')"><span class="mode-icon">✎</span>Выбор</button>
+                    <button class="mode-btn" onclick="setMode('practice')"><span class="mode-icon">👁</span>Практика</button>
+                    <button class="mode-btn" onclick="setMode('type')"><span class="mode-icon">⌨</span>Вписать</button>
+                    <button class="mode-btn" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
+                    <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
+                    <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
+                    <button class="mode-btn active" onclick="setMode('numbers')"><span class="mode-icon">🔢</span>Номера</button>
+                    <button class="mode-btn" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
+                    <button class="mode-btn" onclick="setMode('termcard')"><span class="mode-icon">🃏</span>Карточка</button>
+                    <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
+                </div>
+            `;
+
+            if (!total) {
+                return `
+                    ${getTermNavHeader(text)}
+                    <div class="container">
+                        ${modeButtons}
+                        <div class="quiz-area">
+                            <div class="quiz-message">
+                                <div class="quiz-message-icon">🔢</div>
+                                <p>В материале пока нет текста.</p>
+                                <button class="quiz-message-btn" onclick="showEditTextModal()">Редактировать материал</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            let shownBefore = 0;
+            const rows = lines.map(line => {
+                const visible = Math.max(0, Math.min(line.words.length, count - shownBefore));
+                shownBefore += line.words.length;
+                const shownText = line.words.slice(0, visible).join(' ');
+                return `
+                    <div class="linecards-row">
+                        <span class="linecards-num">${escapeHtml(line.marker)}</span>
+                        <span class="linecards-line">${escapeHtml(shownText)}</span>
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                ${getTermNavHeader(text)}
+                <div class="container">
+                    ${modeButtons}
+                    <div class="flashcard-study-layout">
+                        <div class="flashcard-study-card linecards-card numbers-card">
+                            <div class="linecards-list">${rows}</div>
+                        </div>
+                        <div class="numbers-progress">${allShown ? 'Весь текст открыт' : 'Открыто слов: ' + count + ' из ' + total}</div>
+                        <div class="numbers-controls">
+                            <button class="term-nav-btn-inline" onclick="navigateToTerm(-1)" ${!nav.hasPrev ? 'disabled' : ''} aria-label="Предыдущий материал">‹</button>
+                            <button class="profile-link-btn numbers-main-btn" onclick="numbersShowLine()">${allShown ? '↺ Скрыть всё' : 'Показать строку'}</button>
+                            <button class="term-nav-btn-inline" onclick="navigateToTerm(1)" ${!nav.hasNext ? 'disabled' : ''} aria-label="Следующий материал">›</button>
+                        </div>
+                        <div class="numbers-secondary">
+                            <button class="module-action-btn secondary" onclick="numbersHint()" ${allShown ? 'disabled' : ''}>Подсказка</button>
+                            <span class="term-counter-inline">${nav.current + 1}/${nav.total}</span>
+                        </div>
                     </div>
                 </div>
             `;
@@ -13019,6 +13238,7 @@
                     <button class="mode-btn" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
                     <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
                     <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
+                    <button class="mode-btn" onclick="setMode('numbers')"><span class="mode-icon">🔢</span>Номера</button>
                     <button class="mode-btn" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
                     <button class="mode-btn active" onclick="setMode('termcard')"><span class="mode-icon">🃏</span>Карточка</button>
                     <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
@@ -13178,6 +13398,7 @@
                     <button class="mode-btn" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
                     <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
                     <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
+                    <button class="mode-btn" onclick="setMode('numbers')"><span class="mode-icon">🔢</span>Номера</button>
                     <button class="mode-btn active" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
                     <button class="mode-btn" onclick="setMode('termcard')"><span class="mode-icon">🃏</span>Карточка</button>
                     <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
@@ -13263,6 +13484,7 @@
                             <button class="mode-btn active" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
                             <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
                             <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
+                            <button class="mode-btn" onclick="setMode('numbers')"><span class="mode-icon">🔢</span>Номера</button>
                             <button class="mode-btn" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
                             <button class="mode-btn" onclick="setMode('termcard')"><span class="mode-icon">🃏</span>Карточка</button>
                             <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
@@ -13290,6 +13512,7 @@
                         <button class="mode-btn active" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
                         <button class="mode-btn" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
                         <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
+                        <button class="mode-btn" onclick="setMode('numbers')"><span class="mode-icon">🔢</span>Номера</button>
                         <button class="mode-btn" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
                         <button class="mode-btn" onclick="setMode('termcard')"><span class="mode-icon">🃏</span>Карточка</button>
                         <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
@@ -13352,6 +13575,7 @@
                     <button class="mode-btn" onclick="setMode('game')"><span class="mode-icon">🧩</span>Игра</button>
                     <button class="mode-btn active" onclick="setMode('quiz')"><span class="mode-icon">✓</span>Тест</button>
                     <button class="mode-btn" onclick="setMode('linecards')"><span class="mode-icon">🗂</span>Строки</button>
+                    <button class="mode-btn" onclick="setMode('numbers')"><span class="mode-icon">🔢</span>Номера</button>
                     <button class="mode-btn" onclick="setMode('questions')"><span class="mode-icon">❓</span>Вопросы</button>
                     <button class="mode-btn" onclick="setMode('termcard')"><span class="mode-icon">🃏</span>Карточка</button>
                     <button class="mode-btn" onclick="setMode('example')"><span class="mode-icon">💡</span>Пример</button>
@@ -15211,6 +15435,7 @@
             if (mode === 'quiz') initQuiz();
             if (mode === 'type') initTypeMode();
             if (mode === 'linecards') state.lineCardFlipped = false;
+            if (mode === 'numbers') resetNumbersReveal();
             if (mode === 'questions') state.questionsCardFlipped = false;
             render();
             if (mode === 'type') focusTypeInputField();

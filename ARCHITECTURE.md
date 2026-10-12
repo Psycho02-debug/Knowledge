@@ -4,7 +4,7 @@
 
 Номера строк ниже приблизительные: файл правится постоянно, и они сдвигаются. Ищите по имени — `grep -n "function имя(" index.html`. Свежую карту всех функций с номерами строк даёт команда из раздела [«Как быстро сориентироваться»](#как-быстро-сориентироваться).
 
-Сверено с кодом: версия кэша `zapominalka-v121`, `index.html` — около 17 150 строк, 790 КБ.
+Сверено с кодом: версия кэша `zapominalka-v122`, `index.html` — около 17 150 строк, 790 КБ.
 
 ---
 
@@ -152,7 +152,7 @@
 | Поле | Значения и смысл |
 |---|---|
 | `view` | Открытый экран — список в §6 |
-| `mode` | Режим внутри материала: `edit`, `practice`, `type`, `game`, `quiz`, `linecards`, `questions`, `termcard`, `example`; `null` — на экране выбора режима (`term_chooser`) |
+| `mode` | Режим внутри материала: `edit`, `practice`, `type`, `game`, `quiz`, `linecards`, `numbers`, `questions`, `termcard`, `example`; `null` — на экране выбора режима (`term_chooser`) |
 | `practiceMode` | Вид скрытых слов в режиме `practice`: `default` — пустая плашка, `firstletter` — первая буква, `hints` — свой вопрос. Устаревшее `combined` молча превращается в `default` |
 | `typeDisplayMode` | То же для «Вписать»: `default`, `letters`, `hints` |
 | `learningBranch` | `texts`, `cards`, `courses` или `null` |
@@ -409,6 +409,7 @@ loadData():
 | `game` | «Собери текст по словам» (на панели — «Игра») | `renderGameView` | `initGame` |
 | `quiz` | «Тест»: выбрать верное определение среди других материалов | `renderQuizView` | `initQuiz` |
 | `linecards` | «Строки»: первые буквы или слова каждой строки | `renderLineCardsView` | `lineCardFlipped = false` |
+| `numbers` | «Номера»: только номера строк, текст открывается по порядку | `renderNumbersView` | `resetNumbersReveal()` |
 | `questions` | «Вопросы к термину» | `renderQuestionsView` | `questionsCardFlipped = false` |
 | `termcard` | «Карточка»: название ↔ весь текст | `renderTermCardView` | `termCardFlipped = false` |
 | `example` | «Пример» | `renderExampleView` | — |
@@ -585,6 +586,7 @@ Enter / «Проверить» → checkTypeWord()
 - `game` — `initGame()` перемешивает слова в `gameState.scrambledWords`; `selectWord`, `removeFromResult`, `restartGame`.
 - `quiz` — `initQuiz()` берёт описания до трёх других материалов той же папки как неверные варианты (нужно минимум два материала); `selectQuizOption`, `restartQuiz`.
 - `linecards` — `buildLineCards()` по строкам (`getTextManualLines`), подсказка — первая буква или первое слово (`lineCardCueMode`).
+- `numbers` — `buildNumbersLines()`: строки из `getTextManualLines(formatContentForReading(content))`, маркер строки (`NUMBERS_MARKER_RE`: «1.», «2)», «а)», «—», «•») или порядковый «N.», слова строки с приклеенными к ним знаками препинания. Состояние — одно число открытых слов `numbersRevealCount` вне `state`, привязанное к материалу ключом `numbersRevealKey` (папка, подпапка, индекс, длина текста): сменился материал — счёт с нуля. `numbersHint` — +1 слово, `numbersShowLine` — до конца строки со следующим закрытым словом, при всём открытом — сброс. Стрелки на экране — `navigateToTerm(±1)`. Кнопка «Номера» стоит во всех панелях режимов рядом со «Строками»; у самой практики панели нет.
 - `termcard` — `renderTermCardView`: лицевая сторона — `title`, оборотная — `formatContentForReading(content)`, где знаки снова прилеплены к словам. Хранит только размер текста — `text.cardTextScale` (переменная `--card-text-scale` на карточке; ползунок меняет её прямо в DOM без перерисовки, сохраняет `onchange`). При `state.termCardFullscreen` вместо обычной разметки рисуется слой `.termcard-fullscreen` (fixed, z-index 150, между шапками и окнами); `enterTermCardFullscreen` на компьютере и iPad ещё и вызывает `requestFullscreen`.
 - `questions` — `text.questions`, окно `questionModal`.
 - `example` — `text.example`.
