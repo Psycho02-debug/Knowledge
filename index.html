@@ -4781,6 +4781,34 @@
             flex-wrap: wrap;
         }
 
+        /* «↺ Начать заново» под подзаголовком шапки — тот же облик, что у кнопок
+           «☆ Сложная» и «✎ Изменить», но с акцентом при наведении. */
+        .flashcard-restart-btn {
+            margin-top: 12px;
+            background: none;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            padding: 8px 14px;
+            border-radius: 20px;
+            white-space: nowrap;
+            transition: border-color 0.2s, color 0.2s, opacity 0.2s;
+        }
+
+        .flashcard-restart-btn:hover:not([disabled]),
+        .flashcard-restart-btn:active:not([disabled]) {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+        }
+
+        .flashcard-restart-btn[disabled] {
+            opacity: 0.4;
+            cursor: default;
+        }
+
         .flashcard-study-progress {
             color: var(--accent-primary);
             font-size: 0.96rem;
@@ -11273,6 +11301,9 @@
                     <div>
                         <div class="app-page-title">${escapeHtml(folder.name)}</div>
                         <div class="app-page-subtitle">${escapeHtml(meta.subtitle)}${study.onlyHard ? ' Только сложные карточки.' : ''}</div>
+                        ${study.mode === 'flashcards' && !study.completed ? `
+                            <button class="flashcard-restart-btn" onclick="restartFlashcardFromStart()" ${study.current === 0 ? 'disabled' : ''} title="Вернуться к первой карточке (R)">↺ Начать заново</button>
+                        ` : ''}
                     </div>
                     <button class="icon-ghost-btn" onclick="goBackToFlashcardFolder()" aria-label="Назад">←</button>
                 </div>
@@ -15156,6 +15187,23 @@
             render();
         }
 
+        // «↺ Начать заново» в шапке режима «Карточки»: тот же проход (порядок, «только
+        // сложные», перемешивание) с первой карточки. Сохранённое место тоже
+        // переезжает на первую. Спрашиваем, потому что промах пальцем стёр бы
+        // позицию вроде 120 из 279.
+        function restartFlashcardFromStart() {
+            if (state.view !== 'card_study') return;
+            const study = state.flashcardStudyState;
+            if (!study || study.mode !== 'flashcards' || study.completed || study.current === 0) return;
+            if (!confirm('Начать заново с первой карточки?')) return;
+            study.current = 0;
+            study.flipped = false;
+            study.currentCardIndex = study.order[0] ?? null;
+            rememberFlashcardStudyPosition();
+            render();
+            window.scrollTo(0, 0);
+        }
+
         function isResumableFlashcardStudy(study) {
             return study.mode === 'flashcards' && !study.shuffle && !study.onlyHard;
         }
@@ -18565,6 +18613,13 @@
                 if ((e.key === 's' || e.key === 'S' || e.key === 'ы' || e.key === 'Ы') && !e.repeat) {
                     e.preventDefault();
                     toggleCurrentFlashcardAttention();
+                    return;
+                }
+                // R — «↺ Начать заново» (с подтверждением). «к» — та же клавиша
+                // в русской раскладке.
+                if ((e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') && !e.repeat) {
+                    e.preventDefault();
+                    restartFlashcardFromStart();
                     return;
                 }
                 // E — править открытую карточку: то же окно, что карандаш в списке
