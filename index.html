@@ -3234,108 +3234,6 @@
             padding-left: 4px;
         }
 
-        .semantic-keys-display {
-            font-size: 0.95rem;
-            line-height: 1.7;
-            color: var(--text-primary);
-            white-space: pre-wrap;
-        }
-
-        .semantic-key-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 26px;
-            height: 26px;
-            padding: 0 8px;
-            background: var(--accent-strong);
-            color: var(--accent-on-strong);
-            border-radius: 13px;
-            font-size: 13px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: background 0.2s, transform 0.15s;
-            vertical-align: middle;
-        }
-
-        .semantic-key-badge:active {
-            transform: scale(0.93);
-        }
-
-        .semantic-key-badge.revealed {
-            background: transparent;
-            color: var(--accent-primary);
-            font-weight: 600;
-            font-size: 0.95rem;
-            padding: 0;
-            min-width: auto;
-            height: auto;
-            border-radius: 0;
-            text-decoration: underline;
-            text-decoration-color: rgba(181, 204, 113, 0.3);
-            text-underline-offset: 2px;
-        }
-
-        .semantic-key-edit-text {
-            font-size: 0.95rem;
-            line-height: 1.7;
-            color: var(--text-primary);
-            white-space: pre-wrap;
-            user-select: text;
-            -webkit-user-select: text;
-        }
-
-        .semantic-key-edit-text ::selection {
-            background: rgba(181, 204, 113, 0.26);
-        }
-
-        .semantic-key-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px 14px;
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 14px;
-            margin-bottom: 8px;
-            transition: background 0.2s;
-        }
-
-        .semantic-key-item-num {
-            min-width: 26px;
-            height: 26px;
-            background: var(--accent-strong);
-            color: var(--accent-on-strong);
-            border-radius: 13px;
-            font-size: 13px;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        .semantic-key-item-text {
-            flex: 1;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            line-height: 1.4;
-        }
-
-        .semantic-key-item-delete {
-            background: none;
-            border: none;
-            color: var(--text-tertiary);
-            cursor: pointer;
-            padding: 4px;
-            font-size: 18px;
-            transition: color 0.2s;
-        }
-
-        .semantic-key-item-delete:hover {
-            color: #ef4444;
-        }
-
         .chooser-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -4677,6 +4575,16 @@
             border-radius: 26px;
             padding: 14px;
             box-shadow: var(--shadow-card);
+            /* Строки за пределами экрана браузер не раскладывает и не рисует, пока
+               до них не докрутят. В папке на 1000 карточек это сократило
+               пересборку списка (поиск, порядок W, смена сторон) со 150 до 40 мс:
+               почти всё время уходило на раскладку невидимых строк. «auto» в
+               размере запоминает настоящую высоту строки после первого показа,
+               так что полоса прокрутки не прыгает. Старые браузеры свойство
+               просто пропускают. Запасная высота — обычная высота строки без
+               картинки; у строк с картинкой на телефоне своя (ниже, в @media). */
+            content-visibility: auto;
+            contain-intrinsic-size: auto 184px;
         }
 
         .flashcard-row-media {
@@ -5902,6 +5810,9 @@
             }
             .flashcard-row {
                 flex-direction: column;
+            }
+            .flashcard-row:not(.no-media) {
+                contain-intrinsic-size: auto 352px;
             }
             .flashcard-row-media {
                 width: 100%;
@@ -8060,7 +7971,6 @@
             pendingWords: [],
             pendingHintGroups: [],
             editingFlashcardIndex: null,
-            revealedKeys: [],
             batchHintIndex: 0,
             batchHintUnits: [],
             batchSkippedWords: [],
@@ -8313,10 +8223,6 @@
                     flushSaveData();
                 });
             }, DEFERRED_STORAGE_DELAY);
-        }
-
-        async function syncToServer() {
-            return;
         }
 
         document.addEventListener('visibilitychange', function() {
@@ -8737,6 +8643,16 @@
                     continue;
                 }
 
+                // Строка списка карточек: сравниваем её целиком встроенным
+                // isEqualNode — одно обращение к движку вместо обхода десятка узлов
+                // на JS. Папка на 1000 карточек: 50 мс → 20 мс на обновление экрана.
+                // Только для строк карточек: в них нет полей ввода, а у полей
+                // значение живёт в свойстве, которое isEqualNode не видит, и его
+                // синхронизацию ниже пропускать нельзя.
+                if (oldNode.hasAttribute('data-card-index') && oldNode.isEqualNode(newNode)) {
+                    continue;
+                }
+
                 syncElementAttributes(oldNode, newNode);
                 patchChildNodes(oldNode, newNode);
             }
@@ -8766,6 +8682,13 @@
                 // Любая неожиданность — возвращаемся к заведомо рабочему пути.
                 container.innerHTML = html;
             }
+        }
+
+        let rebuildNextRender = false;
+
+        function renderRebuilt() {
+            rebuildNextRender = true;
+            render();
         }
 
         function render() {
@@ -8806,7 +8729,14 @@
             // перетаскивания на конкретные узлы. Точечное обновление сохраняет узлы
             // живыми, и обработчики навесились бы на них повторно, поэтому этот
             // экран собираем по-старому. Остальные экраны — чистая разметка.
-            const canPatchDom = isSameScreenUpdate && state.view !== 'texts';
+            // Точечное обновление выгодно, когда меняется немногое. Если меняется
+            // почти каждая строка длинного списка (порядок W, смена сторон у всех
+            // карточек), сверка узел за узлом медленнее, чем собрать список заново:
+            // 1000 карточек — 136 мс против 40. Такие действия просят пересборку
+            // через renderRebuilt(); позиция прокрутки и отсечка анимаций при этом
+            // остаются как у обычного обновления экрана.
+            const canPatchDom = isSameScreenUpdate && state.view !== 'texts' && !rebuildNextRender;
+            rebuildNextRender = false;
 
             if (state.view === 'home') {
                 setAppHtml(app, renderHomeView(), canPatchDom);
@@ -9937,10 +9867,6 @@
             ];
         }
 
-        function renderLandingView() {
-            return renderHomeView();
-        }
-
         function renderHomeView() {
             const stats = buildStatsSummary();
             const allMaterials = getAllMaterialEntries();
@@ -10304,11 +10230,12 @@
             if (!indexes.length) {
                 return '<div class="folder-empty-card">Ничего не найдено. Поиск идёт по лицевой и оборотной сторонам.</div>';
             }
+            const selected = state.cardSelectionMode ? new Set(state.selectedCardIndexes) : null;
             return compactMarkup(indexes.map(index => {
                 const card = folder.cards[index];
-                const isSelected = state.cardSelectionMode && state.selectedCardIndexes.includes(index);
+                const isSelected = selected !== null && selected.has(index);
                 return `
-                <div class="flashcard-row ${card.image ? '' : 'no-media'}${state.cardSelectionMode ? ' is-selectable' : ''}${isSelected ? ' selected' : ''}" ${state.cardSelectionMode ? `onclick="toggleFlashcardSelection(${index})"` : ''}>
+                <div class="${['flashcard-row', card.image ? '' : 'no-media', state.cardSelectionMode ? 'is-selectable' : '', isSelected ? 'selected' : ''].filter(Boolean).join(' ')}" data-card-index="${index}" ${state.cardSelectionMode ? `onclick="toggleFlashcardSelection(${index})"` : ''}>
                     ${card.image ? `
                         <div class="flashcard-row-media">
                             <img src="${card.image}" loading="lazy" decoding="async" alt="">
@@ -10373,7 +10300,9 @@
 
         function areAllVisibleFlashcardsSelected(folder) {
             const visible = getVisibleFlashcardIndexes(folder);
-            return visible.length > 0 && visible.every(index => state.selectedCardIndexes.includes(index));
+            if (!visible.length || state.selectedCardIndexes.length < visible.length) return false;
+            const selected = new Set(state.selectedCardIndexes);
+            return visible.every(index => selected.has(index));
         }
 
         function renderFlashcardFolderView() {
@@ -11535,7 +11464,7 @@
                     </div>
                     <div class="flashcard-list flashcard-browse-list">
                         ${folder.cards.map((card, index) => `
-                            <div class="flashcard-row ${card.image ? '' : 'no-media'} ${card.attention ? 'attention' : ''}">
+                            <div class="flashcard-row ${card.image ? '' : 'no-media'} ${card.attention ? 'attention' : ''}" data-card-index="${index}">
                                 ${card.image ? `
                                     <div class="flashcard-row-media">
                                         <img src="${card.image}" loading="lazy" decoding="async" alt="">
@@ -11706,10 +11635,6 @@
             `, 'stats', 'compact-shell');
         }
         
-        async function loadStats() {
-            if (state.view === 'stats') render();
-        }
-
         async function shareFolder(folderIndex) {
             try {
                 const folder = state.folders[folderIndex];
@@ -12480,10 +12405,6 @@
             if (index === null) return;
             if (toggleHardWord(index)) e.preventDefault();
         });
-
-        function isHardWord(text, index) {
-            return !!(text.hardWords && text.hardWords.includes(index));
-        }
 
         function renderPracticeHiddenWord(displayText, extraClassName, wordIndex, isPracticeFocusWord, isHard) {
             const className = ['word', 'hidden-word', extraClassName,
@@ -13726,20 +13647,6 @@
             render();
         }
         
-        function nextQuizQuestion() {
-            const qs = state.quizState;
-            
-            if (qs.currentIndex < qs.questions.length - 1) {
-                qs.currentIndex++;
-                qs.answered = false;
-                qs.selectedOption = null;
-            } else {
-                qs.completed = true;
-            }
-            
-            render();
-        }
-        
         function restartQuiz() {
             quizFocusedOption = 0;
             initQuiz();
@@ -14545,12 +14452,76 @@
                 const notice = document.querySelector('.flashcard-sides-notice');
                 if (notice) notice.remove();
             }, 2600);
-            render();
+            // Порядок карточек тот же, поэтому держим на месте ту строку, что была
+            // вверху экрана: после пересборки строки за экраном получают запасную
+            // высоту (content-visibility), и одна только прокрутка по числу могла
+            // сдвинуть список на строку.
+            const anchor = getFlashcardListAnchor();
+            renderRebuilt();
+            restoreFlashcardListAnchor(anchor);
+        }
+
+        // Первая строка списка карточек, видимая сверху экрана, и её отступ от
+        // верха. Поиск двоичный: строк бывает тысяча, а они идут сверху вниз.
+        function getFlashcardListAnchor() {
+            if (window.scrollY === 0) return null;
+            const rows = document.querySelectorAll('.flashcard-list .flashcard-row[data-card-index]');
+            let lo = 0;
+            let hi = rows.length - 1;
+            let found = -1;
+            while (lo <= hi) {
+                const mid = (lo + hi) >> 1;
+                if (rows[mid].getBoundingClientRect().bottom > 0) {
+                    found = mid;
+                    hi = mid - 1;
+                } else {
+                    lo = mid + 1;
+                }
+            }
+            if (found === -1) return null;
+            return { index: rows[found].dataset.cardIndex, top: rows[found].getBoundingClientRect().top };
+        }
+
+        function restoreFlashcardListAnchor(anchor) {
+            if (!anchor) return;
+            const row = document.querySelector('.flashcard-list .flashcard-row[data-card-index="' + anchor.index + '"]');
+            if (!row) return;
+            const delta = row.getBoundingClientRect().top - anchor.top;
+            if (Math.abs(delta) >= 1) window.scrollBy(0, delta);
         }
 
         function toggleFlashcardSort() {
             cardSortReversed = !cardSortReversed;
-            render();
+            renderRebuilt();
+        }
+
+        // Выбор карточек меняет у строк только класс и галочку, а у панели выбора —
+        // две подписи. Перерисовывать ради этого весь список (1000 строк — 40 мс на
+        // каждое касание) незачем: правим эти узлы напрямую. Если нужных узлов
+        // почему-то нет — обычная перерисовка. Следующая перерисовка сверит DOM
+        // с разметкой как обычно, так что расхождения не накапливаются. Класс
+        // строки собирается без двойных пробелов и с «selected» в конце — ровно
+        // так, как его оставляет classList, — чтобы та перерисовка ничего не
+        // переписывала зря.
+        function syncFlashcardSelectionDom() {
+            const folder = getCurrentFlashcardFolder();
+            const list = document.querySelector('.flashcard-list');
+            const copyBtn = document.querySelector('.selection-bar .selection-copy-btn');
+            const allBtn = document.querySelector('.selection-bar .selection-plain-btn');
+            if (!folder || !list || !copyBtn || !allBtn) return false;
+            const selected = new Set(state.selectedCardIndexes);
+            list.querySelectorAll('.flashcard-row[data-card-index]').forEach(row => {
+                const isSelected = selected.has(Number(row.dataset.cardIndex));
+                if (row.classList.contains('selected') === isSelected) return;
+                row.classList.toggle('selected', isSelected);
+                const mark = row.querySelector('.term-select-mark');
+                if (mark) mark.textContent = isSelected ? '✓' : '';
+            });
+            const count = state.selectedCardIndexes.length;
+            copyBtn.textContent = 'Скопировать выбранные (' + count + ')';
+            copyBtn.disabled = count === 0;
+            allBtn.textContent = areAllVisibleFlashcardsSelected(folder) ? 'Снять все' : 'Выбрать все';
+            return true;
         }
 
         function toggleFlashcardSelection(index) {
@@ -14558,7 +14529,7 @@
             const pos = state.selectedCardIndexes.indexOf(index);
             if (pos === -1) state.selectedCardIndexes.push(index);
             else state.selectedCardIndexes.splice(pos, 1);
-            render();
+            if (!syncFlashcardSelectionDom()) render();
         }
 
         function selectAllFlashcards() {
@@ -14567,13 +14538,15 @@
             // «Все» — это видимые сейчас карточки: при поиске — только найденные.
             const visible = getVisibleFlashcardIndexes(folder);
             if (areAllVisibleFlashcardsSelected(folder)) {
-                state.selectedCardIndexes = state.selectedCardIndexes.filter(index => !visible.includes(index));
+                const visibleSet = new Set(visible);
+                state.selectedCardIndexes = state.selectedCardIndexes.filter(index => !visibleSet.has(index));
             } else {
+                const selected = new Set(state.selectedCardIndexes);
                 visible.forEach(index => {
-                    if (!state.selectedCardIndexes.includes(index)) state.selectedCardIndexes.push(index);
+                    if (!selected.has(index)) state.selectedCardIndexes.push(index);
                 });
             }
-            render();
+            if (!syncFlashcardSelectionDom()) render();
         }
 
         async function copyFlashcardFolder() {
@@ -15469,10 +15442,6 @@
             window.scrollTo(0, 0);
         }
         
-        function goToPractice(index) {
-            openTermInMode(index, 'practice', 'default');
-        }
-
         function openTermInMode(index, mode, practiceSubMode) {
             resetTermCardFullscreen();
             state.currentText = index;
@@ -15593,242 +15562,13 @@
             state.pendingWords = [];
             state.pendingHintGroups = [];
             clearPracticeFocus();
-            state.revealedKeys = [];
-            savedSelection = null;
             render();
         }
 
-        function openSemanticKeysEdit() {
-            goBackToChooser();
-        }
-
-        function openSemanticKeysView() {
-            goBackToChooser();
-        }
-
-        var savedSelection = null;
-
-        function saveCurrentSelection() {
-            var editEl = document.getElementById('semanticKeyText');
-            if (!editEl) return;
-            var sel = window.getSelection();
-            if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
-            var range = sel.getRangeAt(0);
-            if (!editEl.contains(range.startContainer) || !editEl.contains(range.endContainer)) return;
-            var treeWalker = document.createTreeWalker(editEl, NodeFilter.SHOW_TEXT, null, false);
-            var charCount = 0;
-            var startOff = -1;
-            var endOff = -1;
-            var node;
-            while (node = treeWalker.nextNode()) {
-                if (node === range.startContainer) {
-                    startOff = charCount + range.startOffset;
-                }
-                if (node === range.endContainer) {
-                    endOff = charCount + range.endOffset;
-                    break;
-                }
-                charCount += node.textContent.length;
-            }
-            if (startOff >= 0 && endOff > startOff) {
-                savedSelection = { start: startOff, end: endOff };
-            }
-        }
-
-        // Слушатель selectionchange здесь больше не висит. Он запоминал выделение
-        // для смысловых ключей, а их экран отключён (keys и keys_edit ведут на
-        // выбор режима), поле #semanticKeyText не рисуется — и обработчик впустую
-        // срабатывал на каждое движение каретки, то есть на каждую букву в
-        // «Вписать». createSemanticKey по-прежнему вызывает его сам.
-
-        function createSemanticKey() {
-            var text = getCurrentFolder().texts[state.currentText];
-            if (!text.semanticKeys) text.semanticKeys = [];
-            saveCurrentSelection();
-            if (!savedSelection) return;
-            var startOffset = savedSelection.start;
-            var endOffset = savedSelection.end;
-            savedSelection = null;
-            var fullText = text.content;
-            var keyText = fullText.substring(startOffset, endOffset);
-            if (!keyText.trim()) return;
-            var overlaps = text.semanticKeys.some(function(k) {
-                return startOffset < k.end && endOffset > k.start;
-            });
-            if (overlaps) return;
-            text.semanticKeys.push({ start: startOffset, end: endOffset, text: keyText });
-            text.semanticKeys.sort(function(a, b) { return a.start - b.start; });
-            var sel = window.getSelection();
-            if (sel) sel.removeAllRanges();
-            saveData();
-            render();
-        }
-
-        function deleteSemanticKey(index) {
-            const text = getCurrentFolder().texts[state.currentText];
-            if (!text.semanticKeys) return;
-            text.semanticKeys.splice(index, 1);
-            saveData();
-            render();
-        }
-
-        function clearSemanticKeys() {
-            const text = getCurrentFolder().texts[state.currentText];
-            text.semanticKeys = [];
-            saveData();
-            render();
-        }
-
-        function toggleSemanticKey(index) {
-            if (!state.revealedKeys) state.revealedKeys = [];
-            const pos = state.revealedKeys.indexOf(index);
-            if (pos === -1) {
-                state.revealedKeys.push(index);
-            } else {
-                state.revealedKeys.splice(pos, 1);
-            }
-            render();
-        }
-
-        function renderSemanticKeysEditView() {
-            const folder = getCurrentFolder();
-            const text = folder.texts[state.currentText];
-            if (!text.semanticKeys) text.semanticKeys = [];
-            const keys = text.semanticKeys;
-
-            let contentHtml = '';
-            let lastEnd = 0;
-            const fullText = text.content;
-            keys.forEach((key, i) => {
-                if (key.start > lastEnd) {
-                    contentHtml += escapeHtml(fullText.substring(lastEnd, key.start));
-                }
-                contentHtml += '<span style="background:rgba(139,92,246,0.16);border-radius:4px;padding:1px 2px;">' + escapeHtml(fullText.substring(key.start, key.end)) + '</span>';
-                lastEnd = key.end;
-            });
-            if (lastEnd < fullText.length) {
-                contentHtml += escapeHtml(fullText.substring(lastEnd));
-            }
-
-            return '<div class="header">' +
-                '<button class="back-btn" onclick="goBackToChooser()">← Назад</button>' +
-                '<div style="font-weight:700;font-size:17px;color:var(--text-primary);">' + escapeHtml(text.title) + '</div>' +
-                '<div style="width:60px;"></div>' +
-                '</div>' +
-                '<div class="container">' +
-                '<div class="help-text">Выделите текст и нажмите кнопку, чтобы создать смысловой ключ</div>' +
-                '<div class="chooser-term-preview">' +
-                '<div id="semanticKeyText" class="semantic-key-edit-text">' + contentHtml + '</div>' +
-                '</div>' +
-                '<div style="text-align:center;margin-bottom:16px;">' +
-                '<button onmousedown="event.preventDefault();" onclick="createSemanticKey();" style="background:var(--accent-strong);color:var(--accent-on-strong);border:none;padding:12px 24px;border-radius:16px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:background 0.2s,transform 0.15s;">Создать смысловой ключ (' + (keys.length + 1) + ')</button>' +
-                '</div>' +
-                (keys.length > 0 ? (
-                    '<div class="chooser-section-label">Созданные ключи</div>' +
-                    keys.map(function(key, i) {
-                        return '<div class="semantic-key-item">' +
-                            '<div class="semantic-key-item-num">' + (i + 1) + '</div>' +
-                            '<div class="semantic-key-item-text">' + escapeHtml(key.text) + '</div>' +
-                            '<button class="semantic-key-item-delete" onclick="deleteSemanticKey(' + i + ')">✕</button>' +
-                            '</div>';
-                    }).join('') +
-                    '<div style="display:flex;gap:8px;justify-content:center;margin-top:8px;">' +
-                    '<button class="action-btn btn-reset" onclick="clearSemanticKeys()">Сбросить все</button>' +
-                    '<button class="action-btn btn-save" onclick="openSemanticKeysView()">Просмотр</button>' +
-                    '</div>'
-                ) : '') +
-                '</div>';
-        }
-
-        function renderSemanticKeysView() {
-            const folder = getCurrentFolder();
-            const text = folder.texts[state.currentText];
-            if (!text.semanticKeys) text.semanticKeys = [];
-            if (!state.revealedKeys) state.revealedKeys = [];
-            const keys = text.semanticKeys;
-
-            if (keys.length === 0) {
-                return '<div class="header">' +
-                    '<button class="back-btn" onclick="goBackToChooser()">← Назад</button>' +
-                    '<div style="font-weight:700;font-size:17px;color:var(--text-primary);">' + escapeHtml(text.title) + '</div>' +
-                    '<div style="width:60px;"></div>' +
-                    '</div>' +
-                    '<div class="container">' +
-                    '<div class="quiz-area"><div class="quiz-message">' +
-                    '<div class="quiz-message-icon">🔑</div>' +
-                    '<div class="quiz-message-title">Нет смысловых ключей</div>' +
-                    '<div class="quiz-message-desc">Сначала создайте ключи в редакторе</div>' +
-                    '<button class="quiz-message-btn" onclick="openSemanticKeysEdit()">Создать ключи</button>' +
-                    '</div></div></div>';
-            }
-
-            var fullText = text.content;
-            var resultHtml = '';
-            var lastEnd = 0;
-            keys.forEach(function(key, i) {
-                if (key.start > lastEnd) {
-                    resultHtml += escapeHtml(fullText.substring(lastEnd, key.start));
-                }
-                if (state.revealedKeys.includes(i)) {
-                    resultHtml += '<span class="semantic-key-badge revealed" onclick="toggleSemanticKey(' + i + ')">' + escapeHtml(key.text) + '</span>';
-                } else {
-                    resultHtml += '<span class="semantic-key-badge" onclick="toggleSemanticKey(' + i + ')">' + (i + 1) + '</span>';
-                }
-                lastEnd = key.end;
-            });
-            if (lastEnd < fullText.length) {
-                resultHtml += escapeHtml(fullText.substring(lastEnd));
-            }
-
-            var allRevealed = state.revealedKeys.length >= keys.length;
-            return '<div class="header">' +
-                '<button class="back-btn" onclick="goBackToChooser()">← Назад</button>' +
-                '<div style="font-weight:700;font-size:17px;color:var(--text-primary);">' + escapeHtml(text.title) + '</div>' +
-                '<div style="width:60px;"></div>' +
-                '</div>' +
-                '<div class="container">' +
-                '<div class="help-text">Нажимайте на номера, чтобы раскрыть смысловые ключи</div>' +
-                (text.image ? '<div style="text-align:center;margin-bottom:12px;"><img src="' + text.image + '" loading="lazy" decoding="async" style="max-width:100%;max-height:150px;border-radius:12px;object-fit:cover;"></div>' : '') +
-                '<div class="chooser-term-preview"><div class="semantic-keys-display">' + resultHtml + '</div></div>' +
-                '<div class="action-buttons">' +
-                '<button class="action-btn btn-reset" onclick="hideAllSemanticKeys()">Скрыть все</button>' +
-                '<button class="action-btn btn-save" onclick="revealAllKeys()">Показать все</button>' +
-                '</div>' +
-                '<div style="text-align:center;margin-top:8px;">' +
-                '<button onclick="openSemanticKeysEdit()" style="background:none;border:1px solid var(--border-color);color:var(--text-secondary);font-size:13px;cursor:pointer;padding:8px 20px;border-radius:16px;font-family:inherit;transition:border-color 0.2s, color 0.2s;">Редактировать ключи</button>' +
-                '</div>' +
-                getTermNavInline() +
-                '</div>';
-        }
-
-        function revealAllKeys() {
-            const text = getCurrentFolder().texts[state.currentText];
-            if (!text.semanticKeys) return;
-            state.revealedKeys = text.semanticKeys.map(function(_, i) { return i; });
-            render();
-        }
-
-        function revealNextSemanticKey() {
-            const text = getCurrentFolder().texts[state.currentText];
-            if (!text.semanticKeys || text.semanticKeys.length === 0) return false;
-            if (!state.revealedKeys) state.revealedKeys = [];
-
-            for (let i = 0; i < text.semanticKeys.length; i++) {
-                if (!state.revealedKeys.includes(i)) {
-                    state.revealedKeys.push(i);
-                    render();
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        function hideAllSemanticKeys() {
-            if (!state.revealedKeys || state.revealedKeys.length === 0) return false;
-            state.revealedKeys = [];
-            render();
-            return true;
-        }
+        // Смысловые ключи (экраны keys и keys_edit) удалены целиком: экраны давно
+        // были отключены и вели на выбор режима, код до них не доходил. Переход
+        // в keys/keys_edit по-прежнему ведёт на выбор режима (renderScreen,
+        // openTermInMode); поле semanticKeys в старых данных просто не читается.
 
         // Экранирует строку для вставки в разметку как текст. Раньше это делалось
         // через DOM — создать div, положить текстовый узел, прочитать innerHTML, —
@@ -17738,14 +17478,6 @@
             }
         }
         
-        function deleteText() {
-            if (confirm('Удалить этот текст?')) {
-                getCurrentFolder().texts.splice(state.currentText, 1);
-                saveData();
-                goBackToTexts();
-            }
-        }
-        
         function toggleMark(index) {
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             const words = text.content.split(/(\s+)/);
@@ -17796,15 +17528,6 @@
             render();
         }
         
-        function setPracticeMode(mode) {
-            state.practiceMode = mode;
-            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
-            text.revealedWords = [];
-            text.halfRevealedWords = [];
-            clearPracticeFocus();
-            render();
-        }
-
         function cancelBatch() {
             state.pendingWords = [];
             state.pendingHintGroups = [];
@@ -18119,21 +17842,6 @@
             render();
         }
 
-        function revealWordFully(index) {
-            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
-            const group = state.practiceMode === 'hints' ? getHiddenWordGroupByIndex(text, index) : null;
-            const targetIndexes = group ? group.indices : [index];
-
-            targetIndexes.forEach(targetIndex => {
-                const halfPos = text.halfRevealedWords.indexOf(targetIndex);
-                if (halfPos !== -1) text.halfRevealedWords.splice(halfPos, 1);
-                if (!text.revealedWords.includes(targetIndex)) {
-                    text.revealedWords.push(targetIndex);
-                }
-            });
-            render();
-        }
-        
         function hideWordAgain(index) {
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             const group = state.practiceMode === 'hints' ? getHiddenWordGroupByIndex(text, index) : null;
@@ -18172,14 +17880,6 @@
             render();
         }
         
-        function showAllWords() {
-            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
-            if (!text.hiddenWords || !text.hiddenWords.length) return;
-            text.revealedWords = [...text.hiddenWords];
-            text.halfRevealedWords = [];
-            render();
-        }
-
         function toggleAllWordsReveal() {
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             if (!text.hiddenWords || !text.hiddenWords.length) return false;
