@@ -15804,6 +15804,32 @@
             return parts.join('\n');
         }
 
+        // ——— Устойчивый разбор «Название: / Описание:» ———
+        // Экспорт кладёт заголовки на отдельные строки. Но по дороге с телефона на
+        // компьютер (мессенджер, заметки) часть переносов строк превращается в
+        // пробелы, и приходит «Название: АПИ Описание: 1 - {{Часть}}…» одной
+        // строкой, без пустых строк между материалами. Раньше такой текст давал
+        // материалы с названием «АПИ Описание: …» и пустым текстом. Поэтому:
+        // «Описание:» понимается и на строке названия, и с текстом после двоеточия;
+        // переносы строк любого вида (\r\n с Windows, \r, U+2028 из приложений
+        // iOS) приводятся к \n.
+        const IMPORT_TITLE_RE = /^\s*Название\s*:\s*(.*)$/i;
+        const IMPORT_TITLE_WITH_DESCRIPTION_RE = /^\s*Название\s*:(.*?)\sОписание\s*:\s?(.*)$/i;
+        const IMPORT_DESCRIPTION_RE = /^\s*Описание\s*:\s?(.*)$/i;
+
+        function normalizeImportLineBreaks(rawText) {
+            return String(rawText || '').replace(/\r\n?|[\u2028\u2029]/g, '\n');
+        }
+
+        // Строка «Название: …» → { title, description }; description — начало
+        // описания с той же строки или null, если «Описание:» на ней нет.
+        function parseImportTitleLine(line) {
+            const inline = line.match(IMPORT_TITLE_WITH_DESCRIPTION_RE);
+            if (inline) return { title: inline[1].trim(), description: inline[2] };
+            const plain = line.match(IMPORT_TITLE_RE);
+            return plain ? { title: plain[1].trim(), description: null } : null;
+        }
+
         function isFolderImportText(rawText) {
             return !!rawText && /^\s*Папка\s*:/im.test(rawText);
         }
@@ -15812,7 +15838,7 @@
         // если текст не похож на экспорт папки.
         function parseProcessedFolderImport(rawText) {
             if (!isFolderImportText(rawText)) return null;
-            const lines = rawText.split('\n');
+            const lines = normalizeImportLineBreaks(rawText).split('\n');
             const folder = { name: '', texts: [], subfolders: [] };
             let target = folder;          // куда складывать материалы: папка или модуль
             let current = null;           // материал, который сейчас набирается
@@ -15851,15 +15877,24 @@
                     target = sub;
                     continue;
                 }
-                const titleMatch = line.match(/^\s*Название\s*:\s*(.*)$/i);
-                if (titleMatch) {
+                const titleLine = parseImportTitleLine(line);
+                if (titleLine) {
                     finishText();
-                    current = { title: titleMatch[1].trim() };
-                    descriptionLines = null;
+                    current = { title: titleLine.title };
+                    descriptionLines = titleLine.description === null ? null
+                        : (titleLine.description.trim() ? [titleLine.description] : []);
                     continue;
                 }
-                if (/^\s*Описание\s*:\s*$/i.test(line)) {
-                    if (current) descriptionLines = [];
+                if (current && descriptionLines === null) {
+                    // Сразу после названия: заголовок «Описание:» (с текстом на той
+                    // же строке или без), а если его потеряли — первая непустая
+                    // строка уже и есть описание.
+                    const descriptionMatch = line.match(IMPORT_DESCRIPTION_RE);
+                    if (descriptionMatch) {
+                        descriptionLines = descriptionMatch[1].trim() ? [descriptionMatch[1]] : [];
+                    } else if (line.trim()) {
+                        descriptionLines = [line];
+                    }
                     continue;
                 }
                 if (descriptionLines) descriptionLines.push(line);
@@ -16050,29 +16085,44 @@
             return { plainText: plainText, hiddenWords: hiddenWords, wordHints: wordHints };
         }
 
+        // Один материал: название и описание. Без заголовков весь текст — описание.
+        // Если вставили несколько материалов, берётся первый: следующее «Название:»
+        // заканчивает описание (раньше оно утекало в текст первого материала).
         function parseCombinedMaterialImport(rawText) {
-            const lines = rawText.split('\n');
+            const normalized = normalizeImportLineBreaks(rawText);
+            const lines = normalized.split('\n');
             let title = null;
-            let descStartLine = -1;
-            for (let i = 0; i < lines.length; i++) {
-                const titleMatch = lines[i].match(/^\s*Название\s*:\s*(.*)$/i);
-                if (titleMatch && title === null) {
-                    title = titleMatch[1].trim();
+            let descriptionLines = null;
+            for (const line of lines) {
+                if (descriptionLines === null) {
+                    const titleLine = title === null ? parseImportTitleLine(line) : null;
+                    if (titleLine) {
+                        title = titleLine.title;
+                        if (titleLine.description !== null) {
+                            descriptionLines = titleLine.description.trim() ? [titleLine.description] : [];
+                        }
+                        continue;
+                    }
+                    const descriptionMatch = line.match(IMPORT_DESCRIPTION_RE);
+                    if (descriptionMatch) {
+                        descriptionLines = descriptionMatch[1].trim() ? [descriptionMatch[1]] : [];
+                    } else if (title !== null && line.trim()) {
+                        descriptionLines = [line];
+                    }
                     continue;
                 }
-                if (/^\s*Описание\s*:\s*$/i.test(lines[i])) {
-                    descStartLine = i + 1;
-                    break;
-                }
+                if (IMPORT_TITLE_RE.test(line)) break;
+                descriptionLines.push(line);
             }
-            const description = descStartLine === -1 ? rawText : lines.slice(descStartLine).join('\n');
+            const description = descriptionLines !== null ? descriptionLines.join('\n').replace(/\s+$/, '')
+                : (title === null ? normalized : '');
             return { title: title, description: description };
         }
 
         function isCombinedMaterialImportText(rawText) {
             if (!rawText) return false;
             return /^\s*Название\s*:/im.test(rawText) ||
-                /^\s*Описание\s*:\s*$/im.test(rawText) ||
+                /^\s*Описание\s*:/im.test(rawText) ||
                 /\{\{[^{}]+\}\}/.test(rawText);
         }
 
@@ -16100,10 +16150,10 @@
 
         function handleDescriptionPaste(event) {
             const clipboardData = event.clipboardData || window.clipboardData;
-            const rawText = clipboardData ? clipboardData.getData('text') : '';
+            const rawText = normalizeImportLineBreaks(clipboardData ? clipboardData.getData('text') : '');
             if (!rawText) return;
 
-            const hasHeaders = /^\s*Название\s*:/im.test(rawText) || /^\s*Описание\s*:\s*$/im.test(rawText);
+            const hasHeaders = /^\s*Название\s*:/im.test(rawText) || /^\s*Описание\s*:/im.test(rawText);
             if (hasHeaders) {
                 // Это цельный экспорт материала (название + описание) — заменяем оба поля
                 // целиком, вставка «в позицию курсора» здесь не имеет смысла.
@@ -17365,7 +17415,7 @@
         // функция возвращает готовые материалы вместе со скрытыми словами.
         function parseProcessedMaterialsImport(raw) {
             if (!raw || !/^\s*Название\s*:/im.test(raw)) return null;
-            if (!/\{\{[^{}]+\}\}/.test(raw) && !/^\s*Описание\s*:\s*$/im.test(raw)) return null;
+            if (!/\{\{[^{}]+\}\}/.test(raw) && !/Описание\s*:/i.test(raw)) return null;
             const parsed = parseProcessedFolderImport('Папка: \n' + raw);
             if (!parsed) return null;
             const texts = [...parsed.texts];
@@ -17374,7 +17424,7 @@
         }
 
         function parseBulkImportItems(raw) {
-            const blocks = raw.split(/\n[ \t]*\n/).filter(b => b.trim());
+            const blocks = normalizeImportLineBreaks(raw).split(/\n[ \t]*\n/).filter(b => b.trim());
             const items = [];
             for (const block of blocks) {
                 const lines = block.trim().split('\n');
