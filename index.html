@@ -4795,6 +4795,13 @@
             min-width: 180px;
         }
 
+        /* «Назад» и «Дальше» под карточкой режима «Карточки» — чуть дальше от неё,
+           чем общий отступ 16px: целясь в «Дальше», палец задевал нижний край
+           карточки, и вместо следующего слова открывалась оборотная сторона. */
+        .flashcard-nav-buttons {
+            margin-top: 14px;
+        }
+
         .flashcard-back-btn[disabled] {
             opacity: 0.45;
             cursor: not-allowed;
@@ -11536,7 +11543,7 @@
                             ${card.image ? `<img class="flashcard-study-image" src="${card.image}" loading="lazy" decoding="async" alt="">` : ''}
                         </button>
                         <!-- Переворот — только тапом по самой карточке, отдельной кнопки нет. -->
-                        <div class="flashcard-study-buttons">
+                        <div class="flashcard-study-buttons flashcard-nav-buttons">
                             <button class="module-action-btn secondary flashcard-back-btn" onclick="stepFlashcard(-1)" ${study.current === 0 ? 'disabled' : ''}>Назад</button>
                             <button class="profile-link-btn flashcard-next-btn" onclick="stepFlashcard(1)">${study.current === study.order.length - 1 ? 'Завершить' : 'Дальше'}</button>
                         </div>
