@@ -840,6 +840,45 @@
             display: flex;
         }
 
+        /* «Подсказка» в правом верхнем углу карточки с текстом. Кнопка лежит рядом
+           с карточкой, а не внутри неё, поэтому кегль текста (em) её не задевает;
+           сверху карточке добавлен отступ, чтобы первая строка не уходила под неё. */
+        .practice-shell .text-display-row.has-corner-hint {
+            position: relative;
+        }
+
+        .practice-shell .text-display-row.has-corner-hint .text-display {
+            padding-top: 52px;
+        }
+
+        .practice-corner-hint-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 7px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.2;
+            cursor: pointer;
+            transition: border-color 0.15s ease, color 0.15s ease;
+        }
+
+        .practice-corner-hint-btn:hover:not([disabled]),
+        .practice-corner-hint-btn:active:not([disabled]) {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+        }
+
+        .practice-corner-hint-btn[disabled] {
+            opacity: 0.4;
+            cursor: default;
+        }
+
         .practice-shell .text-display {
             flex: 1;
             display: flex;
@@ -1082,7 +1121,8 @@
 
         /* Кнопки-помощники стоят в один ряд, чтобы панель не росла в высоту:
            на телефоне каждая лишняя строка панели съедает видимую часть текста.
-           Кнопка фокуса тянется, «Подсказка» занимает ровно свою ширину. */
+           Кнопка фокуса тянется, «Открыть слово» занимает ровно свою ширину
+           (класс practice-hint-btn остался от «Подсказки», которая теперь в углу карточки). */
         .practice-assist-row {
             display: flex;
             gap: 8px;
@@ -1095,7 +1135,7 @@
             padding: 16px 10px;
             min-width: 0;
             /* 13px — порог, на котором «Фокус на следующем слове» перестаёт
-               переноситься на вторую строку рядом с «Подсказкой». Это экономит
+               переноситься на вторую строку рядом с «Открыть слово». Это экономит
                20px высоты панели, а на телефоне каждая строка панели съедает
                видимую часть текста. */
             font-size: 13px;
@@ -12665,6 +12705,14 @@
             const hintLabel = isPracticeLayout && getVisibleHintLetters(text, hintTargetIndex) > 0
                 ? 'Ещё букву'
                 : 'Подсказка';
+            // «Открыть слово» — то же, что Return: следующее скрытое слово строго
+            // по порядку текста. Нужна, пока есть что открывать.
+            const canOpenNext = isPracticeLayout && unrevealedCount > 0;
+            // «Подсказка» стоит в правом верхнем углу карточки с текстом. Рисуем её
+            // всегда, когда в тексте есть скрытые слова, и гасим, когда подсказывать
+            // нечего: появление и исчезновение узла меняло бы число детей карточки,
+            // и точечное обновление пересобирало бы весь текст с чипами.
+            const showCornerHint = isPracticeLayout && progress && progress.total > 0;
             const primaryLabel = !progress || progress.total === 0
                 ? 'Нет скрытых слов'
                 : (progress.allRevealed ? '↺ Скрыть все слова' : 'Показать все скрытые слова');
@@ -12707,7 +12755,7 @@
                     `}
 
                     ${text.image ? `<div style="text-align:center;margin-bottom:12px;"><img src="${text.image}" loading="lazy" decoding="async" style="max-width:100%;max-height:150px;border-radius:12px;object-fit:cover;"></div>` : ''}
-                    <div class="text-display-row"><div class="text-display ${sizeClass}${isPracticeFocusActive ? ' practice-focus-mode' : ''}" style="${fitStyle}"><div class="text-display-inner">${practiceParts.join('')}</div></div></div>
+                    <div class="text-display-row${showCornerHint ? ' has-corner-hint' : ''}"><div class="text-display ${sizeClass}${isPracticeFocusActive ? ' practice-focus-mode' : ''}" style="${fitStyle}"><div class="text-display-inner">${practiceParts.join('')}</div></div>${showCornerHint ? `<button class="practice-corner-hint-btn" onclick="revealNextHintLetter()" ${canHint ? '' : 'disabled'} title="Открыть следующую букву слова (Shift)">💡 ${hintLabel}</button>` : ''}</div>
 
                     ${isPracticeLayout ? '' : `
                         <div class="action-buttons">
@@ -12730,13 +12778,13 @@
                 ${isPracticeLayout ? `
                     <div class="practice-dock">
                         <div class="practice-dock-inner">
-                            ${(canFocusNext || canHint) ? `
+                            ${(canFocusNext || canOpenNext) ? `
                                 <div class="practice-assist-row">
                                     ${canFocusNext ? `
                                         <button class="practice-skip-btn" onclick="focusNextPracticeWord()" title="Перевести фокус на следующее слово, не открывая текущее">Фокус на следующем слове</button>
                                     ` : ''}
-                                    ${canHint ? `
-                                        <button class="practice-skip-btn practice-hint-btn" onclick="revealNextHintLetter()" title="Открыть следующую букву слова">${hintLabel}</button>
+                                    ${canOpenNext ? `
+                                        <button class="practice-skip-btn practice-hint-btn" onclick="revealNextHiddenWordInOrder()" title="Открыть следующее скрытое слово по порядку (Return)">Открыть слово</button>
                                     ` : ''}
                                 </div>
                             ` : ''}
