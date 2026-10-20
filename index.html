@@ -541,6 +541,10 @@
             contain: layout style paint;
             content-visibility: auto;
             contain-intrinsic-size: auto 80px;
+            /* Вертикальную прокрутку браузер ведёт сам, горизонтальный жест отдаёт
+               свайпу (отметить сложным). Поэтому слушатель touchmove у карточки
+               пассивный, и прокрутка списка не ждёт JavaScript на каждом кадре. */
+            touch-action: pan-y;
         }
 
         .term-card.attention {
@@ -8117,16 +8121,21 @@
         // когда изменилось что-то настоящее: разметка, отметки, тексты.
         function stringifyPersistentData() {
             const restore = [];
+            // hintLetters — тоже состояние экрана (см. revealNextHintLetter): на
+            // диске его не держим, а в памяти возвращаем как было.
             const blankSession = text => {
                 if (!text) return;
                 const revealed = text.revealedWords;
                 const half = text.halfRevealedWords;
+                const letters = text.hintLetters;
                 const hasRevealed = Array.isArray(revealed) && revealed.length > 0;
                 const hasHalf = Array.isArray(half) && half.length > 0;
-                if (!hasRevealed && !hasHalf) return;
-                restore.push([text, revealed, half]);
+                const hasLetters = !!letters && typeof letters === 'object' && Object.keys(letters).length > 0;
+                if (!hasRevealed && !hasHalf && !hasLetters) return;
+                restore.push([text, revealed, half, letters]);
                 if (hasRevealed) text.revealedWords = [];
                 if (hasHalf) text.halfRevealedWords = [];
+                if (hasLetters) text.hintLetters = {};
             };
             const walk = folder => {
                 if (!folder) return;
@@ -8141,9 +8150,10 @@
                     courseFolders: state.courseFolders
                 });
             } finally {
-                restore.forEach(([text, revealed, half]) => {
+                restore.forEach(([text, revealed, half, letters]) => {
                     text.revealedWords = revealed;
                     text.halfRevealedWords = half;
+                    text.hintLetters = letters;
                 });
             }
         }
@@ -9589,6 +9599,10 @@
                     swiping = true;
                 }, {passive: true});
 
+                // Слушатель пассивный: вертикальную прокрутку списка браузер ведёт
+                // сам, не дожидаясь JavaScript на каждом кадре. Горизонтальный свайп
+                // ему не отдаётся благодаря touch-action: pan-y у карточки, поэтому
+                // preventDefault, ради которого слушатель был активным, не нужен.
                 card.addEventListener('touchmove', (e) => {
                     if (!swiping) return;
                     const dx = e.touches[0].clientX - startX;
@@ -9598,10 +9612,9 @@
                         return;
                     }
                     if (Math.abs(dx) > 10) {
-                        e.preventDefault();
                         card.style.transform = `translateX(${dx * 0.3}px)`;
                     }
-                }, {passive: false});
+                }, {passive: true});
 
                 card.addEventListener('touchend', (e) => {
                     if (!swiping) {
@@ -12738,7 +12751,7 @@
                         ${state.practiceSizeControlOpen ? `
                             <div class="practice-textsize-row">
                                 <span class="practice-textsize-icon">A</span>
-                                <input type="range" class="practice-textsize-slider" min="50" max="150" step="5" value="${Math.round((state.practiceTextScale || 1) * 100)}" oninput="setPracticeTextScale(this.value)">
+                                <input type="range" class="practice-textsize-slider" min="50" max="150" step="5" value="${Math.round((state.practiceTextScale || 1) * 100)}" oninput="setPracticeTextScale(this.value)" onchange="commitPracticeTextScale()">
                                 <span class="practice-textsize-icon big">A</span>
                                 <span class="practice-textsize-label" id="practiceTextScaleLabel">${Math.round((state.practiceTextScale || 1) * 100)}%</span>
                             </div>
@@ -17917,7 +17930,11 @@
                 }
                 text.hintLetters[targetIndex] = nextLetters;
             });
-            saveData();
+            // На диск не пишем: открытые буквы — состояние экрана, как и открытые
+            // слова. hintLetters читается только для слов из halfRevealedWords, а
+            // тот на диск не попадает и при входе в материал обнуляется, так что
+            // сохранённые буквы после перезапуска всё равно не показались бы.
+            // Раньше каждое нажатие «Подсказки» переписывало всю базу целиком.
             render();
         }
 
@@ -17984,14 +18001,24 @@
             render();
         }
 
+        // Пока тянут ползунок, только меняем вид; на диск — один раз, когда его
+        // отпустили (commitPracticeTextScale по change). Раньше запись шла на
+        // каждый шаг ползунка — десятки записей за одно движение пальца.
         function setPracticeTextScale(value) {
             const scale = Math.max(0.5, Math.min(1.5, Number(value) / 100 || 1));
             state.practiceTextScale = scale;
-            localStorage.setItem('practiceTextScale', String(Math.round(scale * 100)));
             const card = document.querySelector('.practice-shell .text-display');
             if (card) card.style.setProperty('--user-text-scale', String(scale));
             const label = document.getElementById('practiceTextScaleLabel');
             if (label) label.textContent = Math.round(scale * 100) + '%';
+        }
+
+        function commitPracticeTextScale() {
+            try {
+                localStorage.setItem('practiceTextScale', String(Math.round((state.practiceTextScale || 1) * 100)));
+            } catch (e) {
+                // Нет места или хранилище недоступно — размер просто не запомнится.
+            }
         }
 
         function resetReveal() {
