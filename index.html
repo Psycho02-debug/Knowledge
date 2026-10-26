@@ -12797,7 +12797,7 @@
                                         <button class="practice-skip-btn" onclick="focusNextPracticeWord()" title="Перевести фокус на следующее слово, не открывая текущее">Фокус на следующем слове</button>
                                     ` : ''}
                                     ${canOpenNext ? `
-                                        <button class="practice-skip-btn practice-hint-btn" onclick="revealNextHiddenWordInOrder()" title="Открыть следующее скрытое слово по порядку (Return)">Открыть слово</button>
+                                        <button class="practice-skip-btn practice-hint-btn" onclick="revealNextHiddenWordInOrder()" title="Открыть следующее скрытое слово по порядку; с фокусом — все скрытые слова до слова под фокусом (Return)">Открыть слово</button>
                                     ` : ''}
                                 </div>
                             ` : ''}
@@ -17964,19 +17964,61 @@
             render();
         }
 
-        // Return в практике: открывает первое по тексту ещё не открытое СКРЫТОЕ
-        // слово. Обычные слова в счёт не входят, уже открытые нажатием или
-        // подсказкой пропускаются; в режиме вопросов склеенная группа — один шаг,
-        // как и её чип. Если фокус стоит на этом слове, revealWord сам переведёт
-        // его дальше. Длинный текст подтягивается к открытому слову, если оно
-        // ушло под нижнюю панель.
+        // Открывает скрытые слова (с группами режима вопросов) без перерисовки —
+        // чтобы несколько слов за одно нажатие стоили одной отрисовки, а не N.
+        function markHiddenWordsRevealed(text, indexes) {
+            indexes.forEach(index => {
+                const group = state.practiceMode === 'hints' ? getHiddenWordGroupByIndex(text, index) : null;
+                (group ? group.indices : [index]).forEach(targetIndex => {
+                    const halfPos = text.halfRevealedWords.indexOf(targetIndex);
+                    if (halfPos !== -1) text.halfRevealedWords.splice(halfPos, 1);
+                    if (!text.revealedWords.includes(targetIndex)) text.revealedWords.push(targetIndex);
+                });
+            });
+        }
+
+        // «Открыть слово» и Return в практике. Считаются только СКРЫТЫЕ слова:
+        // обычные в счёт не входят, уже открытые нажатием или подсказкой
+        // пропускаются; в режиме вопросов склеенная группа — один шаг, как её чип.
+        //
+        // Без фокуса — первое по тексту ещё не открытое скрытое слово.
+        //
+        // С фокусом — все неоткрытые скрытые слова от начала текста до слова под
+        // фокусом включительно, одним нажатием: фокус показывает, докуда дочитали,
+        // и всё, что выше, вспоминать уже незачем. Если под фокусом было скрытое
+        // слово, фокус после открытия идёт дальше — как при нажатии на слово.
+        // Если до фокуса открывать нечего (всё выше уже открыто, а фокус на
+        // обычных словах), открывается следующее скрытое слово после фокуса, и
+        // фокус переходит за него, чтобы не остаться позади открытого текста.
         function revealNextHiddenWordInOrder() {
             if (state.currentFolder === null || state.currentText === null) return false;
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
-            const next = getUnrevealedFocusTargets(text)[0];
-            if (next === undefined) return false;
-            revealWord(next);
-            scrollWordIntoViewIfBelow(document.querySelector('.practice-shell .word[data-widx="' + next + '"]'));
+            const unrevealed = getUnrevealedFocusTargets(text);
+            if (!unrevealed.length) return false;
+
+            const focusOn = isPracticeFocusModeEnabled() && state.practiceFocusEnabled &&
+                state.practiceFocusWordIndex !== null && state.practiceFocusWordIndex !== undefined;
+            if (!focusOn) {
+                const next = unrevealed[0];
+                revealWord(next);
+                scrollWordIntoViewIfBelow(document.querySelector('.practice-shell .word[data-widx="' + next + '"]'));
+                return true;
+            }
+
+            const span = getPracticeFocusSpan(text, state.practiceFocusWordIndex);
+            const limit = span.length ? span[span.length - 1] : state.practiceFocusWordIndex;
+            const upToFocus = unrevealed.filter(index => index <= limit);
+            if (upToFocus.length) {
+                markHiddenWordsRevealed(text, upToFocus);
+                if (upToFocus.some(index => span.includes(index))) advancePracticeFocus(text);
+            } else {
+                const next = unrevealed[0];
+                markHiddenWordsRevealed(text, [next]);
+                state.practiceFocusWordIndex = next;
+                advancePracticeFocus(text);
+            }
+            render();
+            scrollToFocusedWord();
             return true;
         }
 
