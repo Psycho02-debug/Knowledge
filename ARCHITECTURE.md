@@ -4,7 +4,7 @@
 
 Номера строк ниже приблизительные: файл правится постоянно, и они сдвигаются. Ищите по имени — `grep -n "function имя(" index.html`. Свежую карту всех функций с номерами строк даёт команда из раздела [«Как быстро сориентироваться»](#как-быстро-сориентироваться).
 
-Сверено с кодом 2026-10-15: версия кэша `zapominalka-v131`, `index.html` — около 18 360 строк, 890 КБ (по сети — около 170 КБ: GitHub Pages отдаёт его сжатым gzip).
+Сверено с кодом 2026-10-15: версия кэша `zapominalka-v132`, `index.html` — около 18 360 строк, 890 КБ (по сети — около 170 КБ: GitHub Pages отдаёт его сжатым gzip).
 
 ---
 
@@ -74,7 +74,7 @@
 | 1–12 | `<head>`: viewport без масштабирования, manifest, мета-теги для iOS, `fonts.css` |
 | 13–6148 | `<style>` — все стили, около 6 тысяч строк |
 | ≈6154 | `<div id="app"></div>` — пустой: экран целиком рисует `render()` при запуске. Раньше здесь лежал устаревший снимок экрана папок — его убрали, он лишь разбирался, начинал анимацию и тут же стирался |
-| ≈6156–6458 | Тринадцать модальных окон статичной разметкой (список в §8) |
+| ≈6156–6475 | Четырнадцать модальных окон статичной разметкой (список в §8) |
 | 6459–18355 | Основной `<script>`. Номера строк в таблице ниже пересчитаны по коду 2026-10-15; после следующих правок они снова поплывут — ищите по именам |
 | 18358–18364 | Регистрация service worker по событию `load` |
 
@@ -212,6 +212,7 @@
 | `rebuildNextRender` | Одноразовая просьба собрать экран начисто вместо патча — ставит `renderRebuilt()` |
 | `cardSearchQuery` | Поиск в списке «Карточки в папке» |
 | `numbersRevealKey`, `numbersRevealCount` | Режим «Номера»: какой материал открыт и сколько слов в нём показано |
+| `audioModalText`, `audioModalError`, `audioRecording`, `audioPlayback`, `audioPlayerEl`, `audioUrlCache`, `audioDbPromise` | Озвучка: какой материал в окне, идущая запись, проигрывание, плеер, ссылки на записи открытого материала, соединение с IndexedDB |
 | `renderQueuedWhileHidden` | Отрисовка, отложенная, пока приложение свёрнуто |
 | `lastSavedData`, `hasPendingSaveData`, `saveDataTimer`, `saveDataIdleId`, `pendingStatsPayload`… | Отложенная запись |
 | `gameSetupType`, `gameSelectedTerms`, `transferSelectedTerms`, `transferSearchQuery` | Окна запуска игр и переноса в модуль |
@@ -235,7 +236,7 @@
 | `practiceTextScale` | Проценты строкой, например `'115'` | `setPracticeTextScale()`, сразу |
 | `wordMemorizerBuiltInSets` | JSON-массив названий готовых наборов карточек, которые уже предлагались | `ensureBuiltInFlashcardFolders()`, при запуске, только если список изменился |
 
-Других хранилищ нет: ни IndexedDB, ни cookies, ни `sessionStorage`. Браузер даёт около 5 МБ на всё. Самое объёмное — картинки в base64 внутри материалов и карточек.
+Кроме `localStorage` есть одно хранилище — **IndexedDB `zapominalkaAudio`**, хранилище `clips`: голосовые записи к пунктам материалов (см. §9, «Озвучка материалов»). Ключ — `«text.audio.id»:«номер пункта»`, значение — `{ data: ArrayBuffer, type }`. Cookies и `sessionStorage` не используются. `localStorage` даёт около 5 МБ на всё; самое объёмное там — картинки в base64 внутри материалов и карточек.
 
 ### Схема `wordMemorizer`
 
@@ -294,6 +295,7 @@
 | `hiddenWordGroups` | `{ведущий: number[]}` | Несколько соседних скрытых слов под одной плашкой; ключ — индекс первого слова |
 | `hintTypes` | `{индекс: 'default'}` | **Мёртвое поле:** пишется, но нигде не читается |
 | `questions` | `string[]` | Вопросы к термину целиком (режим «Вопросы») |
+| `audio` | `{ id, items: { номер: { d, t } } }` | Голосовые записи к пунктам: `id` — ключ записей в IndexedDB, `items` — какие пункты озвучены, `d` — длительность в секундах, `t` — время записи. Сам звук в материале не хранится |
 | `cardTextScale` | число 0.5–2 | Размер текста этой карточки в режиме «Карточка». Нет поля — 1; при 100% поле удаляется (`setTermCardTextScale`) |
 | `semanticKeys` | `[{start, end, text}]` | **Мёртвое поле** от смысловых ключей; может встречаться в старых данных |
 
@@ -531,7 +533,7 @@ render()
 
 Открытое окно — `.modal.show`, закрывает `closeModal(id)`. Окна статичны, лежат в `<body>` вне `#app` и при `render()` не пересоздаются:
 
-`folderModal` (папка, модуль, папка карточек, курс — одно окно на всех), `questionModal`, `learningCreateModal`, `textModal`, `bulkImportModal`, `flashcardModal`, `flashcardImportModal`, `courseLessonModal`, `courseTaskModal`, `gameSetupModal`, `transferTermsModal`, `hintModal`, `batchHintModal`.
+`folderModal` (папка, модуль, папка карточек, курс — одно окно на всех), `questionModal`, `learningCreateModal`, `textModal`, `bulkImportModal`, `flashcardModal`, `flashcardImportModal`, `courseLessonModal`, `courseTaskModal`, `gameSetupModal`, `transferTermsModal`, `audioModal`, `hintModal`, `batchHintModal`.
 
 Окно открывает функция вида `showXxxModal()`: она заполняет поля и ставит фокус через `setTimeout(…, 100)`. Сохраняет `saveXxx()`: читает поля, меняет данные, затем `saveData()`, `closeModal()` и `render()`. `closeModal` снимает фокус с поля внутри закрытого окна: иначе фокус оставался бы в скрытом `TEXTAREA`, диспетчер считал бы, что идёт ввод (шаг 5), и горячие клавиши экрана молчали бы до клика.
 
@@ -595,6 +597,16 @@ Enter / «Проверить» → checkTypeWord()
 - `numbers` — `buildNumbersLines()`: строки из `getTextManualLines(formatContentForReading(content))`, маркер строки (`NUMBERS_MARKER_RE`: «1.», «2)», «а)», «—», «•») или порядковый «N.», слова строки с приклеенными к ним знаками препинания. Состояние — одно число открытых слов `numbersRevealCount` вне `state`, привязанное к материалу ключом `numbersRevealKey` (папка, подпапка, индекс, длина текста): сменился материал — счёт с нуля. `numbersHint` — +1 слово, `numbersShowLine` — до конца строки со следующим закрытым словом, при всём открытом — сброс. Стрелки на экране — `navigateToTerm(±1)`. Кнопка «Номера» стоит во всех панелях режимов рядом со «Строками»; у самой практики панели нет.
 - `termcard` — `renderTermCardView`: лицевая сторона — `title`, оборотная — `formatContentForReading(content)`, где знаки снова прилеплены к словам. Хранит только размер текста — `text.cardTextScale` (переменная `--card-text-scale` на карточке; ползунок меняет её прямо в DOM без перерисовки, сохраняет `onchange`). При `state.termCardFullscreen` вместо обычной разметки рисуется слой `.termcard-fullscreen` (fixed, z-index 150, между шапками и окнами); `enterTermCardFullscreen` на компьютере и iPad ещё и вызывает `requestFullscreen`.
 - `questions` — `text.questions`, окно `questionModal`.
+
+### Озвучка материалов (окно `audioModal`)
+
+- **Пункты** — строки `buildNumbersLines(text)` (как в «Номерах»): `getAudioItemsForText`. Одна строка — один пункт «Весь термин».
+- **Где хранится.** Звук — в IndexedDB (`openAudioDb`, `audioDbRequest`; база `zapominalkaAudio`, хранилище `clips`, ключ `id:номер`, значение `{ data: ArrayBuffer, type }` — `ArrayBuffer`, потому что `Blob` в IndexedDB старые Safari сохраняли ненадёжно). В материале — только `text.audio = { id, items }`, чтобы отрисовка синхронно знала, что озвучено. Запись не в `localStorage` намеренно: там она переписывалась бы целиком при каждом `saveData()` и съела бы 5 МБ за десяток записей.
+- **Запись**: `startAudioRecording(i)` → `getUserMedia({audio:true})` вызывается синхронно в нажатии → `MediaRecorder` (формат — первый поддерживаемый из `audio/mp4`, `audio/webm;codecs=opus`, …, `pickAudioMimeType`). Счётчик на «Стоп» — `setTimeout` раз в секунду только во время записи; потолок `AUDIO_MAX_SECONDS` (300). `stopAudioRecording` → `finishAudioRecording`: дорожки микрофона останавливаются, запись кладётся в базу, пометка — в `text.audio.items`, `saveData()`, однократно `navigator.storage.persist()`. Escape/«Готово» (`closeAudioModal`) и уход приложения в фон (`visibilitychange`) останавливают и сохраняют идущую запись.
+- **Воспроизведение**: один плеер `audioPlayerEl` на всё приложение. Ссылки на записи открытого материала держит `audioUrlCache` (заполняет `preloadTextAudio` при открытии окна и в «Номерах»), чтобы `play()` шёл прямо в нажатии: Safari на iPhone пускает звук только из жеста. Если записи ещё нет в памяти, плеер в нажатии получает пустой WAV (`SILENT_WAV`) — это «разрешение», — а настоящая запись подставляется, когда дочитается из базы; конец пустого звука `onAudioPlaybackEnded` не считает концом записи (`playback.loading`). «Слушать все по порядку» — очередь `playback.queue`.
+- **«Номера»**: у озвученной строки — `▶` (`playNumbersAudio`), у текущей — `■`; `refreshAudioUi` перерисовывает экран при старте и остановке.
+- **Удаление**: `deleteAudioItem` (с подтверждением); `forgetTextAudio` / `forgetFolderAudio` удаляют записи при удалении материала, модуля или папки (`deleteTerm`, `deleteSubfolder`, `deleteFolderFromList`, `deleteFolder`). Записи к пунктам, которых после правки текста больше нет, окно показывает отдельно — их можно дослушать и удалить.
+- **Не переносится** текстом между устройствами; экспорт папки в JSON несёт только пометку `audio` без звука.
 - `example` — `text.example`.
 
 ### Список материалов (`view = 'texts'`)
@@ -717,6 +729,10 @@ fetch:    caches.match(request) || fetch(request)        — «сначала к
 | `matchMedia` | Системная тема, `pointer: coarse` (`HAS_TOUCH_INPUT`) | — |
 | `Blob`, `URL.createObjectURL` | Экспорт папки в JSON | — |
 | `confirm`, `alert`, `prompt` | Подтверждение удаления, сообщения | — |
+| `navigator.mediaDevices.getUserMedia`, `MediaRecorder` | Запись голоса к пунктам (`startAudioRecording`) | Окно озвучки сообщает, что браузер не умеет записывать звук (на iPhone нужна iOS 14.3+) |
+| IndexedDB | Хранение голосовых записей (`openAudioDb`) | Запись не сохранится — окно покажет ошибку |
+| `HTMLAudioElement` | Воспроизведение записей (`audioPlayerEl`) | — |
+| `navigator.storage.persist` | Просьба не вычищать базу записей | Записи живут по обычным правилам браузера |
 
 ### Внутренние: на чём держится всё остальное
 

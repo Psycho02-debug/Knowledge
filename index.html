@@ -5011,6 +5011,151 @@
             color: var(--text-primary);
         }
 
+        /* ——— Озвучка материала ——— */
+        .audio-modal {
+            max-width: 560px;
+            max-height: 86vh;
+            overflow-y: auto;
+        }
+
+        .audio-modal-lead {
+            margin-bottom: 14px;
+            color: var(--text-secondary);
+            line-height: 1.45;
+        }
+
+        .audio-modal-error {
+            margin-bottom: 12px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--accent-wrong-text);
+            color: var(--accent-wrong-text);
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .audio-play-all-btn {
+            width: 100%;
+            margin-bottom: 12px;
+        }
+
+        .audio-item {
+            padding: 12px 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            background: var(--bg-card);
+            margin-bottom: 10px;
+        }
+
+        .audio-item.is-recording {
+            border-color: #ef4444;
+        }
+
+        .audio-item.is-playing {
+            border-color: var(--accent-primary);
+        }
+
+        .audio-item-head {
+            display: flex;
+            gap: 8px;
+            align-items: baseline;
+            margin-bottom: 10px;
+        }
+
+        .audio-item-num {
+            flex: 0 0 auto;
+            font-weight: 800;
+            color: var(--accent-primary);
+        }
+
+        .audio-item-text {
+            min-width: 0;
+            color: var(--text-primary);
+            line-height: 1.4;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        .audio-item-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .audio-btn {
+            padding: 9px 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            background: none;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: border-color 0.15s ease, color 0.15s ease;
+        }
+
+        .audio-btn:hover:not([disabled]) {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+        }
+
+        .audio-btn[disabled] {
+            opacity: 0.4;
+            cursor: default;
+        }
+
+        .audio-btn.rec {
+            color: #ef4444;
+            border-color: rgba(239, 68, 68, 0.5);
+        }
+
+        .audio-btn.rec.active {
+            background: #ef4444;
+            border-color: #ef4444;
+            color: #fff;
+        }
+
+        .audio-btn.play.active {
+            background: var(--accent-strong);
+            border-color: var(--accent-strong);
+            color: var(--accent-on-strong);
+        }
+
+        .audio-btn.danger:hover:not([disabled]) {
+            border-color: var(--accent-wrong-text);
+            color: var(--accent-wrong-text);
+        }
+
+        .audio-open-btn.has-audio {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+        }
+
+        /* ▶ у номера строки в режиме «Номера» — запись к этому пункту. */
+        .numbers-audio-btn {
+            flex: 0 0 auto;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 1px solid var(--border-color);
+            background: none;
+            color: var(--accent-primary);
+            font-size: 12px;
+            line-height: 1;
+            cursor: pointer;
+            align-self: center;
+        }
+
+        .numbers-audio-btn.active {
+            background: var(--accent-strong);
+            border-color: var(--accent-strong);
+            color: var(--accent-on-strong);
+        }
+
         /* Режим «Номера»: карточка не кнопка — текст открывают кнопки под ней. */
         .numbers-card {
             cursor: default;
@@ -6473,6 +6618,19 @@
             <div class="modal-buttons">
                 <button class="modal-cancel" onclick="closeModal('transferTermsModal')">Отмена</button>
                 <button class="modal-save" onclick="transferSelectedTermsToSubfolder()">Перенести</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Озвучка материала: голосовые записи к каждому пункту (строке) текста.
+         Список рисует renderAudioModalList() — окно вне #app, render() его не трогает. -->
+    <div class="modal" id="audioModal">
+        <div class="modal-content audio-modal">
+            <h3 id="audioModalTitle">Озвучка</h3>
+            <p class="audio-modal-lead" id="audioModalLead"></p>
+            <div id="audioModalList"></div>
+            <div class="modal-buttons">
+                <button class="modal-save" onclick="closeAudioModal()">Готово</button>
             </div>
         </div>
     </div>
@@ -8285,8 +8443,10 @@
         document.addEventListener('visibilitychange', function() {
             if (document.hidden) {
                 // Гасим таймер и сбрасываем несохранённое, чтобы в фоне
-                // приложение не будило процессор вообще.
+                // приложение не будило процессор вообще. Идущую запись голоса
+                // останавливаем и сохраняем: в фоне iPhone всё равно глушит микрофон.
                 clearFlashcardTimer();
+                if (audioRecording) stopAudioRecording();
                 flushPendingPersistence();
                 return;
             }
@@ -12102,6 +12262,9 @@
                         <div class="chooser-card" onclick="openTermInMode(state.currentText, 'numbers')">
                             <div class="chooser-card-title">Только номера строк</div>
                         </div>
+                        <div class="chooser-card" onclick="showAudioModal()">
+                            <div class="chooser-card-title">🎙 Озвучка пунктов${getTextAudioCount(text) ? ' · ' + getTextAudioCount(text) : ''}</div>
+                        </div>
                     </div>
                     
                     <div class="chooser-section-label">Проверка</div>
@@ -12740,6 +12903,7 @@
                                     ${text.attention ? '★ Сложный' : '☆ Сложный'}
                                 </button>
                                 <button class="practice-textsize-btn ${state.practiceSizeControlOpen ? 'active' : ''}" onclick="togglePracticeSizeControl()" aria-label="Размер текста" title="Размер текста">Aa</button>
+                                <button class="practice-textsize-btn audio-open-btn${getTextAudioCount(text) ? ' has-audio' : ''}" onclick="showAudioModal()" aria-label="Озвучка" title="Голосовые записи к пунктам">🎙${getTextAudioCount(text) ? ' ' + getTextAudioCount(text) : ''}</button>
                             </div>
                             ${progress.total > 0 ? `
                                 <div class="practice-progress">
@@ -13119,13 +13283,19 @@
             }
 
             let shownBefore = 0;
-            const rows = lines.map(line => {
+            if (getTextAudioCount(text)) preloadTextAudio(text);
+            const rows = lines.map((line, lineIndex) => {
                 const visible = Math.max(0, Math.min(line.words.length, count - shownBefore));
                 shownBefore += line.words.length;
                 const shownText = line.words.slice(0, visible).join(' ');
+                const playing = audioPlayback && audioPlayback.text === text && audioPlayback.itemIndex === lineIndex;
+                const audioButton = hasAudioItem(text, lineIndex)
+                    ? `<button class="numbers-audio-btn${playing ? ' active' : ''}" onclick="playNumbersAudio(${lineIndex})" aria-label="${playing ? 'Остановить запись' : 'Слушать запись пункта'}">${playing ? '■' : '▶'}</button>`
+                    : '';
                 return `
                     <div class="linecards-row">
                         <span class="linecards-num">${escapeHtml(line.marker)}</span>
+                        ${audioButton}
                         <span class="linecards-line">${escapeHtml(shownText)}</span>
                     </div>
                 `;
@@ -13147,11 +13317,478 @@
                         </div>
                         <div class="numbers-secondary">
                             <button class="module-action-btn secondary" onclick="numbersHint()" ${allShown ? 'disabled' : ''}>Подсказка</button>
+                            <button class="module-action-btn secondary audio-open-btn${getTextAudioCount(text) ? ' has-audio' : ''}" onclick="showAudioModal()" title="Голосовые записи к пунктам">🎙${getTextAudioCount(text) ? ' ' + getTextAudioCount(text) : ''}</button>
                             <span class="term-counter-inline">${nav.current + 1}/${nav.total}</span>
                         </div>
                     </div>
                 </div>
             `;
+        }
+
+        // ——— Озвучка материала: голосовые записи к пунктам ———
+        // К каждому пункту (строке) материала можно записать голос и слушать его
+        // отдельно; если строка одна, запись одна на весь термин. Пункты — те же
+        // строки, что в режиме «Номера» (buildNumbersLines), поэтому номера
+        // совпадают.
+        //
+        // Хранение. Звук — не в localStorage: записи весят сотни килобайт, а данные
+        // материалов переписываются целиком при каждом сохранении — каждое нажатие
+        // писало бы мегабайты, и место (≈5 МБ) кончилось бы за десяток записей.
+        // Сами записи лежат в IndexedDB (база zapominalkaAudio, хранилище clips,
+        // ключ «id:номер пункта», значение { data: ArrayBuffer, type }), а в
+        // материале — только короткая пометка text.audio = { id, items: { номер:
+        // { d: секунды, t: время записи } } }: по ней отрисовка синхронно знает,
+        // какие пункты озвучены. ArrayBuffer, а не Blob: Blob в IndexedDB старые
+        // Safari сохраняли ненадёжно.
+        //
+        // Записи остаются на устройстве, где их сделали: в перенос материалов
+        // текстом они не попадают. При удалении материала, модуля или папки их
+        // записи удаляются.
+        //
+        // Заряд. Микрофон включён только пока идёт запись и выключается сразу по
+        // «Стоп» (дорожки останавливаются). Пока пишем — раз в секунду обновляется
+        // счётчик времени, больше ничего; запись сама останавливается через
+        // AUDIO_MAX_SECONDS, чтобы забытый микрофон не работал часами. В простое
+        // озвучка не делает ничего.
+        const AUDIO_DB_NAME = 'zapominalkaAudio';
+        const AUDIO_STORE = 'clips';
+        const AUDIO_MAX_SECONDS = 300;
+        // Пустой WAV: им «разрешаем» звук на iPhone прямо в нажатии, пока запись
+        // ещё читается из базы, — Safari пускает play() только из жеста.
+        const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+
+        let audioDbPromise = null;
+        let audioModalText = null;
+        let audioModalError = '';
+        let audioRecording = null;
+        let audioPlayback = null;
+        let audioPlayerEl = null;
+        let audioUrlCache = { id: null, urls: new Map() };
+        let audioPersistRequested = false;
+
+        function openAudioDb() {
+            if (!audioDbPromise) {
+                audioDbPromise = new Promise((resolve, reject) => {
+                    if (typeof indexedDB === 'undefined') {
+                        reject(new Error('IndexedDB недоступна'));
+                        return;
+                    }
+                    const request = indexedDB.open(AUDIO_DB_NAME, 1);
+                    request.onupgradeneeded = () => request.result.createObjectStore(AUDIO_STORE);
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                }).catch(error => {
+                    audioDbPromise = null;
+                    throw error;
+                });
+            }
+            return audioDbPromise;
+        }
+
+        function audioDbRequest(mode, work) {
+            return openAudioDb().then(db => new Promise((resolve, reject) => {
+                const tx = db.transaction(AUDIO_STORE, mode);
+                const result = work(tx.objectStore(AUDIO_STORE));
+                tx.oncomplete = () => resolve(result && 'result' in result ? result.result : undefined);
+                tx.onerror = () => reject(tx.error);
+                tx.onabort = () => reject(tx.error);
+            }));
+        }
+
+        function getAudioKey(text, itemIndex) {
+            return text.audio.id + ':' + itemIndex;
+        }
+
+        function getTextAudioItems(text) {
+            return text && text.audio && text.audio.items && typeof text.audio.items === 'object' ? text.audio.items : {};
+        }
+
+        function hasAudioItem(text, itemIndex) {
+            return !!getTextAudioItems(text)[itemIndex];
+        }
+
+        function getTextAudioCount(text) {
+            return Object.keys(getTextAudioItems(text)).length;
+        }
+
+        // Пункты для записи: строки материала. Подпись — текст строки без номера.
+        function getAudioItemsForText(text) {
+            const lines = buildNumbersLines(text);
+            return lines.map((line, index) => ({
+                index,
+                marker: line.marker,
+                label: lines.length === 1 ? 'Весь термин' : (line.words.join(' ') || 'Пустая строка')
+            }));
+        }
+
+        function formatAudioSeconds(total) {
+            const seconds = Math.max(0, Math.round(total || 0));
+            return Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
+        }
+
+        function pickAudioMimeType() {
+            if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') return '';
+            const candidates = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
+            return candidates.find(type => MediaRecorder.isTypeSupported(type)) || '';
+        }
+
+        function getCurrentStudyText() {
+            if (state.currentFolder === null || state.currentText === null) return null;
+            const folder = getCurrentFolder();
+            return folder && folder.texts[state.currentText] ? ensureTextStudyData(folder.texts[state.currentText]) : null;
+        }
+
+        // Записи материала читаем из базы один раз и держим ссылками в памяти, пока
+        // открыт этот материал: тогда «Слушать» играет сразу, прямо в нажатии.
+        function resetAudioUrlCache(nextId) {
+            audioUrlCache.urls.forEach(url => URL.revokeObjectURL(url));
+            audioUrlCache = { id: nextId || null, urls: new Map() };
+        }
+
+        async function loadAudioUrl(text, itemIndex) {
+            if (!text || !text.audio || !hasAudioItem(text, itemIndex)) return null;
+            if (audioUrlCache.id !== text.audio.id) resetAudioUrlCache(text.audio.id);
+            const key = getAudioKey(text, itemIndex);
+            if (audioUrlCache.urls.has(key)) return audioUrlCache.urls.get(key);
+            const record = await audioDbRequest('readonly', store => store.get(key));
+            if (!record || !record.data) return null;
+            const url = URL.createObjectURL(new Blob([record.data], { type: record.type || 'audio/mp4' }));
+            if (audioUrlCache.id === text.audio.id) audioUrlCache.urls.set(key, url);
+            return url;
+        }
+
+        function preloadTextAudio(text) {
+            if (!text || !text.audio) return;
+            Object.keys(getTextAudioItems(text)).forEach(index => {
+                loadAudioUrl(text, Number(index)).catch(() => {});
+            });
+        }
+
+        function getAudioPlayer() {
+            if (!audioPlayerEl) {
+                audioPlayerEl = new Audio();
+                audioPlayerEl.preload = 'auto';
+                audioPlayerEl.addEventListener('ended', onAudioPlaybackEnded);
+            }
+            return audioPlayerEl;
+        }
+
+        // ——— Окно озвучки ———
+        function showAudioModal() {
+            const text = getCurrentStudyText();
+            if (!text) return;
+            audioModalText = text;
+            audioModalError = '';
+            preloadTextAudio(text);
+            document.getElementById('audioModalTitle').textContent = 'Озвучка: ' + (text.title || 'материал');
+            const items = getAudioItemsForText(text);
+            const n = items.length;
+            const itemsWord = (n % 10 === 1 && n % 100 !== 11) ? 'пункт'
+                : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 'пункта' : 'пунктов';
+            document.getElementById('audioModalLead').textContent = items.length > 1
+                ? 'В материале ' + n + ' ' + itemsWord + ' — к каждому можно записать голос и слушать его отдельно. Записи хранятся на этом устройстве.'
+                : 'Запишите голос ко всему термину. Запись хранится на этом устройстве.';
+            renderAudioModalList();
+            document.getElementById('audioModal').classList.add('show');
+        }
+
+        function closeAudioModal() {
+            if (audioRecording) stopAudioRecording();
+            stopAudioPlayback();
+            closeModal('audioModal');
+            audioModalText = null;
+            render();
+        }
+
+        function renderAudioModalList() {
+            const list = document.getElementById('audioModalList');
+            const text = audioModalText;
+            if (!list || !text) return;
+            const items = getAudioItemsForText(text);
+            const meta = getTextAudioItems(text);
+            const busy = !!audioRecording;
+            const recorded = items.filter(item => meta[item.index]);
+            const parts = [];
+            if (audioModalError) parts.push('<div class="audio-modal-error" role="alert">' + escapeHtml(audioModalError) + '</div>');
+            if (recorded.length > 1) {
+                const playingAll = audioPlayback && audioPlayback.all;
+                parts.push('<button class="module-action-btn secondary audio-play-all-btn" onclick="' + (playingAll ? 'stopAudioPlayback()' : 'playAllAudio()') + '" ' + (busy ? 'disabled' : '') + '>' +
+                    (playingAll ? '■ Остановить' : '▶ Слушать все по порядку') + '</button>');
+            }
+            items.forEach(item => {
+                const info = meta[item.index];
+                const isRecording = audioRecording && audioRecording.itemIndex === item.index;
+                const isPlaying = audioPlayback && audioPlayback.itemIndex === item.index;
+                const recordButton = isRecording
+                    ? '<button class="audio-btn rec active" onclick="stopAudioRecording()">■ Стоп · <span id="audioRecTime">' + formatAudioSeconds(audioRecording.startedAt ? (Date.now() - audioRecording.startedAt) / 1000 : 0) + '</span></button>'
+                    : '<button class="audio-btn rec" onclick="startAudioRecording(' + item.index + ')" ' + (busy ? 'disabled' : '') + '>● ' + (info ? 'Перезаписать' : 'Записать') + '</button>';
+                const playButton = info
+                    ? '<button class="audio-btn play' + (isPlaying ? ' active' : '') + '" onclick="' + (isPlaying ? 'stopAudioPlayback()' : 'playAudioItem(' + item.index + ')') + '" ' + (busy ? 'disabled' : '') + '>' +
+                        (isPlaying ? '■ Стоп' : '▶ Слушать · ' + formatAudioSeconds(info.d)) + '</button>' +
+                      '<button class="audio-btn danger" onclick="deleteAudioItem(' + item.index + ')" ' + (busy ? 'disabled' : '') + ' aria-label="Удалить запись" title="Удалить запись">🗑</button>'
+                    : '';
+                parts.push('<div class="audio-item' + (isRecording ? ' is-recording' : '') + (isPlaying ? ' is-playing' : '') + '">' +
+                    '<div class="audio-item-head">' + (items.length > 1 ? '<span class="audio-item-num">' + escapeHtml(item.marker) + '</span>' : '') +
+                    '<span class="audio-item-text">' + escapeHtml(item.label) + '</span></div>' +
+                    '<div class="audio-item-actions">' + recordButton + playButton + '</div></div>');
+            });
+            // Записи к пунктам, которых после правки текста уже нет: не теряем их
+            // молча — их можно дослушать и удалить.
+            Object.keys(meta).map(Number).filter(index => index >= items.length).sort((a, b) => a - b).forEach(index => {
+                const info = meta[index];
+                const isPlaying = audioPlayback && audioPlayback.itemIndex === index;
+                parts.push('<div class="audio-item' + (isPlaying ? ' is-playing' : '') + '">' +
+                    '<div class="audio-item-head"><span class="audio-item-num">' + (index + 1) + '.</span><span class="audio-item-text">Запись к пункту, которого больше нет в тексте</span></div>' +
+                    '<div class="audio-item-actions">' +
+                    '<button class="audio-btn play' + (isPlaying ? ' active' : '') + '" onclick="' + (isPlaying ? 'stopAudioPlayback()' : 'playAudioItem(' + index + ')') + '" ' + (busy ? 'disabled' : '') + '>' + (isPlaying ? '■ Стоп' : '▶ Слушать · ' + formatAudioSeconds(info.d)) + '</button>' +
+                    '<button class="audio-btn danger" onclick="deleteAudioItem(' + index + ')" ' + (busy ? 'disabled' : '') + ' aria-label="Удалить запись" title="Удалить запись">🗑</button>' +
+                    '</div></div>');
+            });
+            list.innerHTML = parts.join('');
+        }
+
+        // ——— Запись ———
+        // getUserMedia вызывается синхронно, прямо в нажатии: так браузер
+        // спрашивает разрешение на микрофон без лишних отказов.
+        function startAudioRecording(itemIndex) {
+            const text = audioModalText;
+            if (!text || audioRecording) return;
+            stopAudioPlayback();
+            audioModalError = '';
+            if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function' || typeof MediaRecorder === 'undefined') {
+                audioModalError = 'Этот браузер не умеет записывать звук. На iPhone нужна iOS 14.3 или новее.';
+                renderAudioModalList();
+                return;
+            }
+            const recording = { itemIndex, text, starting: true, chunks: [], startedAt: 0, timer: null, stream: null, recorder: null, stopRequested: false };
+            audioRecording = recording;
+            renderAudioModalList();
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                recording.stream = stream;
+                if (recording.stopRequested || audioRecording !== recording) {
+                    stream.getTracks().forEach(track => track.stop());
+                    if (audioRecording === recording) audioRecording = null;
+                    renderAudioModalList();
+                    return;
+                }
+                const mimeType = pickAudioMimeType();
+                const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+                recording.recorder = recorder;
+                recording.type = recorder.mimeType || mimeType || 'audio/webm';
+                recorder.ondataavailable = event => {
+                    if (event.data && event.data.size) recording.chunks.push(event.data);
+                };
+                recorder.onstop = () => finishAudioRecording(recording);
+                recorder.start();
+                recording.starting = false;
+                recording.startedAt = Date.now();
+                scheduleAudioRecordingTick(recording);
+                renderAudioModalList();
+            }).catch(error => {
+                if (audioRecording === recording) audioRecording = null;
+                audioModalError = error && (error.name === 'NotAllowedError' || error.name === 'SecurityError')
+                    ? 'Нет доступа к микрофону. Разрешите его для этого сайта в настройках браузера (на iPhone: Настройки → Safari → Микрофон) и попробуйте снова.'
+                    : 'Не удалось включить микрофон' + (error && error.message ? ': ' + error.message : '.');
+                renderAudioModalList();
+            });
+        }
+
+        // Счётчик времени на кнопке «Стоп»: раз в секунду, только пока идёт запись.
+        function scheduleAudioRecordingTick(recording) {
+            recording.timer = setTimeout(() => {
+                if (audioRecording !== recording) return;
+                const elapsed = (Date.now() - recording.startedAt) / 1000;
+                if (elapsed >= AUDIO_MAX_SECONDS) {
+                    stopAudioRecording();
+                    return;
+                }
+                const label = document.getElementById('audioRecTime');
+                if (label) label.textContent = formatAudioSeconds(elapsed);
+                scheduleAudioRecordingTick(recording);
+            }, 1000);
+        }
+
+        function stopAudioRecording() {
+            const recording = audioRecording;
+            if (!recording) return;
+            recording.stopRequested = true;
+            if (recording.timer !== null) clearTimeout(recording.timer);
+            if (recording.recorder && recording.recorder.state !== 'inactive') {
+                recording.recorder.stop();
+            } else if (!recording.recorder) {
+                // Микрофон ещё включается — запись отменится, как только он ответит.
+                audioRecording = null;
+                renderAudioModalList();
+            }
+        }
+
+        async function finishAudioRecording(recording) {
+            if (recording.stream) recording.stream.getTracks().forEach(track => track.stop());
+            if (audioRecording === recording) audioRecording = null;
+            const text = recording.text;
+            const duration = Math.max(1, Math.round((Date.now() - recording.startedAt) / 1000));
+            const blob = new Blob(recording.chunks, { type: recording.type });
+            if (blob.size > 0 && text) {
+                try {
+                    const data = await blob.arrayBuffer();
+                    if (!text.audio || !text.audio.id) {
+                        text.audio = { id: 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8), items: {} };
+                    }
+                    if (!text.audio.items || typeof text.audio.items !== 'object') text.audio.items = {};
+                    const key = getAudioKey(text, recording.itemIndex);
+                    await audioDbRequest('readwrite', store => store.put({ data, type: recording.type }, key));
+                    text.audio.items[recording.itemIndex] = { d: duration, t: Date.now() };
+                    // Старую ссылку на этот пункт выбрасываем: в базе уже новая запись.
+                    if (audioUrlCache.id === text.audio.id && audioUrlCache.urls.has(key)) {
+                        URL.revokeObjectURL(audioUrlCache.urls.get(key));
+                        audioUrlCache.urls.delete(key);
+                    }
+                    saveData();
+                    requestPersistentAudioStorage();
+                    loadAudioUrl(text, recording.itemIndex).catch(() => {});
+                } catch (error) {
+                    audioModalError = 'Не удалось сохранить запись' + (error && error.message ? ': ' + error.message : '.');
+                }
+            }
+            renderAudioModalList();
+            render();
+        }
+
+        // Просим браузер не вычищать базу при нехватке места. Это одна просьба,
+        // без запросов и ожидания; если её не поддерживают — ничего не меняется.
+        function requestPersistentAudioStorage() {
+            if (audioPersistRequested) return;
+            audioPersistRequested = true;
+            try {
+                if (navigator.storage && typeof navigator.storage.persist === 'function') {
+                    navigator.storage.persist().catch(() => {});
+                }
+            } catch (e) {
+                // Не поддерживается — записи просто живут по обычным правилам браузера.
+            }
+        }
+
+        async function deleteAudioItem(itemIndex) {
+            const text = audioModalText;
+            if (!text || !hasAudioItem(text, itemIndex) || audioRecording) return;
+            if (!confirm('Удалить запись к этому пункту?')) return;
+            if (audioPlayback && audioPlayback.itemIndex === itemIndex) stopAudioPlayback();
+            const key = getAudioKey(text, itemIndex);
+            try {
+                await audioDbRequest('readwrite', store => store.delete(key));
+            } catch (e) {
+                // Запись в базе могла уже пропасть — пометку всё равно снимаем.
+            }
+            delete text.audio.items[itemIndex];
+            if (audioUrlCache.urls.has(key)) {
+                URL.revokeObjectURL(audioUrlCache.urls.get(key));
+                audioUrlCache.urls.delete(key);
+            }
+            saveData();
+            renderAudioModalList();
+            render();
+        }
+
+        // Удаление материала, модуля или папки уносит и их записи.
+        function forgetTextAudio(text) {
+            if (!text || !text.audio || !text.audio.id) return;
+            const keys = Object.keys(getTextAudioItems(text)).map(index => text.audio.id + ':' + index);
+            if (!keys.length) return;
+            audioDbRequest('readwrite', store => keys.forEach(key => store.delete(key))).catch(() => {});
+        }
+
+        function forgetFolderAudio(folder) {
+            if (!folder) return;
+            (folder.texts || []).forEach(forgetTextAudio);
+            (folder.subfolders || []).forEach(forgetFolderAudio);
+        }
+
+        // ——— Воспроизведение ———
+        // Один плеер на всё приложение. В нажатии он сразу получает адрес записи,
+        // если она уже прочитана из базы, а если нет — пустой звук, чтобы Safari
+        // на iPhone разрешил играть, когда запись дочитается.
+        function playAudioItemFor(text, itemIndex, queue, all) {
+            if (!text || !hasAudioItem(text, itemIndex) || audioRecording) return;
+            stopAudioPlayback();
+            const player = getAudioPlayer();
+            // loading: пока играет пустой звук-разрешение, его конец — не конец записи.
+            const playback = { itemIndex, text, queue: queue || [], all: !!all, loading: true };
+            audioPlayback = playback;
+            const key = getAudioKey(text, itemIndex);
+            const cached = audioUrlCache.id === text.audio.id ? audioUrlCache.urls.get(key) : null;
+            const start = url => {
+                if (audioPlayback !== playback) return;
+                playback.loading = false;
+                player.src = url;
+                player.play().catch(() => {
+                    if (audioPlayback === playback) stopAudioPlayback();
+                });
+            };
+            if (cached) {
+                start(cached);
+            } else {
+                player.src = SILENT_WAV;
+                player.play().catch(() => {});
+                loadAudioUrl(text, itemIndex).then(url => {
+                    if (url) start(url);
+                    else if (audioPlayback === playback) {
+                        audioModalError = 'Запись не найдена на этом устройстве.';
+                        stopAudioPlayback();
+                    }
+                }).catch(() => {
+                    if (audioPlayback === playback) stopAudioPlayback();
+                });
+            }
+            refreshAudioUi();
+        }
+
+        function playAudioItem(itemIndex) {
+            playAudioItemFor(audioModalText, itemIndex);
+        }
+
+        function playAllAudio() {
+            const text = audioModalText;
+            if (!text) return;
+            const indexes = Object.keys(getTextAudioItems(text)).map(Number).sort((a, b) => a - b);
+            if (!indexes.length) return;
+            playAudioItemFor(text, indexes[0], indexes.slice(1), true);
+        }
+
+        // ▶ у строки в режиме «Номера».
+        function playNumbersAudio(itemIndex) {
+            const text = getCurrentStudyText();
+            if (audioPlayback && audioPlayback.itemIndex === itemIndex && audioPlayback.text === text) {
+                stopAudioPlayback();
+                return;
+            }
+            playAudioItemFor(text, itemIndex);
+        }
+
+        function onAudioPlaybackEnded() {
+            const playback = audioPlayback;
+            if (!playback || playback.loading) return;
+            const next = playback.queue.shift();
+            if (next !== undefined) {
+                playAudioItemFor(playback.text, next, playback.queue, playback.all);
+                return;
+            }
+            stopAudioPlayback();
+        }
+
+        function stopAudioPlayback() {
+            if (!audioPlayback) return;
+            audioPlayback = null;
+            if (audioPlayerEl) {
+                audioPlayerEl.pause();
+                audioPlayerEl.removeAttribute('src');
+                audioPlayerEl.load();
+            }
+            refreshAudioUi();
+        }
+
+        function refreshAudioUi() {
+            if (document.getElementById('audioModal').classList.contains('show')) renderAudioModalList();
+            if (state.view === 'practice' && state.mode === 'numbers') render();
         }
 
         // ——— Карточка «термин ↔ текст» ———
@@ -14352,6 +14989,7 @@
                 : { folder: getCurrentFolder(), textIndex: index };
             if (!location || !location.folder) return;
             if (confirm('Удалить этот материал?')) {
+                forgetTextAudio(location.folder.texts[location.textIndex]);
                 location.folder.texts.splice(location.textIndex, 1);
                 saveData();
                 render();
@@ -15481,6 +16119,7 @@
             if (!root || !root.subfolders[index]) return;
             const subfolderName = root.subfolders[index].name || 'Без названия';
             if (!confirm('Удалить модуль «' + subfolderName + '» и все материалы в нём?')) return;
+            forgetFolderAudio(root.subfolders[index]);
             root.subfolders.splice(index, 1);
             if (state.currentSubfolder === index) {
                 state.currentSubfolder = null;
@@ -17175,6 +17814,8 @@
                     cancelBatchHint();
                 } else if (openModal.id === 'hintModal') {
                     cancelHint();
+                } else if (openModal.id === 'audioModal') {
+                    closeAudioModal();
                 } else if (openModal.id === 'flashcardModal') {
                     closeFlashcardModal();
                 } else if (openModal.id === 'flashcardImportModal') {
@@ -17566,6 +18207,7 @@
 
         function deleteFolderFromList(index) {
             if (confirm('Удалить папку «' + state.folders[index].name + '» и все материалы в ней?')) {
+                forgetFolderAudio(state.folders[index]);
                 state.folders.splice(index, 1);
                 saveData();
                 render();
@@ -17578,6 +18220,7 @@
                 const subfolder = root ? root.subfolders[state.currentSubfolder] : null;
                 if (!subfolder) return;
                 if (confirm('Удалить модуль «' + subfolder.name + '» и все материалы в нём?')) {
+                    forgetFolderAudio(subfolder);
                     root.subfolders.splice(state.currentSubfolder, 1);
                     state.currentSubfolder = null;
                     state.currentText = null;
@@ -17590,6 +18233,7 @@
             }
 
             if (confirm('Удалить эту папку и все материалы в ней?')) {
+                forgetFolderAudio(state.folders[state.currentFolder]);
                 state.folders.splice(state.currentFolder, 1);
                 saveData();
                 goBack();
