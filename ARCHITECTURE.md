@@ -4,7 +4,7 @@
 
 Номера строк ниже приблизительные: файл правится постоянно, и они сдвигаются. Ищите по имени — `grep -n "function имя(" index.html`. Свежую карту всех функций с номерами строк даёт команда из раздела [«Как быстро сориентироваться»](#как-быстро-сориентироваться).
 
-Сверено с кодом 2026-10-15: версия кэша `zapominalka-v132`, `index.html` — около 18 360 строк, 890 КБ (по сети — около 170 КБ: GitHub Pages отдаёт его сжатым gzip).
+Сверено с кодом 2026-10-15: версия кэша `zapominalka-v133`, `index.html` — около 18 360 строк, 890 КБ (по сети — около 170 КБ: GitHub Pages отдаёт его сжатым gzip).
 
 ---
 
@@ -210,6 +210,7 @@
 | `renderGroupsMemo` | Память групп скрытых слов на время одной отрисовки (CLAUDE.md) |
 | `lastRenderSignature` | `view + '|' + mode` прошлой отрисовки: тот же экран или новый |
 | `rebuildNextRender` | Одноразовая просьба собрать экран начисто вместо патча — ставит `renderRebuilt()` |
+| `practiceTextAnchor`, `nextPracticeScrollAnchor` | Практика: закреплённый отступ текста в карточке (ключ материала и ширины) и подсказка, какое слово держать на месте при следующей отрисовке |
 | `cardSearchQuery` | Поиск в списке «Карточки в папке» |
 | `numbersRevealKey`, `numbersRevealCount` | Режим «Номера»: какой материал открыт и сколько слов в нём показано |
 | `audioModalText`, `audioModalError`, `audioRecording`, `audioPlayback`, `audioPlayerEl`, `audioUrlCache`, `audioDbPromise` | Озвучка: какой материал в окне, идущая запись, проигрывание, плеер, ссылки на записи открытого материала, соединение с IndexedDB |
@@ -450,6 +451,8 @@ render()
      ├─ после: texts → initTermCardSwipe() (только сенсорный экран) и initDragReorder()
      ├─ syncFlashcardTimer(), syncDockSpacing()
      ├─ вернуть прокрутку, если это тот же экран
+     ├─ практика: syncPracticeTextAnchor() (закрепить положение текста при входе),
+     │     restorePracticeScrollAnchor() (докрутить на сдвиг слова, запомненного до отрисовки)
      └─ type → syncTypeTextClamp()        — строго после прокрутки
  finally: renderGroupsMemo = null
 ```
@@ -462,6 +465,7 @@ render()
 - **Отрисовка не совсем чистая.** `renderTextsView` пишет `textsViewEntriesCache`, а при пропавшей папке меняет `view` и вызывает `render()`. `renderPracticeView` переносит `practiceFocusWordIndex`, если слово исчезло после правки текста. Менять разметку скрытия (`hiddenWords`, `hiddenWordGroups`) внутри отрисовки нельзя из-за `renderGroupsMemo`.
 - `compactMarkup(html)` убирает пробелы между тегами в списках материалов и карточек — только там, где контейнеры flex (CLAUDE.md).
 - `getTermCardEntryDelay(i)` ограничивает каскад появления карточек восемью шагами по 0.05 с, а `getTermCardEntryStyle(i)` даёт анимацию только первым `TERM_CARD_ANIMATED_LIMIT` (16) карточкам — остальные ниже края экрана и появляются сразу (`animation: none`).
+- **Текст практики не скачет** (`syncPracticeTextAnchor`, `capturePracticeScrollAnchor` / `restorePracticeScrollAnchor`, переменные `practiceTextAnchor`, `nextPracticeScrollAnchor`). (1) Карточка центрирует текст (`justify-content: center`), и каждое изменение высоты текста сдвигало все строки на половину прибавки. После первой отрисовки материала отступ сверху, который дал центр, мерится и закрепляется: класс `is-anchored` и `--text-anchor-top` в `style` карточки, `justify-content: flex-start`. Ключ — папка, модуль, материал, `practiceMode` и ширина окна (`getPracticeTextAnchorKey`); при повороте экрана обработчик `resize` перерисовывает и меряет заново, смена одной высоты (панель Safari) не трогает. (2) Перед отрисовкой того же экрана практики запоминается слово, куда смотрят: под фокусом, если оно на экране; середина экрана, если `toggleAllWordsReveal` поставил `nextPracticeScrollAnchor = 'center'`; иначе первое слово под липкой шапкой (двоичный поиск по `.word`). После патча — `scrollBy` на его сдвиг, если он больше 2 px (1–2 px — это `translateY` чипа под фокусом). Это ручной scroll anchoring: в Chrome он есть сам, в Safari нет. (3) Ряд «Фокус…/Открыть слово» в доке рисуется всегда, когда есть скрытые слова, кнопки только `disabled`: исчезающий ряд менял высоту дока → `syncDockSpacing` уменьшал отступ → страница укорачивалась, и браузер подтягивал её вверх.
 - **Длинные списки карточек.** Сверка узел за узлом выгодна, когда меняется немногое. Когда меняется почти каждая строка (порядок `W`, смена сторон у всех карточек), дешевле собрать экран заново: `renderRebuilt()` один раз отключает патч, сохраняя отсечку анимаций и прокрутку. Выбор карточек вовсе не перерисовывает экран — `syncFlashcardSelectionDom()` правит класс и галочку строк и две подписи панели выбора. Строки помечены `data-card-index`: по нему работает быстрый выход `isEqualNode` в `patchChildNodes` (полей ввода в строках нет — у них значение в свойстве, которое `isEqualNode` не видит), выбор и якорь прокрутки. Плюс `content-visibility: auto` у `.flashcard-row`: строки за экраном не раскладываются и не рисуются. Замеры на папке в 1000 карточек — в CLAUDE.md, «Длинные списки».
 - Цели фокуса (`getPracticeFocusTargets`) внутри одной отрисовки считаются один раз — память лежит в той же `renderGroupsMemo` под строковым ключом `focusTargets:<practiceMode>`; при выключенном фокусе `renderPracticeView` их не считает вовсе.
 

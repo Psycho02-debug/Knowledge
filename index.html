@@ -855,6 +855,14 @@
             padding-top: 52px;
         }
 
+        /* Положение текста закреплено при входе в материал (syncPracticeTextAnchor):
+           отступ сверху — тот, что дал центр, а прибавка от открытых слов растёт
+           только вниз. Правило идёт после .has-corner-hint и сильнее его. */
+        .practice-shell .text-display-row .text-display.is-anchored {
+            justify-content: flex-start;
+            padding-top: var(--text-anchor-top);
+        }
+
         .practice-corner-hint-btn {
             position: absolute;
             top: 10px;
@@ -1150,11 +1158,16 @@
             padding: 16px 18px;
         }
 
-        .practice-skip-btn:active {
+        .practice-skip-btn:active:not([disabled]) {
             transform: scale(0.98);
         }
 
-        .practice-skip-btn:hover {
+        .practice-skip-btn[disabled] {
+            opacity: 0.4;
+            cursor: default;
+        }
+
+        .practice-skip-btn:hover:not([disabled]) {
             border-color: var(--accent-primary);
             color: var(--accent-primary);
         }
@@ -8470,6 +8483,13 @@
             dockSpacingRaf = requestAnimationFrame(function() {
                 dockSpacingRaf = null;
                 syncDockSpacing();
+                // Поворот экрана: ширина другая — положение текста в практике
+                // меряется заново. Смена одной только высоты (панель Safari
+                // прячется при прокрутке) его не трогает, иначе текст прыгал бы.
+                if (state.view === 'practice' && state.mode === 'practice' &&
+                    practiceTextAnchor.key && practiceTextAnchor.key !== getPracticeTextAnchorKey()) {
+                    render();
+                }
             });
         }, { passive: true });
 
@@ -8941,6 +8961,10 @@
             // того же экрана позицию нужно вернуть, иначе на длинном тексте
             // после каждого открытого слова экран уезжал вверх.
             const scrollBeforeRender = isSameScreenUpdate ? window.scrollY : 0;
+            // В практике держим на месте то, что сейчас видно (см. capturePracticeScrollAnchor).
+            const practiceScrollAnchor = isSameScreenUpdate && state.view === 'practice' && state.mode === 'practice'
+                ? capturePracticeScrollAnchor()
+                : null;
 
             // Экран «Материалы» после отрисовки навешивает обработчики свайпа и
             // перетаскивания на конкретные узлы. Точечное обновление сохраняет узлы
@@ -9005,6 +9029,10 @@
             // чтобы возврат не был заметен глазу.
             if (isSameScreenUpdate && scrollBeforeRender > 0 && window.scrollY !== scrollBeforeRender) {
                 window.scrollTo(0, scrollBeforeRender);
+            }
+            if (state.view === 'practice' && state.mode === 'practice') {
+                syncPracticeTextAnchor();
+                if (practiceScrollAnchor) restorePracticeScrollAnchor(practiceScrollAnchor);
             }
 
             // Строго после восстановления прокрутки: ограничение высоты текста само
@@ -12498,6 +12526,118 @@
             return true;
         }
 
+        // ——— Чтобы текст в практике не скакал ———
+        // Три причины скачков, найденные замером на телефонном экране:
+        //
+        // 1. Текст стоял по центру карточки. Открытое слово длиннее квадратика и
+        //    переносит строку, текст становится на строку выше — и центрирование
+        //    сдвигало ВСЕ строки на полстроки вверх (≈29 px), даже те, что не
+        //    менялись. Теперь положение текста фиксируется при входе в материал:
+        //    сколько отступа сверху дал центр, столько и остаётся (is-anchored,
+        //    --text-anchor-top), а прибавка растёт только вниз. Выглядит так же,
+        //    как раньше, но больше не прыгает.
+        //
+        // 2. Открытие слов ВЫШЕ того, что видно на экране (например, «Открыть
+        //    слово» с фокусом), удлиняет текст над глазами, и видимые строки
+        //    уезжали вниз. Chrome гасит это сам (scroll anchoring), Safari на
+        //    iPhone — нет. Поэтому перед отрисовкой запоминаем первое видимое
+        //    слово и его место, а после — докручиваем страницу на ту же разницу,
+        //    до кадра, так что глазу сдвиг не виден.
+        //
+        // 3. Нижняя панель меняла высоту (см. renderPracticeView: ряд с «Фокус…»
+        //    и «Открыть слово» теперь не исчезает), из-за чего страница
+        //    укорачивалась и браузер подтягивал её вверх.
+        let practiceTextAnchor = { key: '', top: 0 };
+
+        function getPracticeTextAnchorKey() {
+            return [state.currentFolder, state.currentSubfolder, state.currentText,
+                state.practiceMode, Math.round(window.innerWidth)].join('|');
+        }
+
+        function getPracticeTextAnchorStyle() {
+            return practiceTextAnchor.key === getPracticeTextAnchorKey()
+                ? ' --text-anchor-top: ' + practiceTextAnchor.top + 'px;'
+                : '';
+        }
+
+        // После первой отрисовки материала: текст ещё стоит по центру — меряем,
+        // сколько это сверху, и закрепляем. Одно чтение раскладки на вход в
+        // материал, на каждое нажатие — ничего.
+        function syncPracticeTextAnchor() {
+            const key = getPracticeTextAnchorKey();
+            if (practiceTextAnchor.key === key) return;
+            const card = document.querySelector('.practice-shell .text-display');
+            const inner = card ? card.querySelector('.text-display-inner') : null;
+            if (!card || !inner) return;
+            const top = Math.max(0, Math.round(inner.getBoundingClientRect().top - card.getBoundingClientRect().top));
+            practiceTextAnchor = { key, top };
+            card.style.setProperty('--text-anchor-top', top + 'px');
+            card.classList.add('is-anchored');
+        }
+
+        function getStickyHeaderBottom() {
+            const header = document.querySelector('.header');
+            return header ? Math.max(0, header.getBoundingClientRect().bottom) : 0;
+        }
+
+        // Что держать на месте — то, куда сейчас смотрят:
+        // — включён фокус и слово под ним на экране — само это слово («Открыть
+        //   слово» открывает всё выше него, и без этого оно уезжало вниз);
+        // — «Показать все / Скрыть все» (nextPracticeScrollAnchor = 'center') —
+        //   слово в середине экрана: меняется весь текст, и держать верх значило
+        //   бы увезти середину;
+        // — иначе (нажатие на слово) — первое слово под шапкой: выше нажатого
+        //   ничего не меняется, и так ничто видимое не двигается.
+        // Слова идут в разметке в том же порядке, что на экране, поэтому ищем
+        // двоичным поиском — на длинном тексте десяток чтений вместо сотен.
+        let nextPracticeScrollAnchor = '';
+
+        function capturePracticeScrollAnchor() {
+            const preference = nextPracticeScrollAnchor;
+            nextPracticeScrollAnchor = '';
+            if (window.scrollY <= 0) return null;
+            const words = document.querySelectorAll('.practice-shell .text-display .word');
+            if (!words.length) return null;
+            const topLimit = getStickyHeaderBottom();
+            const dock = document.querySelector('.practice-dock');
+            const bottomLimit = dock ? dock.getBoundingClientRect().top : window.innerHeight;
+            const focused = document.querySelector('.practice-shell .text-display .word.practice-focus-active');
+            if (preference !== 'center' && focused) {
+                const rect = focused.getBoundingClientRect();
+                if (rect.bottom > topLimit && rect.top < bottomLimit) {
+                    return { el: focused, position: Array.prototype.indexOf.call(words, focused), top: rect.top };
+                }
+            }
+            const line = preference === 'center' ? (topLimit + bottomLimit) / 2 : topLimit;
+            let lo = 0;
+            let hi = words.length - 1;
+            let found = -1;
+            while (lo <= hi) {
+                const mid = (lo + hi) >> 1;
+                if (words[mid].getBoundingClientRect().bottom > line) {
+                    found = mid;
+                    hi = mid - 1;
+                } else {
+                    lo = mid + 1;
+                }
+            }
+            if (found === -1) return null;
+            const el = words[found];
+            return { el, position: found, top: el.getBoundingClientRect().top };
+        }
+
+        function restorePracticeScrollAnchor(anchor) {
+            let el = anchor.el;
+            if (!el || !el.isConnected) {
+                el = document.querySelectorAll('.practice-shell .text-display .word')[anchor.position] || null;
+            }
+            if (!el) return;
+            // Сдвиг в 1–2 px — это подъём чипа под фокусом (translateY), а не
+            // перенос строк: докручивать ради него незачем, только лишняя дрожь.
+            const delta = el.getBoundingClientRect().top - anchor.top;
+            if (Math.abs(delta) > 2) window.scrollBy(0, delta);
+        }
+
         // Подтягиваем экран к слову ТОЛЬКО вниз и только если слово скрылось за
         // нижней панелью. Вверх не двигаем никогда: раньше здесь был
         // scrollIntoView({block:'center'}), из-за которого экран уезжал вверх —
@@ -12932,7 +13072,7 @@
                     `}
 
                     ${text.image ? `<div style="text-align:center;margin-bottom:12px;"><img src="${text.image}" loading="lazy" decoding="async" style="max-width:100%;max-height:150px;border-radius:12px;object-fit:cover;"></div>` : ''}
-                    <div class="text-display-row${showCornerHint ? ' has-corner-hint' : ''}"><div class="text-display ${sizeClass}${isPracticeFocusActive ? ' practice-focus-mode' : ''}" style="${fitStyle}"><div class="text-display-inner">${practiceParts.join('')}</div></div>${showCornerHint ? `<button class="practice-corner-hint-btn" onclick="revealNextHintLetter()" ${canHint ? '' : 'disabled'} title="Открыть следующую букву слова (Shift)">💡 ${hintLabel}</button>` : ''}</div>
+                    <div class="text-display-row${showCornerHint ? ' has-corner-hint' : ''}"><div class="text-display ${sizeClass}${isPracticeFocusActive ? ' practice-focus-mode' : ''}${isPracticeLayout && getPracticeTextAnchorStyle() ? ' is-anchored' : ''}" style="${fitStyle}${isPracticeLayout ? getPracticeTextAnchorStyle() : ''}"><div class="text-display-inner">${practiceParts.join('')}</div></div>${showCornerHint ? `<button class="practice-corner-hint-btn" onclick="revealNextHintLetter()" ${canHint ? '' : 'disabled'} title="Открыть следующую букву слова (Shift)">💡 ${hintLabel}</button>` : ''}</div>
 
                     ${isPracticeLayout ? '' : `
                         <div class="action-buttons">
@@ -12955,14 +13095,12 @@
                 ${isPracticeLayout ? `
                     <div class="practice-dock">
                         <div class="practice-dock-inner">
-                            ${(canFocusNext || canOpenNext) ? `
+                            ${progress && progress.total > 0 ? `
+                                <!-- Ряд не исчезает, когда кнопки не нужны, — кнопки гаснут: иначе
+                                     панель меняла высоту, страница укорачивалась и экран прыгал. -->
                                 <div class="practice-assist-row">
-                                    ${canFocusNext ? `
-                                        <button class="practice-skip-btn" onclick="focusNextPracticeWord()" title="Перевести фокус на следующее слово, не открывая текущее">Фокус на следующем слове</button>
-                                    ` : ''}
-                                    ${canOpenNext ? `
-                                        <button class="practice-skip-btn practice-hint-btn" onclick="revealNextHiddenWordInOrder()" title="Открыть следующее скрытое слово по порядку; с фокусом — все скрытые слова до слова под фокусом (Return)">Открыть слово</button>
-                                    ` : ''}
+                                    <button class="practice-skip-btn" onclick="focusNextPracticeWord()" ${canFocusNext ? '' : 'disabled'} title="Перевести фокус на следующее слово, не открывая текущее">Фокус на следующем слове</button>
+                                    <button class="practice-skip-btn practice-hint-btn" onclick="revealNextHiddenWordInOrder()" ${canOpenNext ? '' : 'disabled'} title="Открыть следующее скрытое слово по порядку; с фокусом — все скрытые слова до слова под фокусом (Return)">Открыть слово</button>
                                 </div>
                             ` : ''}
                             <button class="practice-primary-btn" ${primaryAction ? `onclick="${primaryAction}"` : 'disabled'}>${primaryLabel}</button>
@@ -18730,6 +18868,8 @@
                 // Включить его снова можно той же кнопкой «Фокус на следующем слове».
                 exitPracticeFocusMode();
             }
+            // Меняется весь текст — держим на месте середину экрана.
+            nextPracticeScrollAnchor = 'center';
             render();
             return true;
         }
