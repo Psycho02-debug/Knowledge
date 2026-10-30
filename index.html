@@ -5052,64 +5052,6 @@
             margin-bottom: 12px;
         }
 
-        /* Голос устройства: выбор голоса и скорости над списком пунктов. */
-        .audio-voice-row {
-            display: grid;
-            grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-            gap: 10px;
-        }
-
-        .audio-voice-field {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            min-width: 0;
-        }
-
-        .audio-voice-field span {
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--text-tertiary);
-        }
-
-        /* 16px: на iPhone поле мельче приближает страницу при выборе. */
-        .modal-content .audio-voice-field select {
-            margin-bottom: 0;
-            padding: 10px 12px;
-            font-size: 16px;
-        }
-
-        .audio-voice-note {
-            margin: 8px 0 14px;
-            font-size: 13px;
-            line-height: 1.4;
-            color: var(--text-tertiary);
-        }
-
-        .audio-voice-settings .audio-modal-error {
-            margin: 10px 0 14px;
-        }
-
-        /* Нейроголос: скачан ли, ход скачивания и кнопка действия. */
-        .audio-voice-status {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin: 10px 0 14px;
-            font-size: 13px;
-            line-height: 1.4;
-            color: var(--text-secondary);
-        }
-
-        .audio-voice-status > span {
-            flex: 1 1 auto;
-            min-width: 0;
-        }
-
-        .audio-voice-status .audio-btn {
-            flex: 0 0 auto;
-        }
-
         .audio-item {
             padding: 12px 14px;
             border: 1px solid var(--border-color);
@@ -5154,6 +5096,19 @@
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
+        }
+
+        /* Пояснение под строкой: откуда звук (имя файла) или что делает строка. */
+        .audio-item-note {
+            margin: -4px 0 10px;
+            font-size: 13px;
+            line-height: 1.4;
+            color: var(--text-tertiary);
+            overflow-wrap: anywhere;
+        }
+
+        .audio-item.is-whole .audio-item-text {
+            font-weight: 700;
         }
 
         .audio-btn {
@@ -6704,15 +6659,15 @@
         </div>
     </div>
 
-    <!-- Озвучка материала: голос устройства или своя запись к каждому пункту (строке) текста.
-         Выбор голоса рисует renderAudioVoiceSettings(), список — renderAudioModalList();
-         окно вне #app, render() его не трогает. -->
+    <!-- Озвучка материала: свои записи и готовые аудиофайлы — ко всему тексту и к каждому
+         пункту (строке). Список рисует renderAudioModalList() — окно вне #app, render() его
+         не трогает. Поле выбора файла одно на всё окно: chooseAudioFile запоминает, куда класть. -->
     <div class="modal" id="audioModal">
         <div class="modal-content audio-modal">
             <h3 id="audioModalTitle">Озвучка</h3>
             <p class="audio-modal-lead" id="audioModalLead"></p>
-            <div class="audio-voice-settings" id="audioVoiceSettings"></div>
             <div id="audioModalList"></div>
+            <input type="file" id="audioFileInput" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.oga,.opus,.webm,.flac" hidden onchange="onAudioFileChosen(this)">
             <div class="modal-buttons">
                 <button class="modal-save" onclick="closeAudioModal()">Готово</button>
             </div>
@@ -6748,164 +6703,6 @@
             </div>
         </div>
     </div>
-
-    <!-- Поток нейроголосов Piper (см. «Нейроголоса» в скрипте). Код лежит здесь, а не
-         отдельным файлом, и запускается через Blob: так он обновляется вместе с
-         приложением, а движок и модель читает прямо из Cache Storage — офлайн это
-         работает, даже если service worker не перехватывает запросы рабочего потока. -->
-    <script type="text/plain" id="piperWorkerSource">
-'use strict';
-// Нейросеть считает речь секунду-другую — в основном потоке на это время
-// замирал бы экран. Здесь: текст → фонемы (espeak-ng, piper_phonemize) →
-// ONNX-модель голоса → WAV. Задания идут строго по одному: модель одна.
-let engineUrls = [];
-let cacheName = '';
-let enginePromise = null;
-let phonemizeWasm = null;
-let phonemizeData = null;
-let session = null;
-let sessionVoice = '';
-const queue = [];
-let busy = false;
-
-async function readCached(url, allowNetwork) {
-    const cache = await caches.open(cacheName);
-    let response = await cache.match(url);
-    if (!response && allowNetwork) {
-        response = await fetch(url);
-        if (!response.ok) throw new Error('сервер ответил ' + response.status);
-        await cache.put(url, response.clone());
-    }
-    if (!response) throw new Error('голос не скачан');
-    return response;
-}
-
-async function blobUrl(response, type) {
-    return URL.createObjectURL(new Blob([await response.arrayBuffer()], { type }));
-}
-
-function loadEngine() {
-    if (!enginePromise) {
-        enginePromise = (async () => {
-            const [ortJs, ortWasm, phonemizeJs, phonemizeWasmFile, phonemizeDataFile] =
-                await Promise.all(engineUrls.map(url => readCached(url, true)));
-            importScripts(await blobUrl(ortJs, 'text/javascript'));
-            importScripts(await blobUrl(phonemizeJs, 'text/javascript'));
-            ort.env.wasm.numThreads = 1;
-            ort.env.wasm.wasmPaths = { 'ort-wasm-simd.wasm': await blobUrl(ortWasm, 'application/wasm') };
-            // Компилируем один раз: иначе каждая фраза заново компилировала бы wasm.
-            phonemizeWasm = await WebAssembly.compile(await phonemizeWasmFile.arrayBuffer());
-            phonemizeData = await phonemizeDataFile.arrayBuffer();
-        })();
-        enginePromise.catch(() => { enginePromise = null; });
-    }
-    return enginePromise;
-}
-
-// Фонемизатор — программа с main(): на каждый текст свой экземпляр. Один
-// экземпляр на много вызовов main пробовали — после нескольких фраз он падает
-// с Aborted(OOM): память внутри не освобождается. Новый экземпляр дешёвый —
-// wasm уже скомпилирован, словари уже в памяти.
-async function phonemize(text) {
-    let line = '';
-    const errors = [];
-    const module = await createPiperPhonemize({
-        instantiateWasm: (imports, receive) => {
-            WebAssembly.instantiate(phonemizeWasm, imports).then(instance => receive(instance, phonemizeWasm));
-            return {};
-        },
-        getPreloadedPackage: () => phonemizeData,
-        print: out => { line = out; },
-        printErr: err => { errors.push(err); }
-    });
-    module.callMain(['-l', 'ru', '--input', JSON.stringify([{ text }]), '--espeak_data', '/espeak-ng-data']);
-    if (!line) throw new Error(errors.join(' ') || 'не удалось разобрать текст');
-    return JSON.parse(line).phoneme_ids;
-}
-
-// В памяти держим одну модель: каждая — около 60 МБ.
-async function getSession(voiceId, modelUrl) {
-    if (session && sessionVoice === voiceId) return session;
-    if (session) {
-        try { await session.release(); } catch (e) {}
-        session = null;
-        sessionVoice = '';
-    }
-    const model = await readCached(modelUrl, false);
-    session = await ort.InferenceSession.create(new Uint8Array(await model.arrayBuffer()), { executionProviders: ['wasm'] });
-    sessionVoice = voiceId;
-    return session;
-}
-
-function encodeWav(samples, sampleRate) {
-    const view = new DataView(new ArrayBuffer(44 + samples.length * 2));
-    const text = (offset, value) => { for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i)); };
-    text(0, 'RIFF'); view.setUint32(4, 36 + samples.length * 2, true); text(8, 'WAVE');
-    text(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
-    view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
-    text(36, 'data'); view.setUint32(40, samples.length * 2, true);
-    for (let i = 0; i < samples.length; i++) {
-        const value = Math.max(-1, Math.min(1, samples[i]));
-        view.setInt16(44 + i * 2, value < 0 ? value * 32768 : value * 32767, true);
-    }
-    return view.buffer;
-}
-
-async function run(job) {
-    await loadEngine();
-    if (job.type === 'warm') {
-        await getSession(job.voiceId, job.modelUrl);
-        return null;
-    }
-    const ids = await phonemize(job.text);
-    const current = await getSession(job.voiceId, job.modelUrl);
-    const result = await current.run({
-        input: new ort.Tensor('int64', BigInt64Array.from(ids, id => BigInt(id)), [1, ids.length]),
-        input_lengths: new ort.Tensor('int64', BigInt64Array.of(BigInt(ids.length)), [1]),
-        scales: new ort.Tensor('float32', Float32Array.of(job.noiseScale, job.lengthScale, job.noiseW), [3])
-    });
-    return encodeWav(result.output.data, job.sampleRate);
-}
-
-// Следующее задание берём через setTimeout, а не сразу: расчёт фразы не отдаёт
-// управление, и без этой паузы отмена доходила до потока, только когда он уже
-// дочитал все заказанные фразы, — «Стоп» не экономил ни секунды счёта.
-function pump() {
-    if (busy || !queue.length) return;
-    busy = true;
-    setTimeout(() => {
-        const job = queue.shift();
-        if (!job) {
-            busy = false;
-            return;
-        }
-        run(job).then(wav => {
-            if (wav) self.postMessage({ type: 'done', id: job.id, key: job.key, wav }, [wav]);
-        }, error => {
-            if (job.type !== 'warm') self.postMessage({ type: 'error', id: job.id, key: job.key, message: String(error && error.message || error) });
-        }).then(() => {
-            busy = false;
-            pump();
-        });
-    }, 0);
-}
-
-self.onmessage = event => {
-    const data = event.data || {};
-    if (data.type === 'init') {
-        engineUrls = data.engineUrls;
-        cacheName = data.cacheName;
-    } else if (data.type === 'synth' || data.type === 'warm') {
-        queue.push(data);
-        pump();
-    } else if (data.type === 'cancel') {
-        const drop = new Set(data.ids);
-        for (let i = queue.length - 1; i >= 0; i--) {
-            if (drop.has(queue[i].id)) queue.splice(i, 1);
-        }
-    }
-};
-    </script>
 
     <script>
         let searchQuery = '';
@@ -12521,7 +12318,7 @@ self.onmessage = event => {
                             <div class="chooser-card-title">Только номера строк</div>
                         </div>
                         <div class="chooser-card" onclick="showAudioModal()">
-                            <div class="chooser-card-title">🔊 Озвучка пунктов${getTextAudioCount(text) ? ' · ' + getTextAudioCount(text) : ''}</div>
+                            <div class="chooser-card-title">🔊 Озвучка${getTextAudioCount(text) ? ' · ' + getTextAudioCount(text) : ''}</div>
                         </div>
                     </div>
                     
@@ -13277,7 +13074,7 @@ self.onmessage = event => {
                                     ${text.attention ? '★ Сложный' : '☆ Сложный'}
                                 </button>
                                 <button class="practice-textsize-btn ${state.practiceSizeControlOpen ? 'active' : ''}" onclick="togglePracticeSizeControl()" aria-label="Размер текста" title="Размер текста">Aa</button>
-                                <button class="practice-textsize-btn audio-open-btn${getTextAudioCount(text) ? ' has-audio' : ''}" onclick="showAudioModal()" aria-label="Озвучка" title="Озвучка пунктов: голос устройства или своя запись">🔊${getTextAudioCount(text) ? ' ' + getTextAudioCount(text) : ''}</button>
+                                <button class="practice-textsize-btn audio-open-btn${getTextAudioCount(text) ? ' has-audio' : ''}" onclick="showAudioModal()" aria-label="Озвучка" title="Озвучка: своя запись или аудиофайл">🔊${getTextAudioCount(text) ? ' ' + getTextAudioCount(text) : ''}</button>
                             </div>
                             ${progress.total > 0 ? `
                                 <div class="practice-progress">
@@ -13666,16 +13463,13 @@ self.onmessage = event => {
 
             let shownBefore = 0;
             if (getTextAudioCount(text)) preloadTextAudio(text);
-            const speech = isVoiceAvailable();
             const rows = lines.map((line, lineIndex) => {
                 const visible = Math.max(0, Math.min(line.words.length, count - shownBefore));
                 shownBefore += line.words.length;
                 const shownText = line.words.slice(0, visible).join(' ');
                 const playing = audioPlayback && audioPlayback.text === text && audioPlayback.itemIndex === lineIndex;
-                // Своя запись важнее; нет её — пункт читает голос устройства.
-                const recorded = hasAudioItem(text, lineIndex);
-                const audioButton = recorded || (speech && line.words.length)
-                    ? `<button class="numbers-audio-btn${playing ? ' active' : ''}" onclick="playNumbersAudio(${lineIndex})" aria-label="${playing ? 'Остановить' : recorded ? 'Слушать запись пункта' : 'Прочитать пункт голосом'}">${playing ? '■' : '▶'}</button>`
+                const audioButton = hasAudioItem(text, lineIndex)
+                    ? `<button class="numbers-audio-btn${playing ? ' active' : ''}" onclick="playNumbersAudio(${lineIndex})" aria-label="${playing ? 'Остановить' : 'Слушать пункт'}">${playing ? '■' : '▶'}</button>`
                     : '';
                 return `
                     <div class="linecards-row">
@@ -13702,7 +13496,7 @@ self.onmessage = event => {
                         </div>
                         <div class="numbers-secondary">
                             <button class="module-action-btn secondary" onclick="numbersHint()" ${allShown ? 'disabled' : ''}>Подсказка</button>
-                            <button class="module-action-btn secondary audio-open-btn${getTextAudioCount(text) ? ' has-audio' : ''}" onclick="showAudioModal()" title="Озвучка пунктов: голос устройства или своя запись">🔊${getTextAudioCount(text) ? ' ' + getTextAudioCount(text) : ''}</button>
+                            <button class="module-action-btn secondary audio-open-btn${getTextAudioCount(text) ? ' has-audio' : ''}" onclick="showAudioModal()" title="Озвучка: своя запись или аудиофайл">🔊${getTextAudioCount(text) ? ' ' + getTextAudioCount(text) : ''}</button>
                             <span class="term-counter-inline">${nav.current + 1}/${nav.total}</span>
                         </div>
                     </div>
@@ -13710,12 +13504,14 @@ self.onmessage = event => {
             `;
         }
 
-        // ——— Озвучка материала: голос устройства и свои записи к пунктам ———
-        // Каждый пункт (строку) материала можно послушать отдельно: его читает
-        // голос устройства (см. «Голос устройства» ниже), а если к пункту
-        // записан свой голос — играет запись. Если строка одна, пункт один на
-        // весь термин. Пункты — те же строки, что в режиме «Номера»
-        // (buildNumbersLines), поэтому номера совпадают.
+        // ——— Озвучка материала: свои записи и аудиофайлы ———
+        // Звук к материалу — своя запись с микрофона или готовый аудиофайл
+        // (например, скачанный из сервиса озвучки). Его можно добавить ко всему
+        // тексту сразу (AUDIO_WHOLE_INDEX — так приходят файлы из сервисов) и к
+        // каждому пункту (строке) отдельно. Если строка одна, пункт один на весь
+        // термин. Пункты — те же строки, что в режиме «Номера» (buildNumbersLines),
+        // поэтому номера совпадают. Автоматической озвучки (голос устройства,
+        // нейроголоса) нет — её убрали в v138; код — в истории git до коммита 746ca7a.
         //
         // Хранение. Звук — не в localStorage: записи весят сотни килобайт, а данные
         // материалов переписываются целиком при каждом сохранении — каждое нажатие
@@ -13723,8 +13519,8 @@ self.onmessage = event => {
         // Сами записи лежат в IndexedDB (база zapominalkaAudio, хранилище clips,
         // ключ «id:номер пункта», значение { data: ArrayBuffer, type }), а в
         // материале — только короткая пометка text.audio = { id, items: { номер:
-        // { d: секунды, t: время записи } } }: по ней отрисовка синхронно знает,
-        // какие пункты озвучены. ArrayBuffer, а не Blob: Blob в IndexedDB старые
+        // { d: секунды, t: время записи, n: имя файла — у загруженных } } }: по ней
+        // отрисовка синхронно знает, какие пункты озвучены. Весь текст — номер -1. ArrayBuffer, а не Blob: Blob в IndexedDB старые
         // Safari сохраняли ненадёжно.
         //
         // Записи остаются на устройстве, где их сделали: в перенос материалов
@@ -13739,6 +13535,12 @@ self.onmessage = event => {
         const AUDIO_DB_NAME = 'zapominalkaAudio';
         const AUDIO_STORE = 'clips';
         const AUDIO_MAX_SECONDS = 300;
+        // Звук ко всему тексту лежит рядом с пунктами под номером -1: так его
+        // подхватывают подсчёт, предзагрузка и удаление вместе с материалом.
+        const AUDIO_WHOLE_INDEX = -1;
+        // Файл озвучки на пару тысяч знаков — 2–3 МБ; больше 50 МБ — явно не то.
+        const AUDIO_FILE_MAX_BYTES = 50 * 1024 * 1024;
+        const AUDIO_FILE_TYPES = { mp3: 'audio/mpeg', m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac', wav: 'audio/wav', ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg', webm: 'audio/webm', flac: 'audio/flac' };
         // Пустой WAV: им «разрешаем» звук на iPhone прямо в нажатии, пока запись
         // ещё читается из базы, — Safari пускает play() только из жеста.
         const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
@@ -13751,6 +13553,8 @@ self.onmessage = event => {
         let audioPlayerEl = null;
         let audioUrlCache = { id: null, urls: new Map() };
         let audioPersistRequested = false;
+        let audioFileTarget = null;
+        let audioImporting = false;
 
         function openAudioDb() {
             if (!audioDbPromise) {
@@ -13803,8 +13607,7 @@ self.onmessage = event => {
             return lines.map((line, index) => ({
                 index,
                 marker: line.marker,
-                label: lines.length === 1 ? 'Весь термин' : (line.words.join(' ') || 'Пустая строка'),
-                speakable: line.words.length > 0
+                label: lines.length === 1 ? 'Весь термин' : (line.words.join(' ') || 'Пустая строка')
             }));
         }
 
@@ -13872,20 +13675,11 @@ self.onmessage = event => {
             const n = items.length;
             const itemsWord = (n % 10 === 1 && n % 100 !== 11) ? 'пункт'
                 : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 'пункта' : 'пунктов';
-            document.getElementById('audioModalLead').textContent = isSpeechSupported() || isNeuralTtsSupported()
-                ? (items.length > 1
-                    ? 'В материале ' + n + ' ' + itemsWord + '. Каждый можно послушать — его прочитает голос, выбранный ниже, — или записать к нему свой голос: тогда играет ваша запись.'
-                    : 'Послушайте термин — его прочитает голос, выбранный ниже, — или запишите свой голос: тогда играет ваша запись.')
-                : (items.length > 1
-                    ? 'В материале ' + n + ' ' + itemsWord + ' — к каждому можно записать голос и слушать его отдельно. Записи хранятся на этом устройстве.'
-                    : 'Запишите голос ко всему термину. Запись хранится на этом устройстве.');
-            watchSpeechVoices();
-            renderAudioVoiceSettings();
+            document.getElementById('audioModalLead').textContent = items.length > 1
+                ? 'В материале ' + n + ' ' + itemsWord + '. Загрузите готовый аудиофайл ко всему тексту — например, скачанный из сервиса озвучки — или запишите свой голос. К каждому пункту тоже можно добавить запись или файл. Звук хранится на этом устройстве.'
+                : 'Загрузите готовый аудиофайл к термину или запишите свой голос. Звук хранится на этом устройстве.';
             renderAudioModalList();
             document.getElementById('audioModal').classList.add('show');
-            // Скачан ли выбранный нейроголос — узнаём из кэша; если да, заранее
-            // поднимаем его модель, чтобы первое «Прочитать» не ждало загрузки.
-            refreshNeuralVoicesReady().then(warmNeuralVoice);
         }
 
         function closeAudioModal() {
@@ -13902,53 +13696,61 @@ self.onmessage = event => {
             if (!list || !text) return;
             const items = getAudioItemsForText(text);
             const meta = getTextAudioItems(text);
-            const busy = !!audioRecording;
-            const speech = isVoiceAvailable();
-            const neuralVoice = getActiveNeuralVoice();
+            const busy = !!audioRecording || audioImporting;
             const recorded = items.filter(item => meta[item.index]);
             const parts = [];
             if (audioModalError) parts.push('<div class="audio-modal-error" role="alert">' + escapeHtml(audioModalError) + '</div>');
-            if (items.length > 1 && (speech || recorded.length > 1)) {
-                const playingAll = audioPlayback && audioPlayback.all;
+            // Весь текст одним звуком — так приходят файлы из сервисов озвучки.
+            // У материала из одной строки весь текст и есть единственный пункт.
+            if (items.length > 1 || meta[AUDIO_WHOLE_INDEX]) {
+                parts.push(getAudioItemRow(AUDIO_WHOLE_INDEX, '', 'Весь текст целиком', meta[AUDIO_WHOLE_INDEX], busy, true,
+                    'Одним файлом или одной записью. Играет по кнопке 🔊 в шапке.'));
+            }
+            if (recorded.length > 1) {
+                const playingAll = audioPlayback && audioPlayback.all && audioPlayback.itemIndex !== AUDIO_WHOLE_INDEX;
                 parts.push('<button class="module-action-btn secondary audio-play-all-btn" onclick="' + (playingAll ? 'stopAudioPlayback()' : 'playAllAudio()') + '" ' + (busy ? 'disabled' : '') + '>' +
-                    (playingAll ? '■ Остановить' : '▶ Слушать все по порядку') + '</button>');
+                    (playingAll ? '■ Остановить' : '▶ Слушать пункты по порядку') + '</button>');
             }
             items.forEach(item => {
-                const info = meta[item.index];
-                const isRecording = audioRecording && audioRecording.itemIndex === item.index;
-                const isPlaying = audioPlayback && audioPlayback.itemIndex === item.index;
-                const recordButton = isRecording
-                    ? '<button class="audio-btn rec active" onclick="stopAudioRecording()">■ Стоп · <span id="audioRecTime">' + formatAudioSeconds(audioRecording.startedAt ? (Date.now() - audioRecording.startedAt) / 1000 : 0) + '</span></button>'
-                    : '<button class="audio-btn rec" onclick="startAudioRecording(' + item.index + ')" ' + (busy ? 'disabled' : '') + '>● ' + (info ? 'Перезаписать' : 'Записать') + '</button>';
-                // Своя запись важнее; нет её — пункт читает голос устройства.
-                const playButton = info
-                    ? '<button class="audio-btn play' + (isPlaying ? ' active' : '') + '" onclick="' + (isPlaying ? 'stopAudioPlayback()' : 'playAudioItem(' + item.index + ')') + '" ' + (busy ? 'disabled' : '') + '>' +
-                        (isPlaying ? '■ Стоп' : '▶ Слушать · ' + formatAudioSeconds(info.d)) + '</button>'
-                    : speech && item.speakable
-                        ? '<button class="audio-btn play' + (isPlaying ? ' active' : '') + '" onclick="' + (isPlaying ? 'stopAudioPlayback()' : 'playAudioItem(' + item.index + ')') + '" ' + (busy ? 'disabled' : '') + ' title="' + (neuralVoice ? 'Прочитает нейроголос «' + neuralVoice.name + '»' : 'Прочитает голос устройства') + '">' +
-                            (isPlaying ? (audioPlayback.neural && audioPlayback.loading ? '■ Стоп · готовлю…' : '■ Стоп') : '🔊 Прочитать') + '</button>'
-                        : '';
-                const deleteButton = info
-                    ? '<button class="audio-btn danger" onclick="deleteAudioItem(' + item.index + ')" ' + (busy ? 'disabled' : '') + ' aria-label="Удалить запись" title="Удалить запись">🗑</button>'
-                    : '';
-                parts.push('<div class="audio-item' + (isRecording ? ' is-recording' : '') + (isPlaying ? ' is-playing' : '') + '">' +
-                    '<div class="audio-item-head">' + (items.length > 1 ? '<span class="audio-item-num">' + escapeHtml(item.marker) + '</span>' : '') +
-                    '<span class="audio-item-text">' + escapeHtml(item.label) + '</span></div>' +
-                    '<div class="audio-item-actions">' + playButton + recordButton + deleteButton + '</div></div>');
+                parts.push(getAudioItemRow(item.index, items.length > 1 ? item.marker : '', item.label, meta[item.index], busy, true, ''));
             });
-            // Записи к пунктам, которых после правки текста уже нет: не теряем их
-            // молча — их можно дослушать и удалить.
+            // Звук к пунктам, которых после правки текста уже нет: не теряем его
+            // молча — его можно дослушать и удалить.
             Object.keys(meta).map(Number).filter(index => index >= items.length).sort((a, b) => a - b).forEach(index => {
-                const info = meta[index];
-                const isPlaying = audioPlayback && audioPlayback.itemIndex === index;
-                parts.push('<div class="audio-item' + (isPlaying ? ' is-playing' : '') + '">' +
-                    '<div class="audio-item-head"><span class="audio-item-num">' + (index + 1) + '.</span><span class="audio-item-text">Запись к пункту, которого больше нет в тексте</span></div>' +
-                    '<div class="audio-item-actions">' +
-                    '<button class="audio-btn play' + (isPlaying ? ' active' : '') + '" onclick="' + (isPlaying ? 'stopAudioPlayback()' : 'playAudioItem(' + index + ')') + '" ' + (busy ? 'disabled' : '') + '>' + (isPlaying ? '■ Стоп' : '▶ Слушать · ' + formatAudioSeconds(info.d)) + '</button>' +
-                    '<button class="audio-btn danger" onclick="deleteAudioItem(' + index + ')" ' + (busy ? 'disabled' : '') + ' aria-label="Удалить запись" title="Удалить запись">🗑</button>' +
-                    '</div></div>');
+                parts.push(getAudioItemRow(index, (index + 1) + '.', 'Звук к пункту, которого больше нет в тексте', meta[index], busy, false, ''));
             });
             list.innerHTML = parts.join('');
+        }
+
+        // Строка окна: «Слушать» и «Удалить», под ними «Записать» и «Файл» —
+        // на ширине телефона это два ряда кнопок. Новая запись или файл заменяют
+        // прежний звук пункта. editable: false — у звука к исчезнувшему пункту,
+        // его можно только дослушать и удалить.
+        function getAudioItemRow(index, marker, label, info, busy, editable, hint) {
+            const isRecording = audioRecording && audioRecording.itemIndex === index;
+            const isPlaying = audioPlayback && audioPlayback.itemIndex === index;
+            const disabled = busy ? ' disabled' : '';
+            const playButton = info
+                ? '<button class="audio-btn play' + (isPlaying ? ' active' : '') + '" onclick="' + (isPlaying ? 'stopAudioPlayback()' : 'playAudioItem(' + index + ')') + '"' + disabled + '>' +
+                    (isPlaying ? '■ Стоп' : '▶ Слушать' + (info.d ? ' · ' + formatAudioSeconds(info.d) : '')) + '</button>'
+                : '';
+            const recordButton = !editable ? ''
+                : isRecording
+                    ? '<button class="audio-btn rec active" onclick="stopAudioRecording()">■ Стоп · <span id="audioRecTime">' + formatAudioSeconds(audioRecording.startedAt ? (Date.now() - audioRecording.startedAt) / 1000 : 0) + '</span></button>'
+                    : '<button class="audio-btn rec" onclick="startAudioRecording(' + index + ')"' + disabled + ' title="Записать свой голос">● Записать</button>';
+            const fileButton = editable && !isRecording
+                ? '<button class="audio-btn" onclick="chooseAudioFile(' + index + ')"' + disabled + ' title="Загрузить аудиофайл">' +
+                    (audioImporting && audioFileTarget && audioFileTarget.itemIndex === index ? 'Загружаю…' : '📁 Файл') + '</button>'
+                : '';
+            const deleteButton = info
+                ? '<button class="audio-btn danger" onclick="deleteAudioItem(' + index + ')"' + disabled + ' aria-label="Удалить звук" title="Удалить звук">🗑</button>'
+                : '';
+            const note = info && info.n ? 'Файл: ' + info.n : hint;
+            return '<div class="audio-item' + (index === AUDIO_WHOLE_INDEX ? ' is-whole' : '') + (isRecording ? ' is-recording' : '') + (isPlaying ? ' is-playing' : '') + '">' +
+                '<div class="audio-item-head">' + (marker ? '<span class="audio-item-num">' + escapeHtml(marker) + '</span>' : '') +
+                '<span class="audio-item-text">' + escapeHtml(label) + '</span></div>' +
+                (note ? '<div class="audio-item-note">' + escapeHtml(note) + '</div>' : '') +
+                '<div class="audio-item-actions">' + playButton + deleteButton + recordButton + fileButton + '</div></div>';
         }
 
         // ——— Запись ———
@@ -14034,28 +13836,107 @@ self.onmessage = event => {
             const blob = new Blob(recording.chunks, { type: recording.type });
             if (blob.size > 0 && text) {
                 try {
-                    const data = await blob.arrayBuffer();
-                    if (!text.audio || !text.audio.id) {
-                        text.audio = { id: 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8), items: {} };
-                    }
-                    if (!text.audio.items || typeof text.audio.items !== 'object') text.audio.items = {};
-                    const key = getAudioKey(text, recording.itemIndex);
-                    await audioDbRequest('readwrite', store => store.put({ data, type: recording.type }, key));
-                    text.audio.items[recording.itemIndex] = { d: duration, t: Date.now() };
-                    // Старую ссылку на этот пункт выбрасываем: в базе уже новая запись.
-                    if (audioUrlCache.id === text.audio.id && audioUrlCache.urls.has(key)) {
-                        URL.revokeObjectURL(audioUrlCache.urls.get(key));
-                        audioUrlCache.urls.delete(key);
-                    }
-                    saveData();
-                    requestPersistentAudioStorage();
-                    loadAudioUrl(text, recording.itemIndex).catch(() => {});
+                    await saveAudioClip(text, recording.itemIndex, await blob.arrayBuffer(), recording.type, { d: duration, t: Date.now() });
                 } catch (error) {
                     audioModalError = 'Не удалось сохранить запись' + (error && error.message ? ': ' + error.message : '.');
                 }
             }
             renderAudioModalList();
             render();
+        }
+
+        // Звук в базу, пометку в материал. info — { d, t } у записи, { d, t, n }
+        // у файла; прежний звук этого пункта, запись или файл, заменяется целиком.
+        async function saveAudioClip(text, itemIndex, data, type, info) {
+            if (!text.audio || !text.audio.id) {
+                text.audio = { id: 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8), items: {} };
+            }
+            if (!text.audio.items || typeof text.audio.items !== 'object') text.audio.items = {};
+            const key = getAudioKey(text, itemIndex);
+            await audioDbRequest('readwrite', store => store.put({ data, type }, key));
+            text.audio.items[itemIndex] = info;
+            // Старую ссылку на этот пункт выбрасываем: в базе уже новый звук.
+            if (audioUrlCache.id === text.audio.id && audioUrlCache.urls.has(key)) {
+                URL.revokeObjectURL(audioUrlCache.urls.get(key));
+                audioUrlCache.urls.delete(key);
+            }
+            saveData();
+            requestPersistentAudioStorage();
+            loadAudioUrl(text, itemIndex).catch(() => {});
+        }
+
+        // ——— Загрузка аудиофайла ———
+        // Поле выбора файла открываем прямо в нажатии — иначе iPhone его не
+        // покажет. Файл ложится в базу так же, как запись с микрофона.
+        function chooseAudioFile(itemIndex) {
+            const input = document.getElementById('audioFileInput');
+            if (!input || !audioModalText || audioRecording || audioImporting) return;
+            audioFileTarget = { text: audioModalText, itemIndex };
+            input.value = '';
+            input.click();
+        }
+
+        async function onAudioFileChosen(input) {
+            const file = input.files && input.files[0];
+            const target = audioFileTarget;
+            if (!file || !target || target.text !== audioModalText || audioRecording) {
+                audioFileTarget = null;
+                input.value = '';
+                return;
+            }
+            audioModalError = '';
+            if (file.size > AUDIO_FILE_MAX_BYTES) {
+                audioFileTarget = null;
+                input.value = '';
+                audioModalError = 'Файл больше 50 МБ — для озвучки это слишком много. Выберите файл поменьше.';
+                renderAudioModalList();
+                return;
+            }
+            stopAudioPlayback();
+            audioImporting = true;
+            renderAudioModalList();
+            try {
+                const extension = (file.name.match(/\.([a-z0-9]+)$/i) || [])[1];
+                const type = file.type || AUDIO_FILE_TYPES[(extension || '').toLowerCase()] || 'audio/mpeg';
+                const duration = await readAudioFileDuration(file, type);
+                const data = await file.arrayBuffer();
+                await saveAudioClip(target.text, target.itemIndex, data, type, { d: duration, t: Date.now(), n: file.name.slice(0, 120) });
+            } catch (error) {
+                audioModalError = error && error.message ? error.message : 'Не удалось загрузить файл.';
+            }
+            audioImporting = false;
+            audioFileTarget = null;
+            input.value = '';
+            renderAudioModalList();
+            render();
+        }
+
+        // Длительность — из заголовка файла, тем же плеером, что будет играть.
+        // Ошибка плеера значит, что файл не звук или формат не поддерживается, —
+        // говорим сразу, а не молчащей кнопкой «Слушать». iPhone может вовсе не
+        // читать звук до первого нажатия «Слушать» — тогда через несколько секунд
+        // принимаем файл без длительности.
+        function readAudioFileDuration(file, type) {
+            return new Promise((resolve, reject) => {
+                const url = URL.createObjectURL(new Blob([file], { type }));
+                const probe = new Audio();
+                let timer = null;
+                const finish = (error, seconds) => {
+                    clearTimeout(timer);
+                    probe.onloadedmetadata = probe.onerror = null;
+                    probe.removeAttribute('src');
+                    probe.load();
+                    URL.revokeObjectURL(url);
+                    if (error) reject(error);
+                    else resolve(seconds);
+                };
+                probe.preload = 'metadata';
+                probe.onloadedmetadata = () => finish(null, isFinite(probe.duration) ? Math.max(1, Math.round(probe.duration)) : 0);
+                probe.onerror = () => finish(new Error('Этот файл не получается воспроизвести: возможно, это не звук или такой формат не поддерживается. Подойдут MP3, M4A, WAV.'));
+                timer = setTimeout(() => finish(null, 0), 5000);
+                probe.src = url;
+                probe.load();
+            });
         }
 
         // Просим браузер не вычищать базу при нехватке места. Это одна просьба,
@@ -14075,7 +13956,7 @@ self.onmessage = event => {
         async function deleteAudioItem(itemIndex) {
             const text = audioModalText;
             if (!text || !hasAudioItem(text, itemIndex) || audioRecording) return;
-            if (!confirm('Удалить запись к этому пункту?')) return;
+            if (!confirm(itemIndex === AUDIO_WHOLE_INDEX ? 'Удалить звук ко всему тексту?' : 'Удалить звук к этому пункту?')) return;
             if (audioPlayback && audioPlayback.itemIndex === itemIndex) stopAudioPlayback();
             const key = getAudioKey(text, itemIndex);
             try {
@@ -14112,22 +13993,8 @@ self.onmessage = event => {
         // если она уже прочитана из базы, а если нет — пустой звук, чтобы Safari
         // на iPhone разрешил играть, когда запись дочитается.
         function playAudioItemFor(text, itemIndex, queue, all) {
-            if (!text || audioRecording) return;
-            const recorded = hasAudioItem(text, itemIndex);
-            if (!recorded && !canSpeakAudioItem(text, itemIndex)) return;
+            if (!text || !hasAudioItem(text, itemIndex) || audioRecording) return;
             stopAudioPlayback();
-            if (!recorded) {
-                const neuralVoice = getActiveNeuralVoice();
-                if (neuralVoice) {
-                    playNeuralAudioItem(text, itemIndex, queue, all, neuralVoice);
-                    return;
-                }
-                const spoken = { itemIndex, text, queue: queue || [], all: !!all, loading: false, tts: true, utterances: [] };
-                audioPlayback = spoken;
-                speakAudioItem(spoken);
-                refreshAudioUi();
-                return;
-            }
             const player = getAudioPlayer();
             // loading: пока играет пустой звук-разрешение, его конец — не конец записи.
             const playback = { itemIndex, text, queue: queue || [], all: !!all, loading: true };
@@ -14164,34 +14031,20 @@ self.onmessage = event => {
             playAudioItemFor(audioModalText, itemIndex);
         }
 
+        // Пункты со звуком по порядку; звук ко всему тексту сюда не входит.
         function playAllAudio(text = audioModalText) {
             if (!text) return;
             const indexes = getAudioItemsForText(text)
                 .map(item => item.index)
-                .filter(index => hasAudioItem(text, index) || canSpeakAudioItem(text, index));
+                .filter(index => hasAudioItem(text, index));
             if (!indexes.length) return;
-            // Голос и записи вперемешку: следующий пункт запускается уже не из
-            // нажатия, а iPhone пускает и синтезатор, и плеер только после того,
-            // как они хоть раз заиграли из нажатия. Поэтому здесь, в нажатии,
-            // «разрешаем» тот, что вступит не первым.
-            // Нейроголос играет через тот же плеер, что и записи, — ему хватает
-            // «разрешения», которое первый пункт и так получает в нажатии.
-            const viaPlayer = !!getActiveNeuralVoice();
-            const firstRecorded = hasAudioItem(text, indexes[0]);
-            const hasSpoken = indexes.some(index => !hasAudioItem(text, index));
-            const hasRecorded = indexes.some(index => hasAudioItem(text, index));
-            if (!viaPlayer && firstRecorded && hasSpoken) primeSpeech();
             playAudioItemFor(text, indexes[0], indexes.slice(1), true);
-            if (!viaPlayer && !firstRecorded && hasRecorded && audioPlayback) {
-                const player = getAudioPlayer();
-                player.src = SILENT_WAV;
-                player.play().catch(() => {});
-            }
         }
 
-        // Кнопка в шапке любого экрана изучения: весь текст подряд, как «Слушать
-        // все» в окне озвучки, — свои записи и выбранный голос, — но сразу, без
-        // окна. Повторное нажатие останавливает.
+        // Кнопка в шапке любого экрана изучения: весь текст сразу, без окна.
+        // Есть звук ко всему тексту — играет он, нет — пункты со звуком по
+        // порядку. Звука нет совсем — открывает окно озвучки, чтобы его добавить.
+        // Повторное нажатие останавливает.
         const TERM_LISTEN_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
         const TERM_STOP_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2.5"/></svg>';
 
@@ -14199,18 +14052,17 @@ self.onmessage = event => {
             return !!(text && audioPlayback && audioPlayback.all && audioPlayback.text === text);
         }
 
-        function getTermListenButtonState(playing) {
+        function getTermListenButtonState(playing, hasAudio) {
             return playing
-                ? { className: 'term-edit-btn term-listen-btn active', label: 'Остановить чтение', icon: TERM_STOP_ICON }
-                : { className: 'term-edit-btn term-listen-btn', label: 'Слушать весь текст выбранным голосом', icon: TERM_LISTEN_ICON };
+                ? { className: 'term-edit-btn term-listen-btn active', label: 'Остановить', icon: TERM_STOP_ICON }
+                : { className: 'term-edit-btn term-listen-btn', label: hasAudio ? 'Слушать весь текст' : 'Озвучка: добавить запись или аудиофайл', icon: TERM_LISTEN_ICON };
         }
 
         // Кнопку рисуем всегда и только гасим: шапка есть и в «Вписать», где
         // появление узлов пересобирало бы соседей вместе с полем ввода.
         function getTermListenButton(text) {
-            const view = getTermListenButtonState(isListeningWholeText(text));
-            const canListen = /\S/.test(text.content || '') && (isVoiceAvailable() || getTextAudioCount(text) > 0);
-            return '<button class="' + view.className + '" onclick="toggleListenWholeText()"' + (canListen ? '' : ' disabled') +
+            const view = getTermListenButtonState(isListeningWholeText(text), getTextAudioCount(text) > 0);
+            return '<button class="' + view.className + '" onclick="toggleListenWholeText()"' + (/\S/.test(text.content || '') ? '' : ' disabled') +
                 ' title="' + view.label + '" aria-label="' + view.label + '">' + view.icon + '</button>';
         }
 
@@ -14221,17 +14073,23 @@ self.onmessage = event => {
                 stopAudioPlayback();
                 return;
             }
+            if (!getTextAudioCount(text)) {
+                showAudioModal();
+                return;
+            }
             preloadTextAudio(text);
-            playAllAudio(text);
+            if (hasAudioItem(text, AUDIO_WHOLE_INDEX)) playAudioItemFor(text, AUDIO_WHOLE_INDEX, [], true);
+            else playAllAudio(text);
         }
 
         // Старт и конец чтения меняют только эту кнопку — правим её на месте,
         // а не перерисовываем экран. Разметка та же, что у getTermListenButton.
         function syncTermListenButton() {
             const button = document.querySelector('#app .term-listen-btn');
-            if (!button) return;
-            const view = getTermListenButtonState(isListeningWholeText(getCurrentStudyText()));
-            if (button.className === view.className) return;
+            const text = getCurrentStudyText();
+            if (!button || !text) return;
+            const view = getTermListenButtonState(isListeningWholeText(text), getTextAudioCount(text) > 0);
+            if (button.className === view.className && button.title === view.label) return;
             button.className = view.className;
             button.title = view.label;
             button.setAttribute('aria-label', view.label);
@@ -14250,18 +14108,12 @@ self.onmessage = event => {
 
         function onAudioPlaybackEnded() {
             const playback = audioPlayback;
-            // Конец пустого звука-разрешения — не конец пункта, в том числе
-            // когда пункт сейчас читает голос устройства.
-            if (!playback || playback.loading || playback.tts) return;
-            if (playback.neural && playback.chunkIndex + 1 < playback.chunks.length) {
-                playback.chunkIndex++;
-                playNeuralChunk(playback);
-                return;
-            }
+            // Конец пустого звука-разрешения — не конец пункта.
+            if (!playback || playback.loading) return;
             finishAudioItem(playback);
         }
 
-        // Пункт доиграл (запись или голос): следующий в очереди или стоп.
+        // Пункт доиграл: следующий в очереди или стоп.
         function finishAudioItem(playback) {
             if (audioPlayback !== playback) return;
             const next = playback.queue.shift();
@@ -14276,11 +14128,6 @@ self.onmessage = event => {
             const playback = audioPlayback;
             if (!playback) return;
             audioPlayback = null;
-            if (playback.paceTimer) clearTimeout(playback.paceTimer);
-            if (playback.tts && isSpeechSupported()) window.speechSynthesis.cancel();
-            // Ненужные больше фразы нейроголоса снимаем с очереди — но после того,
-            // как следующий пункт (если это переход) успел заявить свои.
-            if (playback.neural) Promise.resolve().then(dropUnneededNeuralJobs);
             if (audioPlayerEl) {
                 audioPlayerEl.pause();
                 audioPlayerEl.removeAttribute('src');
@@ -14293,793 +14140,6 @@ self.onmessage = event => {
             if (document.getElementById('audioModal').classList.contains('show')) renderAudioModalList();
             if (state.view === 'practice' && state.mode === 'numbers') render();
             else syncTermListenButton();
-        }
-
-        // ——— Голос устройства: озвучка без записи ———
-        // Пункт без своей записи читает встроенный синтезатор речи браузера
-        // (Web Speech API, speechSynthesis). Скачивать ничего не нужно и
-        // интернет не нужен: на iPhone русский голос («Милена») есть в системе,
-        // на компьютере — свой системный. Ни ключей, ни серверов, ни платы.
-        //
-        // Звук синтезатора на iPhone, как и плеер, пускают только из нажатия:
-        // speak() вызывается прямо в обработчике. При беззвучном режиме iPhone
-        // голос синтезатора может молчать — об этом подсказка в окне.
-        //
-        // Длинный пункт делим на фразы до SPEECH_CHUNK_MAX знаков: Chrome
-        // обрывает речь, если одна фраза звучит дольше ~15 секунд. Фразы держим
-        // в playback.utterances — иначе Chrome может собрать их сборщиком мусора,
-        // и конец речи так и не наступит.
-        //
-        // Заряд: синтезатор работает, только пока звучит; в простое — ничего.
-        // Выбор голоса и скорость — настройки этого устройства (localStorage
-        // speechVoice, speechRate), в данные материалов они не входят.
-        const SPEECH_RATES = [0.3, 0.4, 0.5, 0.75, 0.9, 1, 1.15, 1.3, 1.5];
-        const SPEECH_CHUNK_MAX = 180;
-        // На этой скорости и медленнее голос устройства читает по словам с паузами
-        // (speakPacedAudioItem): сам синтезатор так не замедляется.
-        const SPEECH_PACED_MAX_RATE = 0.5;
-        // Обычный темп «Милены» (замер на одиннадцати фразах): 62–65 мс на знак
-        // вместе с пробелом; запятая, тире, точка посреди пункта — ещё ~4 знака
-        // паузы; цифра читается словом — ещё ~5 знаков, «=», «/», «%» — ~4.
-        const SPEECH_MS_PER_CHAR = 64;
-        const SPEECH_PAUSE_CHARS = 4;
-        const SPEECH_DIGIT_CHARS = 5;
-        const SPEECH_SIGN_CHARS = 4;
-        const SPEECH_VOICE_HELP = 'На iPhone: Настройки → Универсальный доступ → Устный контент → Голоса → Русский.';
-        let speechPrimed = false;
-        let speechVoicesWatched = false;
-
-        function isSpeechSupported() {
-            return typeof window.speechSynthesis !== 'undefined' && typeof window.SpeechSynthesisUtterance === 'function';
-        }
-
-        // Есть чем читать: голос устройства или скачанный нейроголос.
-        function isVoiceAvailable() {
-            return isSpeechSupported() || !!getActiveNeuralVoice();
-        }
-
-        function canSpeakAudioItem(text, itemIndex) {
-            if (!isVoiceAvailable()) return false;
-            const line = buildNumbersLines(text)[itemIndex];
-            return !!(line && line.words.length);
-        }
-
-        function getRussianVoices() {
-            if (!isSpeechSupported()) return [];
-            return window.speechSynthesis.getVoices().filter(voice => /^ru(?:[-_]|$)/i.test(voice.lang || ''));
-        }
-
-        // Голос по умолчанию: «премиум» или «улучшенный» (на iPhone их скачивают
-        // в настройках, звучат заметно живее), затем тот, что работает без интернета.
-        function rankSpeechVoice(voice) {
-            let score = 0;
-            if (/premium|премиум/i.test(voice.name)) score += 4;
-            else if (/enhanced|улучш/i.test(voice.name)) score += 3;
-            if (voice.localService) score += 1;
-            if (voice.default) score += 0.5;
-            return score;
-        }
-
-        function getSpeechVoice() {
-            const voices = getRussianVoices();
-            if (!voices.length) return null;
-            const saved = localStorage.getItem('speechVoice');
-            return voices.find(voice => voice.voiceURI === saved)
-                || voices.slice().sort((a, b) => rankSpeechVoice(b) - rankSpeechVoice(a))[0];
-        }
-
-        function getSpeechRate() {
-            const saved = Number(localStorage.getItem('speechRate')) / 100;
-            return SPEECH_RATES.includes(saved) ? saved : 1;
-        }
-
-        function setSpeechVoice(voiceURI) {
-            if (voiceURI) localStorage.setItem('speechVoice', voiceURI);
-            else localStorage.removeItem('speechVoice');
-            neuralDownloadError = '';
-            renderAudioVoiceSettings();
-            renderAudioModalList();
-            warmNeuralVoice();
-        }
-
-        // Пол голоса устройства по имени: браузер его не сообщает. Имена — те,
-        // что встречаются у русских голосов iPhone, Mac, Windows и Chrome.
-        function getSystemVoiceGender(name) {
-            const value = String(name || '').toLowerCase();
-            if (/юрий|yuri|павел|pavel|дмитрий|dmitr|максим|maxim/.test(value)) return 'муж.';
-            if (/милена|milena|катя|katya|катерина|ирина|irina|светлана|svetlana|дария|dariya|google/.test(value)) return 'жен.';
-            return '';
-        }
-
-        function setSpeechRate(value) {
-            localStorage.setItem('speechRate', String(Math.round(Number(value) * 100)));
-        }
-
-        // Chrome отдаёт список голосов не сразу, а по событию voiceschanged.
-        // Слушатель — одно событие, без таймеров; вешается при первом открытии окна.
-        function watchSpeechVoices() {
-            if (speechVoicesWatched || !isSpeechSupported()) return;
-            speechVoicesWatched = true;
-            const synth = window.speechSynthesis;
-            const onChange = () => {
-                if (document.getElementById('audioModal').classList.contains('show')) renderAudioVoiceSettings();
-            };
-            if (typeof synth.addEventListener === 'function') synth.addEventListener('voiceschanged', onChange);
-            else synth.onvoiceschanged = onChange;
-        }
-
-        function renderAudioVoiceSettings() {
-            const box = document.getElementById('audioVoiceSettings');
-            if (!box) return;
-            const speech = isSpeechSupported();
-            const neural = isNeuralTtsSupported();
-            if (!speech && !neural) {
-                box.innerHTML = '<div class="audio-voice-note">Этот браузер не умеет читать текст голосом — можно записать свой.</div>';
-                return;
-            }
-            const voices = getRussianVoices();
-            const saved = localStorage.getItem('speechVoice') || '';
-            const chosenNeural = getChosenNeuralVoice();
-            const savedSystem = !chosenNeural && voices.some(voice => voice.voiceURI === saved);
-            const auto = getSpeechVoice();
-            const rate = getSpeechRate();
-            const groups = [];
-            if (neural) {
-                groups.push('<optgroup label="Нейроголоса — живее, скачиваются один раз">' + NEURAL_VOICES.map(voice =>
-                    '<option value="' + NEURAL_VOICE_PREFIX + voice.id + '"' + (chosenNeural === voice ? ' selected' : '') + '>' +
-                    (neuralVoicesReady.has(voice.id) ? '✓ ' : '') + voice.name + ' · ' + voice.gender + '</option>').join('') + '</optgroup>');
-            }
-            if (speech) {
-                groups.push('<optgroup label="Голоса устройства">' +
-                    '<option value=""' + (chosenNeural || savedSystem ? '' : ' selected') + '>' + (auto ? 'Авто: ' + escapeHtml(auto.name) : 'Авто') + '</option>' +
-                    voices.map(voice => {
-                        const gender = getSystemVoiceGender(voice.name);
-                        return '<option value="' + escapeHtmlAttr(voice.voiceURI) + '"' + (savedSystem && voice.voiceURI === saved ? ' selected' : '') + '>' +
-                            escapeHtml(voice.name) + (gender ? ' · ' + gender : '') + '</option>';
-                    }).join('') + '</optgroup>');
-            }
-            const rateOptions = SPEECH_RATES.map(value => '<option value="' + value + '"' + (value === rate ? ' selected' : '') + '>' +
-                String(value).replace('.', ',') + '×</option>');
-            // Список голосов пришёл, а русского в нём нет — без него текст прочтут
-            // чужим голосом или не прочтут вовсе.
-            const noRussian = speech && window.speechSynthesis.getVoices().length > 0 && !voices.length;
-            box.innerHTML = '<div class="audio-voice-row">' +
-                '<label class="audio-voice-field"><span>Голос</span><select onchange="setSpeechVoice(this.value)">' + groups.join('') + '</select></label>' +
-                '<label class="audio-voice-field"><span>Скорость</span><select onchange="setSpeechRate(this.value)">' + rateOptions.join('') + '</select></label>' +
-                '</div>' +
-                (chosenNeural
-                    ? getNeuralVoiceStatusMarkup(chosenNeural)
-                    : noRussian
-                        ? '<div class="audio-modal-error">На устройстве нет русского голоса. Добавьте его: ' + escapeHtml(SPEECH_VOICE_HELP) + ' Или выберите нейроголос.</div>'
-                        : '<div class="audio-voice-note">Нет звука — выключите беззвучный режим. Мужской голос устройства — «Юрий», живее звучат «улучшенные»: ' + escapeHtml(SPEECH_VOICE_HELP) + '</div>');
-        }
-
-        // Фразы до limit знаков (по умолчанию SPEECH_CHUNK_MAX). Режем только по
-        // пробелу после знака конца фразы, чтобы «1.5» и «т.е.» не разваливались
-        // на части; слишком длинное предложение — по запятым и тире, и только
-        // если и этого мало — по словам.
-        // Предел длины фразы под скорость: на медленной фраза держится столько
-        // же секунд, сколько на обычной. Быстрее обычной предел не растёт.
-        function getSpeechChunkLimit(max, rate) {
-            return Math.round(max * Math.min(1, rate));
-        }
-
-        function splitSpeechText(value, limit) {
-            const max = limit || SPEECH_CHUNK_MAX;
-            const chunks = [];
-            let current = '';
-            const add = piece => {
-                if (current && current.length + 1 + piece.length > max) {
-                    chunks.push(current);
-                    current = piece;
-                } else {
-                    current = current ? current + ' ' + piece : piece;
-                }
-            };
-            const pieces = (text, pattern) => text.replace(pattern, '$1\n').split('\n').map(piece => piece.trim()).filter(Boolean);
-            pieces(String(value || ''), /([.!?…;:])\s+/g).forEach(sentence => {
-                if (sentence.length <= max) {
-                    add(sentence);
-                    return;
-                }
-                pieces(sentence, /([,—–])\s+/g).forEach(clause => {
-                    if (clause.length <= max) add(clause);
-                    else clause.split(/\s+/).forEach(add);
-                });
-            });
-            if (current) chunks.push(current);
-            return chunks;
-        }
-
-        function speakAudioItem(playback) {
-            const line = buildNumbersLines(playback.text)[playback.itemIndex];
-            const rate = getSpeechRate();
-            const voice = getSpeechVoice();
-            if (rate <= SPEECH_PACED_MAX_RATE) {
-                speakPacedAudioItem(playback, line ? line.words.join(' ') : '', voice, rate);
-                return;
-            }
-            // Медленнее — фразы короче: на 0,75× фраза в 180 знаков звучала бы
-            // ~15 с, а Chrome обрывает всё, что длиннее.
-            const chunks = splitSpeechText(line ? line.words.join(' ') : '', getSpeechChunkLimit(SPEECH_CHUNK_MAX, rate));
-            if (!chunks.length) {
-                finishAudioItem(playback);
-                return;
-            }
-            const synth = window.speechSynthesis;
-            playback.utterances = chunks.map((chunk, index) => {
-                const utterance = new SpeechSynthesisUtterance(chunk);
-                utterance.lang = voice ? voice.lang : 'ru-RU';
-                if (voice) utterance.voice = voice;
-                utterance.rate = rate;
-                if (index === chunks.length - 1) utterance.onend = () => finishAudioItem(playback);
-                utterance.onerror = event => onSpeechError(playback, event);
-                return utterance;
-            });
-            if (synth.speaking || synth.pending) synth.cancel();
-            if (synth.paused) synth.resume();
-            playback.utterances.forEach(utterance => synth.speak(utterance));
-            speechPrimed = true;
-        }
-
-        // Медленная скорость голосом устройства — по словам, с паузами между ними.
-        // Сам синтезатор так не замедляется: «Милена» в Chrome на 0,5× читает лишь
-        // в 1,3 раза дольше обычного, а на 0,4× и 0,3× — в 1,4 (дальше не может).
-        // Недостающее время добираем паузами — получается диктовка. На iPhone
-        // синтезатор свой, там не проверено; если он сам читает достаточно
-        // медленно, пауз просто не будет.
-        // Сколько слово звучало бы на обычной скорости, оцениваем по знакам
-        // (getSpeechWordChars), а паузу отсчитываем от начала пункта: задержки
-        // запуска и неточность оценки не копятся от слова к слову.
-        // Каждое отдельное слово синтезатор обрамляет тишиной (~0,4 с у «Милены»),
-        // и на 0,5× пауз не хватает, чтобы её покрыть. Поэтому, отстав от графика,
-        // следующие два слова читаем одной фразой — так график догоняется сам.
-        function speakPacedAudioItem(playback, value, voice, rate) {
-            const words = splitSpeechWords(value);
-            if (!words.length) {
-                finishAudioItem(playback);
-                return;
-            }
-            const synth = window.speechSynthesis;
-            let started = performance.now();
-            let planned = 0;
-            playback.utterances = [];
-            const speakWords = (index, count) => {
-                const end = Math.min(words.length, index + count);
-                const utterance = new SpeechSynthesisUtterance(words.slice(index, end).join(' '));
-                utterance.lang = voice ? voice.lang : 'ru-RU';
-                if (voice) utterance.voice = voice;
-                utterance.rate = rate;
-                if (index === 0) utterance.onstart = () => { started = performance.now(); };
-                utterance.onend = () => {
-                    if (audioPlayback !== playback) return;
-                    for (let i = index; i < end; i++) {
-                        planned += getSpeechWordChars(words[i], i + 1 === words.length) * SPEECH_MS_PER_CHAR / rate;
-                    }
-                    const wait = started + planned - performance.now();
-                    playback.paceTimer = setTimeout(() => {
-                        playback.paceTimer = null;
-                        if (audioPlayback !== playback) return;
-                        if (end < words.length) speakWords(end, wait < 0 ? 2 : 1);
-                        else finishAudioItem(playback);
-                    }, Math.max(0, wait));
-                };
-                utterance.onerror = event => onSpeechError(playback, event);
-                // Живая ссылка на каждую фразу: иначе Chrome может собрать её
-                // сборщиком мусора, и onend не придёт.
-                playback.utterances.push(utterance);
-                synth.speak(utterance);
-            };
-            if (synth.speaking || synth.pending) synth.cancel();
-            if (synth.paused) synth.resume();
-            speakWords(0, 1);
-            speechPrimed = true;
-        }
-
-        // Сколько знаков обычной речи занимает слово вместе с пробелом за ним:
-        // цифры и знаки читаются словами, на знаках препинания голос делает паузу
-        // (в конце пункта — нет, там просто конец фразы).
-        function getSpeechWordChars(word, last) {
-            const digits = (word.match(/\p{N}/gu) || []).length;
-            const signs = (word.match(/[=+\/*×÷%<>≈≠≤≥−^°№§]/g) || []).length;
-            const pause = !last && /[,;:.!?…—–-]$/.test(word) ? SPEECH_PAUSE_CHARS : 0;
-            return word.length + 1 + digits * SPEECH_DIGIT_CHARS + signs * SPEECH_SIGN_CHARS + pause;
-        }
-
-        // Слова для диктовки. Знаки без букв и цифр («—», «=», «/») отдельно не
-        // произносятся — держим их при соседнем слове.
-        function splitSpeechWords(value) {
-            const words = [];
-            let pending = '';
-            String(value || '').split(/\s+/).filter(Boolean).forEach(token => {
-                if (/[\p{L}\p{N}]/u.test(token)) {
-                    words.push(pending ? pending + ' ' + token : token);
-                    pending = '';
-                } else if (words.length) {
-                    words[words.length - 1] += ' ' + token;
-                } else {
-                    pending = pending ? pending + ' ' + token : token;
-                }
-            });
-            if (pending) words.push(pending);
-            return words;
-        }
-
-        function onSpeechError(playback, event) {
-            if (audioPlayback !== playback) return;
-            const code = event && event.error;
-            // Свою речь мы прерываем, только уже сменив audioPlayback, — значит,
-            // прервало что-то снаружи (звонок, другой звук). Тихо останавливаемся.
-            if (code === 'interrupted' || code === 'canceled') {
-                stopAudioPlayback();
-                return;
-            }
-            audioModalError = code === 'not-allowed'
-                ? 'Браузер не дал включить голос. Нажмите «Прочитать» ещё раз.'
-                : code === 'language-unavailable' || code === 'voice-unavailable'
-                    ? 'На устройстве нет русского голоса. ' + SPEECH_VOICE_HELP
-                    : 'Не удалось прочитать текст голосом' + (code ? ' (' + code + ').' : '.');
-            stopAudioPlayback();
-        }
-
-        // «Разрешение» синтезатора в нажатии: беззвучная пустая фраза. Нужна,
-        // когда первым в «Слушать все» играет запись, а голос вступит позже.
-        function primeSpeech() {
-            if (speechPrimed || !isSpeechSupported()) return;
-            speechPrimed = true;
-            const utterance = new SpeechSynthesisUtterance(' ');
-            utterance.volume = 0;
-            window.speechSynthesis.speak(utterance);
-        }
-
-        // ——— Нейроголоса: Piper прямо в браузере ———
-        // Голоса устройства на iPhone звучат механически, а мужской среди них
-        // один. Нейроголоса — модели Piper (github.com/rhasspy/piper, voices на
-        // Hugging Face): три мужских и один женский русский голос, звучат живее.
-        // Работают офлайн и бесплатно, без ключей и серверов: нейросеть
-        // считается на самом телефоне (ONNX Runtime в WebAssembly), текст в
-        // фонемы переводит espeak-ng (piper_phonemize).
-        //
-        // Откуда что берётся. Движок (ONNX Runtime, фонемизатор и словари
-        // espeak-ng, урезанные до русского и английского) лежит рядом с
-        // приложением, в папке tts/. Модель голоса — около 60 МБ, поэтому её
-        // качают по кнопке, один раз, с Hugging Face. И движок, и модели
-        // кладутся в отдельный кэш VOICES_CACHE: service worker его не удаляет
-        // при обновлении приложения, так что голос не приходится качать заново.
-        // Это единственное место, где приложение ходит в интернет, — и только по
-        // нажатию «Скачать».
-        //
-        // Как звучит. Речь считает отдельный поток (#piperWorkerSource) — фраза
-        // за фразой, по одной. Готовая фраза — WAV, играет через тот же плеер,
-        // что и свои записи: значит, «разрешение» в нажатии — пустой WAV
-        // (SILENT_WAV), а беззвучный режим iPhone не глушит звук. Пока звучит
-        // фраза, следующая уже считается; пока звучит пункт в «Слушать все» —
-        // первая фраза следующего. Готовые фразы держим в памяти
-        // (neuralAudioUrls): повторное «Прочитать» играет сразу.
-        //
-        // Заряд. Поток запускается только при чтении и сам выключается через
-        // NEURAL_WORKER_IDLE_MS без дела — вместе с моделью в памяти. В простое
-        // ничего не работает.
-        const NEURAL_VOICE_PREFIX = 'piper:';
-        // То же имя — в sw.js: там этот кэш не удаляется при смене версии.
-        const VOICES_CACHE = 'zapominalka-voices';
-        // Имена папок с версией: файлы в кэше голосов живут дольше версий
-        // приложения, поэтому новый движок — только под новым адресом.
-        const NEURAL_ENGINE_FILES = [
-            'tts/ort-1.18.0/ort.wasm.min.js',
-            'tts/ort-1.18.0/ort-wasm-simd.wasm',
-            'tts/piper-phonemize-ru/piper_phonemize.js',
-            'tts/piper-phonemize-ru/piper_phonemize.wasm',
-            'tts/piper-phonemize-ru/piper_phonemize.data'
-        ];
-        const NEURAL_ENGINE_BYTES = 20803660;
-        const NEURAL_MODEL_BYTES = 63201294;
-        const NEURAL_MODEL_BASE = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/ru/ru_RU/';
-        // Настройки моделей — из их .onnx.json, у всех четырёх одинаковые.
-        const NEURAL_MODEL_CONFIG = { sampleRate: 22050, noiseScale: 0.667, lengthScale: 1, noiseW: 0.8 };
-        const NEURAL_VOICES = [
-            { id: 'ru_RU-ruslan-medium', speaker: 'ruslan', name: 'Руслан', gender: 'муж.' },
-            { id: 'ru_RU-denis-medium', speaker: 'denis', name: 'Денис', gender: 'муж.' },
-            { id: 'ru_RU-dmitri-medium', speaker: 'dmitri', name: 'Дмитрий', gender: 'муж.' },
-            { id: 'ru_RU-irina-medium', speaker: 'irina', name: 'Ирина', gender: 'жен.' }
-        ];
-        // Движок собран с SIMD: без него (iOS до 16.4) нейроголоса не запустятся.
-        // Проба — та же, что делает сам ONNX Runtime.
-        const WASM_SIMD_PROBE = [0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0, 10, 30, 1, 28, 0, 65, 0, 253, 15, 253, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 253, 186, 1, 26, 11];
-        const NEURAL_WORKER_IDLE_MS = 180000;
-        const NEURAL_AUDIO_CACHE_MAX = 40;
-        let neuralSupported = null;
-        let neuralVoicesReady = new Set();
-        let neuralDownload = null;
-        let neuralDownloadError = '';
-        let neuralWorker = null;
-        let neuralWorkerIdleTimer = null;
-        let neuralJobSeq = 0;
-        const neuralJobs = new Map();
-        const neuralAudioUrls = new Map();
-
-        function isNeuralTtsSupported() {
-            if (neuralSupported === null) {
-                try {
-                    neuralSupported = typeof Worker === 'function' && typeof caches !== 'undefined' &&
-                        typeof BigInt64Array === 'function' && typeof TransformStream === 'function' &&
-                        typeof WebAssembly === 'object' && WebAssembly.validate(new Uint8Array(WASM_SIMD_PROBE));
-                } catch (e) {
-                    neuralSupported = false;
-                }
-            }
-            return neuralSupported;
-        }
-
-        function getNeuralVoiceById(id) {
-            return NEURAL_VOICES.find(voice => voice.id === id) || null;
-        }
-
-        // Нейроголос, выбранный в окне (скачан он или нет).
-        function getChosenNeuralVoice() {
-            const saved = localStorage.getItem('speechVoice') || '';
-            return saved.indexOf(NEURAL_VOICE_PREFIX) === 0 ? getNeuralVoiceById(saved.slice(NEURAL_VOICE_PREFIX.length)) : null;
-        }
-
-        // Нейроголос, которым можно читать прямо сейчас. Пока выбранный не
-        // скачан, читает голос устройства.
-        function getActiveNeuralVoice() {
-            const voice = getChosenNeuralVoice();
-            return voice && isNeuralTtsSupported() && neuralVoicesReady.has(voice.id) ? voice : null;
-        }
-
-        function getNeuralModelUrl(voice) {
-            return NEURAL_MODEL_BASE + voice.speaker + '/medium/' + voice.id + '.onnx';
-        }
-
-        function getNeuralEngineUrls() {
-            return NEURAL_ENGINE_FILES.map(file => new URL(file, location.href).href);
-        }
-
-        function formatMegabytes(bytes) {
-            return Math.max(1, Math.round(bytes / 1e6)) + ' МБ';
-        }
-
-        // Какие голоса скачаны — по кэшу: голос готов, когда в нём и модель, и весь движок.
-        async function refreshNeuralVoicesReady() {
-            if (!isNeuralTtsSupported()) return;
-            try {
-                const cache = await caches.open(VOICES_CACHE);
-                const engine = await Promise.all(getNeuralEngineUrls().map(url => cache.match(url)));
-                const ready = new Set();
-                if (engine.every(Boolean)) {
-                    for (const voice of NEURAL_VOICES) {
-                        if (await cache.match(getNeuralModelUrl(voice))) ready.add(voice.id);
-                    }
-                }
-                const changed = ready.size !== neuralVoicesReady.size || Array.from(ready).some(id => !neuralVoicesReady.has(id));
-                neuralVoicesReady = ready;
-                if (changed) {
-                    if (document.getElementById('audioModal').classList.contains('show')) renderAudioVoiceSettings();
-                    refreshAudioUi();
-                }
-            } catch (e) {
-                // Кэш недоступен (частный режим) — нейроголоса просто не включатся.
-            }
-        }
-
-        function getNeuralVoiceStatusMarkup(voice) {
-            if (!isNeuralTtsSupported()) {
-                return '<div class="audio-modal-error">Нейроголоса не работают в этом браузере: нужна iOS 16.4 или новее (или свежий Chrome, Safari, Edge на компьютере). Читает голос устройства.</div>';
-            }
-            if (neuralDownload && neuralDownload.voice === voice) {
-                return '<div class="audio-voice-status"><span>Скачиваю «' + voice.name + '»… <b id="neuralDownloadProgress">' + getNeuralDownloadPercent(neuralDownload) + '</b></span>' +
-                    '<button class="audio-btn" onclick="cancelNeuralDownload()">Отменить</button></div>';
-            }
-            if (neuralVoicesReady.has(voice.id)) {
-                return '<div class="audio-voice-status"><span>«' + voice.name + '» скачан и работает без интернета.</span>' +
-                    '<button class="audio-btn danger" onclick="deleteNeuralVoice()">Удалить</button></div>';
-            }
-            const bytes = NEURAL_MODEL_BYTES + (neuralVoicesReady.size ? 0 : NEURAL_ENGINE_BYTES);
-            return (neuralDownloadError ? '<div class="audio-modal-error" role="alert">' + escapeHtml(neuralDownloadError) + '</div>' : '') +
-                '<div class="audio-voice-status"><span>Нейросетевой голос — звучит живее голоса устройства. Скачивается один раз, ' + formatMegabytes(bytes) +
-                ', дальше работает без интернета. Пока не скачан, читает голос устройства.</span>' +
-                '<button class="audio-btn play" onclick="downloadNeuralVoice()"' + (neuralDownload ? ' disabled' : '') + '>⬇ Скачать</button></div>';
-        }
-
-        function getNeuralDownloadPercent(download) {
-            return download.total ? Math.min(99, Math.floor(download.loaded / download.total * 100)) + '%' : '0%';
-        }
-
-        // Скачивание — потоком прямо в кэш, без копии всей модели в памяти.
-        // Ход показываем, переписывая одну подпись, и только когда сменился процент.
-        async function downloadNeuralVoice() {
-            const voice = getChosenNeuralVoice();
-            if (!voice || neuralDownload || !isNeuralTtsSupported()) return;
-            const download = { voice, loaded: 0, total: 0, shown: '', controller: typeof AbortController === 'function' ? new AbortController() : null };
-            neuralDownload = download;
-            neuralDownloadError = '';
-            renderAudioVoiceSettings();
-            try {
-                const cache = await caches.open(VOICES_CACHE);
-                const modelUrl = getNeuralModelUrl(voice);
-                const missing = [];
-                for (const url of getNeuralEngineUrls().concat(modelUrl)) {
-                    if (!(await cache.match(url))) missing.push(url);
-                }
-                download.total = (missing.includes(modelUrl) ? NEURAL_MODEL_BYTES : 0) +
-                    (missing.some(url => url !== modelUrl) ? NEURAL_ENGINE_BYTES : 0);
-                for (const url of missing) {
-                    const response = await fetch(url, download.controller ? { signal: download.controller.signal } : undefined);
-                    if (!response.ok || !response.body) throw new Error('сервер ответил ' + response.status);
-                    const counted = response.body.pipeThrough(new TransformStream({
-                        transform(chunk, controller) {
-                            download.loaded += chunk.byteLength;
-                            showNeuralDownloadProgress(download);
-                            controller.enqueue(chunk);
-                        }
-                    }));
-                    await cache.put(url, new Response(counted, { headers: { 'Content-Type': response.headers.get('Content-Type') || 'application/octet-stream' } }));
-                }
-                neuralVoicesReady.add(voice.id);
-                requestPersistentAudioStorage();
-            } catch (error) {
-                // При отмене cache.put падает не с AbortError, а с «network error» —
-                // поэтому отмену узнаём по самому сигналу.
-                const cancelled = (download.controller && download.controller.signal.aborted) || (error && error.name === 'AbortError');
-                if (!cancelled) {
-                    neuralDownloadError = 'Не удалось скачать голос «' + voice.name + '»' + (error && error.message ? ': ' + error.message : '') +
-                        '. Проверьте интернет и попробуйте ещё раз — уже скачанные файлы не пропадут.';
-                }
-            }
-            if (neuralDownload === download) neuralDownload = null;
-            renderAudioVoiceSettings();
-            refreshAudioUi();
-            warmNeuralVoice();
-        }
-
-        function showNeuralDownloadProgress(download) {
-            const percent = getNeuralDownloadPercent(download);
-            if (percent === download.shown) return;
-            download.shown = percent;
-            const label = document.getElementById('neuralDownloadProgress');
-            if (label) label.textContent = percent;
-        }
-
-        function cancelNeuralDownload() {
-            if (neuralDownload && neuralDownload.controller) neuralDownload.controller.abort();
-        }
-
-        async function deleteNeuralVoice() {
-            const voice = getChosenNeuralVoice();
-            if (!voice || !confirm('Удалить голос «' + voice.name + '» с этого устройства? Его можно будет скачать снова.')) return;
-            stopAudioPlayback();
-            terminateNeuralWorker();
-            clearNeuralAudioUrls();
-            try {
-                const cache = await caches.open(VOICES_CACHE);
-                await cache.delete(getNeuralModelUrl(voice));
-                neuralVoicesReady.delete(voice.id);
-                // Последний голос удалён — движок (≈20 МБ) тоже больше не нужен.
-                if (!neuralVoicesReady.size) await caches.delete(VOICES_CACHE);
-            } catch (e) {
-                // Не удалось — голос останется в списке скачанных, удалить можно снова.
-            }
-            renderAudioVoiceSettings();
-            refreshAudioUi();
-        }
-
-        // ——— Поток нейроголосов ———
-        function getNeuralWorker() {
-            if (!neuralWorker) {
-                const source = document.getElementById('piperWorkerSource').textContent;
-                neuralWorker = new Worker(URL.createObjectURL(new Blob([source], { type: 'text/javascript' })));
-                neuralWorker.onmessage = onNeuralWorkerMessage;
-                neuralWorker.onerror = event => {
-                    if (event && typeof event.preventDefault === 'function') event.preventDefault();
-                    failNeuralJobs(new Error(event && event.message ? event.message : 'движок голоса не запустился'));
-                    terminateNeuralWorker();
-                };
-                neuralWorker.postMessage({ type: 'init', engineUrls: getNeuralEngineUrls(), cacheName: VOICES_CACHE });
-            }
-            if (neuralWorkerIdleTimer !== null) {
-                clearTimeout(neuralWorkerIdleTimer);
-                neuralWorkerIdleTimer = null;
-            }
-            return neuralWorker;
-        }
-
-        function scheduleNeuralWorkerIdle() {
-            if (!neuralWorker || neuralJobs.size || neuralWorkerIdleTimer !== null) return;
-            neuralWorkerIdleTimer = setTimeout(() => {
-                neuralWorkerIdleTimer = null;
-                if (!neuralJobs.size) terminateNeuralWorker();
-            }, NEURAL_WORKER_IDLE_MS);
-        }
-
-        function terminateNeuralWorker() {
-            if (neuralWorkerIdleTimer !== null) {
-                clearTimeout(neuralWorkerIdleTimer);
-                neuralWorkerIdleTimer = null;
-            }
-            if (neuralWorker) {
-                neuralWorker.terminate();
-                neuralWorker = null;
-            }
-            failNeuralJobs(new Error('движок голоса остановлен'));
-        }
-
-        function failNeuralJobs(error) {
-            neuralJobs.forEach(job => job.reject(error));
-            neuralJobs.clear();
-        }
-
-        // Заранее поднять модель выбранного голоса: первая фраза иначе ждёт,
-        // пока прочитаются 60 МБ.
-        function warmNeuralVoice() {
-            const voice = getActiveNeuralVoice();
-            if (!voice) return;
-            getNeuralWorker().postMessage({ type: 'warm', id: 0, voiceId: voice.id, modelUrl: getNeuralModelUrl(voice) });
-            scheduleNeuralWorkerIdle();
-        }
-
-        function onNeuralWorkerMessage(event) {
-            const data = event.data || {};
-            const job = neuralJobs.get(data.key);
-            if (!job || job.id !== data.id) return;
-            neuralJobs.delete(data.key);
-            if (data.type === 'done') {
-                const url = URL.createObjectURL(new Blob([data.wav], { type: 'audio/wav' }));
-                rememberNeuralAudio(data.key, url);
-                job.resolve(url);
-            } else {
-                job.reject(new Error(data.message || 'не удалось прочитать'));
-            }
-            scheduleNeuralWorkerIdle();
-        }
-
-        function rememberNeuralAudio(key, url) {
-            neuralAudioUrls.set(key, url);
-            const playing = new Set(audioPlayback && audioPlayback.neuralKeys || []);
-            for (const [oldKey, oldUrl] of neuralAudioUrls) {
-                if (neuralAudioUrls.size <= NEURAL_AUDIO_CACHE_MAX) break;
-                if (playing.has(oldKey)) continue;
-                URL.revokeObjectURL(oldUrl);
-                neuralAudioUrls.delete(oldKey);
-            }
-        }
-
-        function clearNeuralAudioUrls() {
-            neuralAudioUrls.forEach(url => URL.revokeObjectURL(url));
-            neuralAudioUrls.clear();
-        }
-
-        // Скорость нейроголоса задаёт length_scale модели — во сколько раз
-        // растянуть звуки. Ускоряет она почти точно (1,5× → 1/1,5), а замедляет
-        // слабее, чем просят: замер на всех четырёх голосах — речь удлиняется
-        // примерно в 1 + 0,74·(length_scale − 1) раза, так что 2 давало лишь
-        // 1,74 вместо 2. Для медленных скоростей растяжку пересчитываем, чтобы
-        // 0,5× звучало действительно вдвое дольше.
-        const NEURAL_SLOWDOWN_GAIN = 0.74;
-
-        function getNeuralLengthScale(rate) {
-            return rate < 1 ? 1 + (1 / rate - 1) / NEURAL_SLOWDOWN_GAIN : 1 / rate;
-        }
-
-        // Фраза нейроголосом: готовая из памяти, уже заказанная или новый заказ потоку.
-        function synthesizeNeural(voice, text) {
-            const rate = getSpeechRate();
-            const key = voice.id + '|' + rate + '|' + text;
-            const ready = neuralAudioUrls.get(key);
-            if (ready) {
-                neuralAudioUrls.delete(key);
-                neuralAudioUrls.set(key, ready);
-                return { key, promise: Promise.resolve(ready) };
-            }
-            let job = neuralJobs.get(key);
-            if (!job) {
-                job = { id: ++neuralJobSeq, key };
-                job.promise = new Promise((resolve, reject) => {
-                    job.resolve = resolve;
-                    job.reject = reject;
-                });
-                job.promise.catch(() => {});
-                neuralJobs.set(key, job);
-                getNeuralWorker().postMessage({
-                    type: 'synth', id: job.id, key, text, voiceId: voice.id, modelUrl: getNeuralModelUrl(voice),
-                    sampleRate: NEURAL_MODEL_CONFIG.sampleRate, noiseScale: NEURAL_MODEL_CONFIG.noiseScale,
-                    noiseW: NEURAL_MODEL_CONFIG.noiseW, lengthScale: NEURAL_MODEL_CONFIG.lengthScale * getNeuralLengthScale(rate)
-                });
-            }
-            return { key, promise: job.promise };
-        }
-
-        // Снять с очереди фразы, которые больше никто не ждёт (остановили или
-        // перешли к другому пункту).
-        function dropUnneededNeuralJobs() {
-            const keep = new Set(audioPlayback && audioPlayback.neuralKeys || []);
-            const ids = [];
-            neuralJobs.forEach((job, key) => {
-                if (keep.has(key)) return;
-                ids.push(job.id);
-                job.reject(new Error('отменено'));
-                neuralJobs.delete(key);
-            });
-            if (ids.length && neuralWorker) neuralWorker.postMessage({ type: 'cancel', ids });
-            scheduleNeuralWorkerIdle();
-        }
-
-        // Нейроголос начинает говорить, только досчитав фразу целиком, — а это
-        // примерно четверть её длительности. Поэтому фразы короче, чем у голоса
-        // устройства, а первая — ещё короче: ждать начала почти не приходится.
-        const NEURAL_CHUNK_MAX = 120;
-        const NEURAL_FIRST_CHUNK_MAX = 60;
-        // Ниже этой скорости фразы дальше не укорачиваем: на 0,3× предел вышел
-        // бы 36 знаков, первая фраза — 18, то есть 2–3 слова, и каждое такое
-        // кусочное «предложение» нейроголос читал бы со своей интонацией конца.
-        const NEURAL_CHUNK_MIN_RATE = 0.5;
-
-        // Счёт фразы занимает примерно четверть её звучания, а на медленной
-        // скорости та же фраза звучит дольше. Поэтому пределы длины уменьшаются
-        // вместе со скоростью — тишина после нажатия и запас между фразами те же
-        // (до NEURAL_CHUNK_MIN_RATE; медленнее первая фраза начинается чуть позже).
-        function getSpeechChunksForItem(text, itemIndex) {
-            const line = buildNumbersLines(text)[itemIndex];
-            const rate = Math.max(getSpeechRate(), NEURAL_CHUNK_MIN_RATE);
-            const firstMax = getSpeechChunkLimit(NEURAL_FIRST_CHUNK_MAX, rate);
-            const chunks = splitSpeechText(line ? line.words.join(' ') : '', getSpeechChunkLimit(NEURAL_CHUNK_MAX, rate));
-            // Первую фразу дробим только по запятым и тире: разрыв посреди
-            // предложения нейроголос прочёл бы как точку.
-            if (chunks.length && chunks[0].length > firstMax) {
-                const head = [];
-                chunks[0].replace(/([,—–])\s+/g, '$1\n').split('\n').forEach(clause => {
-                    const last = head.length - 1;
-                    if (last >= 0 && head[last].length + 1 + clause.length <= firstMax) head[last] += ' ' + clause;
-                    else head.push(clause);
-                });
-                chunks.splice(0, 1, ...head);
-            }
-            return chunks;
-        }
-
-        function playNeuralAudioItem(text, itemIndex, queue, all, voice) {
-            const player = getAudioPlayer();
-            const playback = { itemIndex, text, queue: queue || [], all: !!all, loading: true, neural: true, chunks: [], chunkIndex: 0, neuralKeys: [] };
-            audioPlayback = playback;
-            // В нажатии — пустой звук-«разрешение»: речь будет готова чуть позже.
-            player.src = SILENT_WAV;
-            player.play().catch(() => {});
-            getSpeechChunksForItem(text, itemIndex).forEach(chunk => {
-                const request = synthesizeNeural(voice, chunk);
-                playback.chunks.push(request.promise);
-                playback.neuralKeys.push(request.key);
-            });
-            if (!playback.chunks.length) {
-                finishAudioItem(playback);
-                return;
-            }
-            // «Слушать все»: пока звучит этот пункт, считается первая фраза следующего.
-            const next = playback.queue[0];
-            if (next !== undefined && !hasAudioItem(text, next)) {
-                const firstChunk = getSpeechChunksForItem(text, next)[0];
-                if (firstChunk) playback.neuralKeys.push(synthesizeNeural(voice, firstChunk).key);
-            }
-            playNeuralChunk(playback);
-            refreshAudioUi();
-        }
-
-        function playNeuralChunk(playback) {
-            playback.loading = true;
-            const first = playback.chunkIndex === 0;
-            playback.chunks[playback.chunkIndex].then(url => {
-                if (audioPlayback !== playback) return;
-                playback.loading = false;
-                const player = getAudioPlayer();
-                player.src = url;
-                player.play().catch(() => {
-                    if (audioPlayback === playback) stopAudioPlayback();
-                });
-                if (first) refreshAudioUi();
-            }, error => {
-                if (audioPlayback !== playback) return;
-                audioModalError = 'Нейроголос не смог прочитать текст' + (error && error.message ? ': ' + error.message : '.');
-                stopAudioPlayback();
-            });
         }
 
         // ——— Карточка «термин ↔ текст» ———
@@ -20047,9 +19107,14 @@ self.onmessage = event => {
         
         loadTheme();
         loadPracticeTextScale();
-        // Выбран нейроголос — узнаём, скачан ли он, чтобы «Номера» и окно озвучки
-        // сразу читали им. Одно чтение кэша, только если нейроголос выбран.
-        if (getChosenNeuralVoice()) scheduleIdleTask(refreshNeuralVoicesReady);
+        // Остатки автоматической озвучки (до v138): выбор голоса и скорости.
+        // Кэш скачанных нейроголосов удаляет service worker при обновлении.
+        try {
+            localStorage.removeItem('speechVoice');
+            localStorage.removeItem('speechRate');
+        } catch (e) {
+            // Хранилище недоступно — удалять нечего.
+        }
         document.addEventListener('keydown', function(e) {
             const batchHintModal = document.getElementById('batchHintModal');
             const isBatchHintOpen = batchHintModal && batchHintModal.classList.contains('show');
