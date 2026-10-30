@@ -1043,13 +1043,16 @@
             justify-content: flex-end;
         }
 
+        /* Полоса сжимается, а не вылезает влево: с кнопкой «🔊 N» строка на
+           ширине телефона не умещала полосу в 70 px, и та ложилась на кнопку. */
         .practice-progress-track {
             width: 70px;
+            min-width: 24px;
             height: 6px;
             border-radius: 4px;
             background: var(--bg-badge);
             overflow: hidden;
-            flex: 0 0 auto;
+            flex: 0 1 70px;
         }
 
         .practice-progress-fill {
@@ -5161,6 +5164,348 @@
             color: var(--accent-primary);
         }
 
+        /* ——— Плеер озвучки (кнопка 🔊 в шапке) ——— */
+        .audio-player {
+            max-width: 560px;
+            max-height: 92vh;
+            overflow-y: auto;
+            padding: 18px 18px 22px;
+        }
+
+        .ap-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .modal-content .ap-title {
+            flex: 1;
+            min-width: 0;
+            margin: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .ap-close {
+            flex: 0 0 auto;
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 12px;
+            background: var(--bg-badge);
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 15px;
+            cursor: pointer;
+        }
+
+        /* Высота под три строки текста блока: иначе смена блока на ходу
+           двигала бы дорожку и кнопки под пальцем. */
+        .ap-now {
+            min-height: 88px;
+            margin-bottom: 10px;
+        }
+
+        .ap-now-num {
+            margin-bottom: 4px;
+            font-size: 13px;
+            font-weight: 800;
+            color: var(--accent-primary);
+        }
+
+        .ap-now-text {
+            color: var(--text-primary);
+            line-height: 1.4;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+        }
+
+        /* Дорожка: блоки — отрезки во всю высоту. Бегунок и границы — «рельсы»
+           во всю ширину дорожки, сдвинутые transform: translateX(N%): процент
+           берётся от ширины самой рельсы, то есть дорожки, — ничего не надо мерить,
+           а сдвиг не трогает вёрстку. */
+        .ap-track {
+            position: relative;
+            height: 64px;
+            border-radius: 14px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-input);
+            overflow: hidden;
+            touch-action: pan-y;
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .ap-track.is-unknown {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 14px;
+            font-size: 13px;
+            text-align: center;
+            color: var(--text-tertiary);
+            cursor: default;
+        }
+
+        .ap-seg {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-right: 1px solid rgba(181, 204, 113, 0.25);
+            background: rgba(181, 204, 113, 0.06);
+            color: var(--text-tertiary);
+            font-size: 13px;
+            font-weight: 800;
+            overflow: hidden;
+        }
+
+        .ap-seg.is-alt {
+            background: rgba(181, 204, 113, 0.12);
+        }
+
+        .ap-seg.is-last {
+            border-right: none;
+        }
+
+        .ap-seg.is-current {
+            background: rgba(181, 204, 113, 0.3);
+            color: var(--text-primary);
+        }
+
+        .ap-rail {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            pointer-events: none;
+        }
+
+        .ap-playhead {
+            transition: transform 0.26s linear;
+        }
+
+        .ap-track.is-dragging .ap-playhead {
+            transition: none;
+        }
+
+        .ap-playhead::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: -1px;
+            width: 2px;
+            background: var(--text-primary);
+        }
+
+        .ap-mark::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: -1px;
+            width: 2px;
+            background: var(--accent-primary);
+        }
+
+        .ap-mark::after {
+            content: '';
+            position: absolute;
+            bottom: 7px;
+            left: -10px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--accent-primary);
+            box-shadow: 0 0 0 3px var(--bg-input);
+        }
+
+        .ap-mark.is-active::after {
+            transform: scale(1.3);
+        }
+
+        .ap-times {
+            display: flex;
+            justify-content: space-between;
+            margin: 6px 2px 12px;
+            font-size: 13px;
+            color: var(--text-tertiary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .ap-times b {
+            color: var(--text-secondary);
+            font-weight: 700;
+        }
+
+        .ap-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .ap-ctrl {
+            flex: 0 0 auto;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 1px solid var(--border-color);
+            background: none;
+            color: var(--text-secondary);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .ap-ctrl:disabled {
+            opacity: 0.35;
+            cursor: default;
+        }
+
+        .ap-ctrl.play {
+            width: 64px;
+            height: 64px;
+            border-color: var(--accent-strong);
+            background: var(--accent-strong);
+            color: var(--accent-on-strong);
+        }
+
+        .ap-tools {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .ap-tools .audio-btn.active {
+            border-color: var(--accent-primary);
+            background: var(--accent-light);
+            color: var(--accent-primary);
+        }
+
+        .ap-empty {
+            margin-bottom: 14px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .ap-edit {
+            margin-bottom: 14px;
+            padding: 12px 14px;
+            border: 1px dashed var(--border-input);
+            border-radius: 16px;
+        }
+
+        .ap-edit-hint {
+            margin-bottom: 10px;
+            font-size: 13px;
+            line-height: 1.45;
+            color: var(--text-secondary);
+        }
+
+        .ap-edit-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .ap-tap-btn {
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 20px 14px;
+            border: none;
+            border-radius: 16px;
+            background: var(--accent-strong);
+            color: var(--accent-on-strong);
+            font-family: inherit;
+            font-size: 17px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .ap-blocks {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .ap-block {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            align-items: baseline;
+            gap: 4px 10px;
+            padding: 11px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            cursor: pointer;
+        }
+
+        .ap-block.is-current {
+            border-color: var(--accent-primary);
+            background: var(--accent-light);
+        }
+
+        .ap-block-num {
+            min-width: 1.3em;
+            font-weight: 800;
+            color: var(--accent-primary);
+        }
+
+        .ap-block-text {
+            font-size: 14.5px;
+            line-height: 1.4;
+            color: var(--text-primary);
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        .ap-block-time {
+            font-size: 12.5px;
+            color: var(--text-tertiary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .ap-block-edit {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+            margin-top: 6px;
+            cursor: default;
+        }
+
+        .ap-block-edit .audio-btn {
+            padding: 7px 10px;
+            font-size: 13px;
+        }
+
+        .ap-block-start {
+            min-width: 4.4em;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            font-variant-numeric: tabular-nums;
+        }
+
         /* ▶ у номера строки в режиме «Номера» — запись к этому пункту. */
         .numbers-audio-btn {
             flex: 0 0 auto;
@@ -6672,6 +7017,12 @@
                 <button class="modal-save" onclick="closeAudioModal()">Готово</button>
             </div>
         </div>
+    </div>
+
+    <!-- Плеер озвучки: открывается кнопкой 🔊 в шапке. Содержимое рисует renderAudioPlayer();
+         пока звук играет, правятся только время, бегунок и текущий блок. -->
+    <div class="modal" id="audioPlayerModal">
+        <div class="modal-content audio-player" id="audioPlayerBody" role="dialog" aria-label="Плеер озвучки"></div>
     </div>
 
     <div class="modal" id="hintModal">
@@ -13659,6 +14010,12 @@
                 audioPlayerEl = new Audio();
                 audioPlayerEl.preload = 'auto';
                 audioPlayerEl.addEventListener('ended', onAudioPlaybackEnded);
+                // События плеера приходят только пока звук играет или грузится:
+                // в простое они молчат.
+                audioPlayerEl.addEventListener('timeupdate', onAudioTimeUpdate);
+                audioPlayerEl.addEventListener('play', onAudioPlayStateChange);
+                audioPlayerEl.addEventListener('pause', onAudioPlayStateChange);
+                audioPlayerEl.addEventListener('durationchange', onAudioDurationChange);
             }
             return audioPlayerEl;
         }
@@ -13704,7 +14061,7 @@
             // У материала из одной строки весь текст и есть единственный пункт.
             if (items.length > 1 || meta[AUDIO_WHOLE_INDEX]) {
                 parts.push(getAudioItemRow(AUDIO_WHOLE_INDEX, '', 'Весь текст целиком', meta[AUDIO_WHOLE_INDEX], busy, true,
-                    'Одним файлом или одной записью. Играет по кнопке 🔊 в шапке.'));
+                    'Одним файлом или одной записью. Кнопка 🔊 в шапке откроет его в плеере — там дорожку можно разделить на блоки по пунктам.'));
             }
             if (recorded.length > 1) {
                 const playingAll = audioPlayback && audioPlayback.all && audioPlayback.itemIndex !== AUDIO_WHOLE_INDEX;
@@ -13917,8 +14274,20 @@
         // читать звук до первого нажатия «Слушать» — тогда через несколько секунд
         // принимаем файл без длительности.
         function readAudioFileDuration(file, type) {
+            const url = URL.createObjectURL(new Blob([file], { type }));
+            const release = () => URL.revokeObjectURL(url);
+            return probeAudioDuration(url).then(seconds => {
+                release();
+                return seconds ? Math.max(1, Math.round(seconds)) : 0;
+            }, error => {
+                release();
+                throw error;
+            });
+        }
+
+        // Точная длительность звука по адресу, в секундах; 0 — если узнать не вышло.
+        function probeAudioDuration(url) {
             return new Promise((resolve, reject) => {
-                const url = URL.createObjectURL(new Blob([file], { type }));
                 const probe = new Audio();
                 let timer = null;
                 const finish = (error, seconds) => {
@@ -13926,12 +14295,11 @@
                     probe.onloadedmetadata = probe.onerror = null;
                     probe.removeAttribute('src');
                     probe.load();
-                    URL.revokeObjectURL(url);
                     if (error) reject(error);
                     else resolve(seconds);
                 };
                 probe.preload = 'metadata';
-                probe.onloadedmetadata = () => finish(null, isFinite(probe.duration) ? Math.max(1, Math.round(probe.duration)) : 0);
+                probe.onloadedmetadata = () => finish(null, isFinite(probe.duration) && probe.duration > 0 ? probe.duration : 0);
                 probe.onerror = () => finish(new Error('Этот файл не получается воспроизвести: возможно, это не звук или такой формат не поддерживается. Подойдут MP3, M4A, WAV.'));
                 timer = setTimeout(() => finish(null, 0), 5000);
                 probe.src = url;
@@ -13992,12 +14360,14 @@
         // Один плеер на всё приложение. В нажатии он сразу получает адрес записи,
         // если она уже прочитана из базы, а если нет — пустой звук, чтобы Safari
         // на iPhone разрешил играть, когда запись дочитается.
-        function playAudioItemFor(text, itemIndex, queue, all) {
+        function playAudioItemFor(text, itemIndex, queue, all, startAt) {
             if (!text || !hasAudioItem(text, itemIndex) || audioRecording) return;
             stopAudioPlayback();
             const player = getAudioPlayer();
             // loading: пока играет пустой звук-разрешение, его конец — не конец записи.
-            const playback = { itemIndex, text, queue: queue || [], all: !!all, loading: true };
+            // startAt — с какого места играть (плеер озвучки); seekPending — пока
+            // плеер на это место ещё не встал.
+            const playback = { itemIndex, text, queue: queue || [], all: !!all, loading: true, startAt: startAt || 0, seekPending: false };
             audioPlayback = playback;
             const key = getAudioKey(text, itemIndex);
             const cached = audioUrlCache.id === text.audio.id ? audioUrlCache.urls.get(key) : null;
@@ -14005,6 +14375,10 @@
                 if (audioPlayback !== playback) return;
                 playback.loading = false;
                 player.src = url;
+                // Новый адрес сбрасывает скорость к defaultPlaybackRate — задаём обе.
+                player.defaultPlaybackRate = audioPlayerRate;
+                player.playbackRate = audioPlayerRate;
+                if (playback.startAt > 0) seekAudioElementOnLoad(player, playback);
                 player.play().catch(() => {
                     if (audioPlayback === playback) stopAudioPlayback();
                 });
@@ -14027,6 +14401,23 @@
             refreshAudioUi();
         }
 
+        // Место начала ставим, когда плеер узнал длительность файла: перемотку до
+        // этого Safari может молча забыть. Звук до того ещё не звучит.
+        function seekAudioElementOnLoad(player, playback) {
+            playback.seekPending = true;
+            const apply = () => {
+                if (audioPlayback !== playback) return;
+                playback.seekPending = false;
+                try {
+                    player.currentTime = playback.startAt;
+                } catch (e) {
+                    // Не вышло — звук просто начнётся сначала.
+                }
+            };
+            if (player.readyState >= 1) apply();
+            else player.addEventListener('loadedmetadata', apply, { once: true });
+        }
+
         function playAudioItem(itemIndex) {
             playAudioItemFor(audioModalText, itemIndex);
         }
@@ -14041,48 +14432,33 @@
             playAudioItemFor(text, indexes[0], indexes.slice(1), true);
         }
 
-        // Кнопка в шапке любого экрана изучения: весь текст сразу, без окна.
-        // Есть звук ко всему тексту — играет он, нет — пункты со звуком по
-        // порядку. Звука нет совсем — открывает окно озвучки, чтобы его добавить.
-        // Повторное нажатие останавливает.
+        // Кнопка в шапке любого экрана изучения открывает плеер озвучки, а если
+        // звука у материала нет совсем — окно озвучки, чтобы его добавить. Пока
+        // звук играет (и после закрытия плеера тоже), кнопка подсвечена.
         const TERM_LISTEN_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
-        const TERM_STOP_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2.5"/></svg>';
 
+        // Звучит весь текст (или пункты по порядку) и не стоит на паузе.
         function isListeningWholeText(text) {
-            return !!(text && audioPlayback && audioPlayback.all && audioPlayback.text === text);
+            return !!(text && audioPlayback && audioPlayback.all && audioPlayback.text === text &&
+                (audioPlayback.loading || (audioPlayerEl && !audioPlayerEl.paused)));
         }
 
         function getTermListenButtonState(playing, hasAudio) {
-            return playing
-                ? { className: 'term-edit-btn term-listen-btn active', label: 'Остановить', icon: TERM_STOP_ICON }
-                : { className: 'term-edit-btn term-listen-btn', label: hasAudio ? 'Слушать весь текст' : 'Озвучка: добавить запись или аудиофайл', icon: TERM_LISTEN_ICON };
+            return {
+                className: 'term-edit-btn term-listen-btn' + (playing ? ' active' : ''),
+                label: !hasAudio ? 'Озвучка: добавить запись или аудиофайл' : (playing ? 'Плеер озвучки — играет' : 'Плеер озвучки')
+            };
         }
 
         // Кнопку рисуем всегда и только гасим: шапка есть и в «Вписать», где
         // появление узлов пересобирало бы соседей вместе с полем ввода.
         function getTermListenButton(text) {
             const view = getTermListenButtonState(isListeningWholeText(text), getTextAudioCount(text) > 0);
-            return '<button class="' + view.className + '" onclick="toggleListenWholeText()"' + (/\S/.test(text.content || '') ? '' : ' disabled') +
-                ' title="' + view.label + '" aria-label="' + view.label + '">' + view.icon + '</button>';
+            return '<button class="' + view.className + '" onclick="openAudioPlayer()"' + (/\S/.test(text.content || '') ? '' : ' disabled') +
+                ' title="' + view.label + '" aria-label="' + view.label + '">' + TERM_LISTEN_ICON + '</button>';
         }
 
-        function toggleListenWholeText() {
-            const text = getCurrentStudyText();
-            if (!text) return;
-            if (isListeningWholeText(text)) {
-                stopAudioPlayback();
-                return;
-            }
-            if (!getTextAudioCount(text)) {
-                showAudioModal();
-                return;
-            }
-            preloadTextAudio(text);
-            if (hasAudioItem(text, AUDIO_WHOLE_INDEX)) playAudioItemFor(text, AUDIO_WHOLE_INDEX, [], true);
-            else playAllAudio(text);
-        }
-
-        // Старт и конец чтения меняют только эту кнопку — правим её на месте,
+        // Старт, пауза и конец звука меняют только эту кнопку — правим её на месте,
         // а не перерисовываем экран. Разметка та же, что у getTermListenButton.
         function syncTermListenButton() {
             const button = document.querySelector('#app .term-listen-btn');
@@ -14093,7 +14469,6 @@
             button.className = view.className;
             button.title = view.label;
             button.setAttribute('aria-label', view.label);
-            button.innerHTML = view.icon;
         }
 
         // ▶ у строки в режиме «Номера».
@@ -14110,6 +14485,7 @@
             const playback = audioPlayback;
             // Конец пустого звука-разрешения — не конец пункта.
             if (!playback || playback.loading) return;
+            if (isAudioPlayerPlayback(audioPlayerView)) audioPlayerView.position = 0;
             finishAudioItem(playback);
         }
 
@@ -14138,8 +14514,901 @@
 
         function refreshAudioUi() {
             if (document.getElementById('audioModal').classList.contains('show')) renderAudioModalList();
+            if (audioPlayerView && audioPlayerView.open) renderAudioPlayer();
             if (state.view === 'practice' && state.mode === 'numbers') render();
             else syncTermListenButton();
+        }
+
+        // ——— Плеер озвучки: дорожка, разделённая на блоки ———
+        // Кнопка 🔊 в шапке открывает плеер звука ко всему тексту: играть, ставить
+        // на паузу, перематывать. Дорожка поделена на пронумерованные блоки — это
+        // пункты (строки) материала с теми же номерами, что в «Номерах»: блок 3 —
+        // пункт 3. Границы между блоками пользователь двигает сам; они хранятся в
+        // пометке звука: items[номер].b = [секунды…], по одной на стык — на одну
+        // меньше, чем блоков. Пока границы не трогали (или после правки текста
+        // пунктов стало больше), недостающие прикидываются по длине строк: речь идёт
+        // примерно с ровной скоростью. Новый файл заменяет пометку целиком, а с ней
+        // и границы: к другому звуку старые не подходят.
+        //
+        // Заряд. Плеер сам ничего не отсчитывает: время, бегунок и текущий блок
+        // обновляются по событию timeupdate (около четырёх раз в секунду и только
+        // пока звук играет), а между событиями бегунок доезжает CSS-переходом
+        // transform. Слушатели движения пальца висят на дорожке только во время жеста.
+        const AUDIO_BLOCK_MIN_GAP = 0.3;
+        // Палец отстаёт от услышанного: при разметке на слух границу ставим чуть раньше нажатия.
+        const AUDIO_TAP_REACTION = 0.3;
+        const AUDIO_SKIP_SECONDS = 5;
+        const AUDIO_PLAYER_RATES = [1, 0.75, 0.5, 1.25, 1.5];
+        const AP_PLAY_ICON = '<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>';
+        const AP_PAUSE_ICON = '<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4.5" height="14" rx="1.2"/><rect x="13.5" y="5" width="4.5" height="14" rx="1.2"/></svg>';
+        const AP_PREV_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="2.5" height="14" rx="1"/><path d="M19 6.2v11.6a1 1 0 0 1-1.55.83L9.6 13.2a1.4 1.4 0 0 1 0-2.4l7.85-5.43A1 1 0 0 1 19 6.2z"/></svg>';
+        const AP_NEXT_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="16.5" y="5" width="2.5" height="14" rx="1"/><path d="M5 6.2v11.6a1 1 0 0 0 1.55.83l7.85-5.43a1.4 1.4 0 0 0 0-2.4L6.55 5.37A1 1 0 0 0 5 6.2z"/></svg>';
+
+        // Плеер помнит место в материале и после закрытия — пока не открыли другой.
+        let audioPlayerView = null;
+        let audioPlayerDrag = null;
+        let audioPlayerRate = readAudioPlayerRate();
+
+        function readAudioPlayerRate() {
+            try {
+                const value = Number(localStorage.getItem('audioPlayerRate'));
+                return AUDIO_PLAYER_RATES.includes(value) ? value : 1;
+            } catch (e) {
+                return 1;
+            }
+        }
+
+        function formatAudioRate(rate) {
+            return String(rate).replace('.', ',') + '×';
+        }
+
+        // Часы плеера идут целыми секундами вниз, как у любого плеера; границы
+        // блоков — с десятыми: на слух полсекунды заметны.
+        function formatAudioClock(seconds) {
+            const total = Math.max(0, Math.floor(seconds || 0));
+            return Math.floor(total / 60) + ':' + String(total % 60).padStart(2, '0');
+        }
+
+        function formatAudioMark(seconds) {
+            const tenths = Math.max(0, Math.round((seconds || 0) * 10));
+            const whole = Math.floor(tenths / 10);
+            return Math.floor(whole / 60) + ':' + String(whole % 60).padStart(2, '0') + ',' + (tenths % 10);
+        }
+
+        // Какой звук играет плеер: ко всему тексту, а у материала из одной строки —
+        // звук его единственного пункта (весь текст и есть этот пункт).
+        function getAudioPlayerClip(text) {
+            if (hasAudioItem(text, AUDIO_WHOLE_INDEX)) return AUDIO_WHOLE_INDEX;
+            return buildNumbersLines(text).length === 1 && hasAudioItem(text, 0) ? 0 : null;
+        }
+
+        function isAudioPlayerPlayback(view) {
+            return !!(view && view.clip !== null && audioPlayback && audioPlayback.text === view.text && audioPlayback.itemIndex === view.clip);
+        }
+
+        function isAudioPlayerPlaying(view) {
+            return isAudioPlayerPlayback(view) && (audioPlayback.loading || !audioPlayerEl.paused);
+        }
+
+        function getAudioPlayerDuration(view) {
+            if (isAudioPlayerPlayback(view) && !audioPlayback.loading && audioPlayerEl &&
+                isFinite(audioPlayerEl.duration) && audioPlayerEl.duration > 0) {
+                return audioPlayerEl.duration;
+            }
+            const info = getTextAudioItems(view.text)[view.clip];
+            return view.exactDuration || (info && info.d) || 0;
+        }
+
+        // Пока звук дочитывается из базы или плеер ещё не встал на место начала,
+        // currentTime у него нулевой — показываем то место, откуда начнём.
+        function getAudioPlayerTime(view) {
+            if (isAudioPlayerPlayback(view)) {
+                return audioPlayback.loading || audioPlayback.seekPending ? audioPlayback.startAt : audioPlayerEl.currentTime;
+            }
+            return view.position;
+        }
+
+        // Прикидка границ: отрезок from–to делится между блоками пропорционально
+        // числу букв в строках. Возвращает границы между блоками.
+        function estimateAudioMarks(weights, from, to) {
+            const total = weights.reduce((sum, weight) => sum + weight, 0) || 1;
+            const marks = [];
+            let passed = 0;
+            for (let i = 0; i < weights.length - 1; i++) {
+                passed += weights[i];
+                marks.push(from + (to - from) * passed / total);
+            }
+            return marks;
+        }
+
+        // Блоки и границы: сохранённые — пока они идут по порядку и умещаются в
+        // звук, остальные — прикидка по длине строк от последней сохранённой.
+        function getAudioBlockLayout(view) {
+            const lines = buildNumbersLines(view.text);
+            const labels = lines.map(line => line.words.join(' '));
+            const weights = labels.map(label => Math.max(1, label.length));
+            const duration = getAudioPlayerDuration(view);
+            const info = getTextAudioItems(view.text)[view.clip] || {};
+            const saved = Array.isArray(info.b) ? info.b : [];
+            const marks = [];
+            let last = 0;
+            for (let i = 0; duration && i < lines.length - 1 && i < saved.length; i++) {
+                const time = Number(saved[i]);
+                if (!(time >= last + AUDIO_BLOCK_MIN_GAP / 2) || !(time <= duration - AUDIO_BLOCK_MIN_GAP / 2)) break;
+                marks.push(time);
+                last = time;
+            }
+            const savedCount = marks.length;
+            if (duration && marks.length < lines.length - 1) {
+                marks.push(...estimateAudioMarks(weights.slice(marks.length), last, duration));
+            }
+            return { count: lines.length, labels, weights, marks, duration, guessed: savedCount < lines.length - 1, hasSaved: saved.length > 0 };
+        }
+
+        function getAudioBlockStart(layout, index) {
+            return index > 0 ? layout.marks[index - 1] : 0;
+        }
+
+        // Допуск в 0,05 с: после перехода на начало блока плеер может встать на
+        // волосок раньше границы и показал бы предыдущий блок.
+        function getAudioBlockAt(layout, time) {
+            let index = 0;
+            while (index < layout.marks.length && time >= layout.marks[index] - 0.05) index++;
+            return index;
+        }
+
+        function getAudioBlockTitle(layout, index) {
+            return layout.count > 1 ? 'Блок ' + (index + 1) + ' из ' + layout.count : 'Весь текст';
+        }
+
+        // ——— Окно плеера ———
+        function openAudioPlayer() {
+            const text = getCurrentStudyText();
+            if (!text) return;
+            if (!getTextAudioCount(text)) {
+                showAudioModal();
+                return;
+            }
+            preloadTextAudio(text);
+            if (!audioPlayerView || audioPlayerView.text !== text) {
+                audioPlayerView = { text, clip: null, stamp: null, position: 0, block: 0, editing: false, tap: null, notice: '', layout: null, exactDuration: 0, open: false, headTransform: '' };
+            }
+            const view = audioPlayerView;
+            view.open = true;
+            view.editing = false;
+            view.tap = null;
+            view.notice = '';
+            view.clip = getAudioPlayerClip(text);
+            // Звук заменили или удалили — прежние место и длительность к нему не относятся.
+            const info = view.clip === null ? null : getTextAudioItems(text)[view.clip];
+            const stamp = info ? view.clip + ':' + info.t : null;
+            if (view.stamp !== stamp) {
+                view.stamp = stamp;
+                view.position = 0;
+                view.exactDuration = 0;
+            }
+            if (info && !view.exactDuration) measureAudioPlayerDuration(view);
+            renderAudioPlayer();
+            document.getElementById('audioPlayerModal').classList.add('show');
+        }
+
+        function closeAudioPlayer() {
+            const view = audioPlayerView;
+            endAudioTrackDrag(false);
+            closeModal('audioPlayerModal');
+            if (!view) return;
+            view.open = false;
+            view.editing = false;
+            view.tap = null;
+            // Играющий звук закрытие не трогает: его можно слушать, глядя в текст,
+            // и вернуться к нему той же кнопкой 🔊. Звук на паузе отпускаем, место помним.
+            if (isAudioPlayerPlayback(view) && !audioPlayback.loading && audioPlayerEl.paused) {
+                view.position = audioPlayerEl.currentTime;
+                stopAudioPlayback();
+            } else {
+                syncTermListenButton();
+            }
+        }
+
+        function openAudioModalFromPlayer() {
+            closeAudioPlayer();
+            showAudioModal();
+        }
+
+        // Точная длительность нужна дорожке сразу, до первого «Играть»: в пометке
+        // она целыми секундами, а у файла, загруженного на iPhone, бывает и вовсе
+        // неизвестна. Читаем заголовок файла отдельным пробником.
+        function measureAudioPlayerDuration(view) {
+            const clip = view.clip;
+            const stamp = view.stamp;
+            loadAudioUrl(view.text, clip).then(url => url ? probeAudioDuration(url) : 0).then(seconds => {
+                if (!seconds || audioPlayerView !== view || view.stamp !== stamp) return;
+                view.exactDuration = seconds;
+                rememberAudioDuration(view.text, clip, seconds);
+                if (view.open) renderAudioPlayer();
+            }).catch(() => {});
+        }
+
+        // В пометке длительность — целыми секундами; у загруженного на iPhone файла
+        // она могла остаться неизвестной (0) — дописываем, как только узнали.
+        function rememberAudioDuration(text, itemIndex, seconds) {
+            const info = getTextAudioItems(text)[itemIndex];
+            const rounded = Math.max(1, Math.round(seconds));
+            if (info && info.d !== rounded) {
+                info.d = rounded;
+                saveData();
+            }
+        }
+
+        // Окно рисуется целиком только на смену состояния: открытие, старт и стоп,
+        // правка границ. Во время игры правятся лишь время, бегунок и текущий блок.
+        function renderAudioPlayer() {
+            const body = document.getElementById('audioPlayerBody');
+            const view = audioPlayerView;
+            if (!body || !view || !view.open) return;
+            // Посреди перетаскивания узлы дорожки менять нельзя — дорисуем в конце жеста.
+            if (audioPlayerDrag) return;
+            const text = view.text;
+            const parts = ['<div class="ap-head"><h3 class="ap-title">' + escapeHtml(text.title || 'Материал') + '</h3>' +
+                '<button class="ap-close" onclick="closeAudioPlayer()" aria-label="Закрыть плеер" title="Закрыть">✕</button></div>'];
+            if (view.clip === null || !hasAudioItem(text, view.clip)) {
+                view.layout = null;
+                parts.push(getAudioPlayerEmptyHtml(view));
+                body.innerHTML = parts.join('');
+                return;
+            }
+            const layout = view.layout = getAudioBlockLayout(view);
+            const time = getAudioPlayerTime(view);
+            const block = view.block = layout.duration ? getAudioBlockAt(layout, time) : 0;
+            const playing = isAudioPlayerPlaying(view);
+            parts.push('<div class="ap-now"><div class="ap-now-num" id="apNowNum">' + getAudioBlockTitle(layout, block) + '</div>' +
+                '<div class="ap-now-text" id="apNowText">' + escapeHtml(layout.labels[block] || '') + '</div></div>');
+            if (layout.duration) {
+                const percent = seconds => (seconds / layout.duration * 100).toFixed(3);
+                let track = '';
+                for (let i = 0; i < layout.count; i++) {
+                    const start = getAudioBlockStart(layout, i);
+                    const end = i < layout.marks.length ? layout.marks[i] : layout.duration;
+                    const width = (end - start) / layout.duration * 100;
+                    track += '<div class="ap-seg' + (i % 2 ? ' is-alt' : '') + (i === block ? ' is-current' : '') + (i === layout.count - 1 ? ' is-last' : '') +
+                        '" data-block="' + i + '" style="left:' + percent(start) + '%;width:' + width.toFixed(3) + '%">' +
+                        (layout.count > 1 && width >= 4.5 ? (i + 1) : '') + '</div>';
+                }
+                if (view.editing && !view.tap) {
+                    layout.marks.forEach((mark, i) => {
+                        track += '<div class="ap-rail ap-mark" data-mark="' + i + '" style="transform:translateX(' + percent(mark) + '%)"></div>';
+                    });
+                }
+                view.headTransform = 'translateX(' + percent(Math.min(time, layout.duration)) + '%)';
+                track += '<div class="ap-rail ap-playhead" id="apPlayhead" style="transform:' + view.headTransform + '"></div>';
+                parts.push('<div class="ap-track' + (view.editing && !view.tap ? ' is-editing' : '') + '" id="apTrack" onpointerdown="onAudioTrackPointerDown(event)">' + track + '</div>');
+            } else {
+                parts.push('<div class="ap-track is-unknown">Длина звука станет известна, когда он начнёт играть</div>');
+            }
+            parts.push('<div class="ap-times"><b id="apTime">' + formatAudioClock(time) + '</b><span>' + (layout.duration ? formatAudioClock(layout.duration) : '') + '</span></div>');
+            parts.push('<div class="ap-controls">' +
+                '<button class="ap-ctrl" onclick="stepAudioPlayerBlock(-1)"' + (layout.duration ? '' : ' disabled') + ' aria-label="Предыдущий блок" title="К началу блока, повторно — к предыдущему">' + AP_PREV_ICON + '</button>' +
+                '<button class="ap-ctrl" onclick="skipAudioPlayer(-' + AUDIO_SKIP_SECONDS + ')" aria-label="Назад на ' + AUDIO_SKIP_SECONDS + ' секунд" title="Назад на ' + AUDIO_SKIP_SECONDS + ' секунд">−' + AUDIO_SKIP_SECONDS + '</button>' +
+                '<button class="ap-ctrl play" id="apPlay" onclick="toggleAudioPlayerPlay()" aria-label="' + (playing ? 'Пауза' : 'Играть') + '">' + (playing ? AP_PAUSE_ICON : AP_PLAY_ICON) + '</button>' +
+                '<button class="ap-ctrl" onclick="skipAudioPlayer(' + AUDIO_SKIP_SECONDS + ')" aria-label="Вперёд на ' + AUDIO_SKIP_SECONDS + ' секунд" title="Вперёд на ' + AUDIO_SKIP_SECONDS + ' секунд">+' + AUDIO_SKIP_SECONDS + '</button>' +
+                '<button class="ap-ctrl" onclick="stepAudioPlayerBlock(1)"' + (layout.duration && layout.count > 1 ? '' : ' disabled') + ' aria-label="Следующий блок" title="Следующий блок">' + AP_NEXT_ICON + '</button>' +
+                '</div>');
+            parts.push('<div class="ap-tools">' +
+                '<button class="audio-btn" id="apRate" onclick="cycleAudioPlayerRate()" title="Скорость воспроизведения">' + formatAudioRate(audioPlayerRate) + '</button>' +
+                (layout.count > 1 && layout.duration
+                    ? '<button class="audio-btn' + (view.editing ? ' active' : '') + '" onclick="toggleAudioPlayerEditing()">' + (view.editing ? '✓ Готово' : '✎ Границы блоков') + '</button>'
+                    : '') +
+                '<button class="audio-btn" onclick="openAudioModalFromPlayer()" title="Заменить или удалить звук, записать свой голос">Файлы и записи</button>' +
+                '</div>');
+            if (view.editing) parts.push(getAudioPlayerEditHtml(view, layout));
+            if (layout.count > 1) {
+                const rows = [];
+                for (let i = 0; i < layout.count; i++) rows.push(getAudioBlockRow(view, layout, i, block));
+                parts.push('<div class="ap-blocks">' + rows.join('') + '</div>');
+            }
+            body.innerHTML = parts.join('');
+        }
+
+        function getAudioPlayerEmptyHtml(view) {
+            const playingItems = isListeningWholeText(view.text);
+            return '<div class="ap-empty">Плеер играет звук ко всему тексту, а его пока нет — есть только звук к отдельным пунктам. ' +
+                'Загрузите готовый аудиофайл ко всему тексту или запишите его целиком: тогда здесь появится дорожка, и её можно будет разделить на блоки по пунктам.</div>' +
+                '<div class="ap-tools">' +
+                '<button class="audio-btn" onclick="openAudioModalFromPlayer()">📁 Добавить звук</button>' +
+                '<button class="audio-btn' + (playingItems ? ' active' : '') + '" onclick="toggleAudioPlayerItems()">' + (playingItems ? '■ Остановить' : '▶ Пункты по порядку') + '</button>' +
+                '</div>';
+        }
+
+        function toggleAudioPlayerItems() {
+            const view = audioPlayerView;
+            if (!view) return;
+            if (isListeningWholeText(view.text)) stopAudioPlayback();
+            else playAllAudio(view.text);
+        }
+
+        function getAudioPlayerEditHtml(view, layout) {
+            if (view.tap) {
+                return '<div class="ap-edit">' +
+                    '<div class="ap-edit-hint">Звук играет с начала. Нажимайте кнопку, как только услышите начало следующего блока. Остальные границы поправятся сами.</div>' +
+                    '<button class="ap-tap-btn" onclick="tapAudioBlockMark()">Начался блок ' + (view.tap.next + 2) + '</button>' +
+                    '<div class="ap-edit-actions"><button class="audio-btn" onclick="cancelAudioTapMarking()">Отменить разметку</button></div>' +
+                    '</div>';
+            }
+            const hint = view.notice ||
+                ((layout.guessed ? 'Сейчас границы прикинуты по длине строк. ' : '') +
+                'Перетаскивайте кружки на дорожке или правьте начало блока в списке: ±0,5 с или «Сюда» — туда, где сейчас стоит плеер. Быстрее: «По паузам» — границы встанут в паузы между пунктами; «На слух» — звук играет, а вы нажимаете кнопку на начале каждого блока.');
+            return '<div class="ap-edit">' +
+                '<div class="ap-edit-hint">' + escapeHtml(hint) + '</div>' +
+                '<div class="ap-edit-actions">' +
+                '<button class="audio-btn" onclick="findAudioBlockMarksByPauses()"' + (view.searching ? ' disabled' : '') + '>' + (view.searching ? 'Ищу паузы…' : '🪄 По паузам') + '</button>' +
+                '<button class="audio-btn" onclick="startAudioTapMarking()"' + (view.searching ? ' disabled' : '') + '>🎧 На слух</button>' +
+                (layout.hasSaved ? '<button class="audio-btn" onclick="resetAudioBlockMarks()">Сбросить</button>' : '') +
+                '</div></div>';
+        }
+
+        // Строка блока: нажатие — играть с его начала. В правке границ у блоков со
+        // второго — начало и кнопки его сдвига; их нажатия до строки не доходят.
+        function getAudioBlockRow(view, layout, index, current) {
+            const start = getAudioBlockStart(layout, index);
+            const edit = view.editing && !view.tap && index > 0
+                ? '<div class="ap-block-edit" onclick="event.stopPropagation()">' +
+                    '<span class="ap-block-start">' + formatAudioMark(start) + '</span>' +
+                    '<button class="audio-btn" onclick="nudgeAudioBlockStart(' + index + ', -0.5)" aria-label="Начало раньше на полсекунды">−0,5 с</button>' +
+                    '<button class="audio-btn" onclick="nudgeAudioBlockStart(' + index + ', 0.5)" aria-label="Начало позже на полсекунды">+0,5 с</button>' +
+                    '<button class="audio-btn" onclick="setAudioBlockStartHere(' + index + ')" title="Начало блока — там, где сейчас стоит плеер">Сюда</button>' +
+                    '</div>'
+                : '';
+            return '<div class="ap-block' + (index === current ? ' is-current' : '') + '" data-block="' + index + '" role="button" tabindex="0" onclick="jumpToAudioBlock(' + index + ')">' +
+                '<span class="ap-block-num">' + (index + 1) + '</span>' +
+                '<span class="ap-block-text">' + escapeHtml(layout.labels[index] || 'Пустая строка') + '</span>' +
+                '<span class="ap-block-time">' + formatAudioClock(start) + '</span>' +
+                edit + '</div>';
+        }
+
+        // ——— Управление ———
+        function toggleAudioPlayerPlay() {
+            const view = audioPlayerView;
+            if (!view || view.clip === null) return;
+            if (isAudioPlayerPlayback(view)) {
+                // Звук ещё дочитывается из базы — повторное нажатие отменяет.
+                if (audioPlayback.loading) {
+                    stopAudioPlayback();
+                    return;
+                }
+                if (audioPlayerEl.paused) audioPlayerEl.play().catch(() => {});
+                else audioPlayerEl.pause();
+                return;
+            }
+            startAudioPlayerAt(view, view.position);
+        }
+
+        function startAudioPlayerAt(view, seconds) {
+            const duration = getAudioPlayerDuration(view);
+            // С самого конца играть нечего — начинаем сначала.
+            const from = duration && seconds >= duration - 0.25 ? 0 : Math.max(0, seconds || 0);
+            view.position = from;
+            playAudioItemFor(view.text, view.clip, [], true, from);
+        }
+
+        // Играть с этого места: идущий звук перематываем, иначе запускаем заново.
+        function playAudioPlayerFrom(view, seconds) {
+            if (isAudioPlayerPlayback(view)) {
+                seekAudioPlayer(seconds);
+                if (!audioPlayback.loading && audioPlayerEl.paused) audioPlayerEl.play().catch(() => {});
+                return;
+            }
+            startAudioPlayerAt(view, seconds);
+        }
+
+        function seekAudioPlayer(seconds) {
+            const view = audioPlayerView;
+            if (!view) return;
+            const duration = getAudioPlayerDuration(view);
+            const time = Math.max(0, duration ? Math.min(seconds, duration - 0.05) : seconds);
+            view.position = time;
+            if (isAudioPlayerPlayback(view)) {
+                if (audioPlayback.loading || audioPlayback.seekPending) audioPlayback.startAt = time;
+                else audioPlayerEl.currentTime = time;
+            }
+            syncAudioPlayerTime(time);
+        }
+
+        function skipAudioPlayer(delta) {
+            const view = audioPlayerView;
+            if (!view || view.clip === null) return;
+            seekAudioPlayer(getAudioPlayerTime(view) + delta);
+        }
+
+        function stepAudioPlayerBlock(direction) {
+            const view = audioPlayerView;
+            const layout = view && view.layout;
+            if (!layout || !layout.duration) return;
+            const time = getAudioPlayerTime(view);
+            const current = getAudioBlockAt(layout, time);
+            // Как у плееров: «назад» сперва возвращает к началу текущего блока.
+            let target = direction < 0 && time - getAudioBlockStart(layout, current) > 1.5 ? current : current + direction;
+            if (target < 0) target = 0;
+            if (target >= layout.count) return;
+            seekAudioPlayer(getAudioBlockStart(layout, target));
+        }
+
+        function jumpToAudioBlock(index) {
+            const view = audioPlayerView;
+            const layout = view && view.layout;
+            if (!layout || !layout.duration || index < 0 || index >= layout.count) return;
+            playAudioPlayerFrom(view, getAudioBlockStart(layout, index));
+        }
+
+        function cycleAudioPlayerRate() {
+            const index = AUDIO_PLAYER_RATES.indexOf(audioPlayerRate);
+            audioPlayerRate = AUDIO_PLAYER_RATES[(index + 1) % AUDIO_PLAYER_RATES.length];
+            try {
+                localStorage.setItem('audioPlayerRate', String(audioPlayerRate));
+            } catch (e) {
+                // Без хранилища скорость просто не запомнится.
+            }
+            if (audioPlayerEl) {
+                audioPlayerEl.defaultPlaybackRate = audioPlayerRate;
+                audioPlayerEl.playbackRate = audioPlayerRate;
+            }
+            const button = document.getElementById('apRate');
+            if (button) button.textContent = formatAudioRate(audioPlayerRate);
+        }
+
+        // ——— Обновление во время игры ———
+        function syncAudioPlayerTime(time) {
+            const view = audioPlayerView;
+            const layout = view && view.layout;
+            if (!view || !view.open || !layout) return;
+            const label = document.getElementById('apTime');
+            const clock = formatAudioClock(time);
+            if (label && label.textContent !== clock) label.textContent = clock;
+            if (!layout.duration) return;
+            const head = document.getElementById('apPlayhead');
+            const transform = 'translateX(' + (Math.min(time, layout.duration) / layout.duration * 100).toFixed(3) + '%)';
+            if (head && view.headTransform !== transform) {
+                view.headTransform = transform;
+                head.style.transform = transform;
+            }
+            const block = getAudioBlockAt(layout, time);
+            if (block !== view.block) {
+                view.block = block;
+                syncAudioPlayerBlock(view);
+            }
+        }
+
+        function syncAudioPlayerBlock(view) {
+            const body = document.getElementById('audioPlayerBody');
+            if (!body || !view.layout) return;
+            body.querySelectorAll('.is-current[data-block]').forEach(node => node.classList.remove('is-current'));
+            body.querySelectorAll('[data-block="' + view.block + '"]').forEach(node => node.classList.add('is-current'));
+            const title = document.getElementById('apNowNum');
+            const label = document.getElementById('apNowText');
+            if (title) title.textContent = getAudioBlockTitle(view.layout, view.block);
+            if (label) label.textContent = view.layout.labels[view.block] || '';
+        }
+
+        function onAudioTimeUpdate() {
+            const view = audioPlayerView;
+            if (!isAudioPlayerPlayback(view) || audioPlayback.loading || audioPlayback.seekPending) return;
+            view.position = audioPlayerEl.currentTime;
+            if (view.open && !audioPlayerDrag) syncAudioPlayerTime(view.position);
+        }
+
+        // Пауза и продолжение меняют только кнопку «Играть» и кнопку в шапке.
+        // Паузу ставит и сам iPhone — звонком или с экрана блокировки, — поэтому
+        // слушаем события плеера, а не свои нажатия.
+        function onAudioPlayStateChange() {
+            syncTermListenButton();
+            const view = audioPlayerView;
+            const button = view && view.open ? document.getElementById('apPlay') : null;
+            if (!button) return;
+            const playing = isAudioPlayerPlaying(view);
+            const label = playing ? 'Пауза' : 'Играть';
+            if (button.getAttribute('aria-label') === label) return;
+            button.setAttribute('aria-label', label);
+            button.innerHTML = playing ? AP_PAUSE_ICON : AP_PLAY_ICON;
+        }
+
+        function onAudioDurationChange() {
+            const view = audioPlayerView;
+            if (!isAudioPlayerPlayback(view) || audioPlayback.loading) return;
+            const duration = audioPlayerEl.duration;
+            if (!isFinite(duration) || duration <= 0) return;
+            rememberAudioDuration(view.text, view.clip, duration);
+            if (Math.abs(duration - (view.exactDuration || 0)) < 0.05) return;
+            view.exactDuration = duration;
+            if (view.open) renderAudioPlayer();
+        }
+
+        // ——— Границы блоков ———
+        function toggleAudioPlayerEditing() {
+            const view = audioPlayerView;
+            if (!view) return;
+            view.editing = !view.editing;
+            view.tap = null;
+            view.notice = '';
+            renderAudioPlayer();
+        }
+
+        function saveAudioBlockMarks(view, marks) {
+            const info = getTextAudioItems(view.text)[view.clip];
+            if (!info) return;
+            info.b = marks.map(time => Math.round(time * 10) / 10);
+            saveData();
+        }
+
+        // Новое начало блока index, зажатое между соседними границами.
+        function moveAudioBlockStart(view, index, seconds) {
+            const layout = view.layout;
+            const marks = layout.marks.slice();
+            const i = index - 1;
+            const low = (i > 0 ? marks[i - 1] : 0) + AUDIO_BLOCK_MIN_GAP;
+            const high = (i + 1 < marks.length ? marks[i + 1] : layout.duration) - AUDIO_BLOCK_MIN_GAP;
+            if (i < 0 || i >= marks.length || low > high) return null;
+            marks[i] = Math.min(high, Math.max(low, seconds));
+            return marks;
+        }
+
+        // После сдвига границы плеер встаёт на начало блока: сразу слышно, верно ли.
+        function nudgeAudioBlockStart(index, delta) {
+            const view = audioPlayerView;
+            if (!view || !view.layout || !view.layout.duration) return;
+            const marks = moveAudioBlockStart(view, index, view.layout.marks[index - 1] + delta);
+            if (!marks) return;
+            view.notice = '';
+            saveAudioBlockMarks(view, marks);
+            seekAudioPlayer(marks[index - 1]);
+            renderAudioPlayer();
+        }
+
+        function setAudioBlockStartHere(index) {
+            const view = audioPlayerView;
+            if (!view || !view.layout || !view.layout.duration) return;
+            const marks = moveAudioBlockStart(view, index, getAudioPlayerTime(view));
+            if (!marks) return;
+            view.notice = '';
+            saveAudioBlockMarks(view, marks);
+            renderAudioPlayer();
+        }
+
+        function resetAudioBlockMarks() {
+            const view = audioPlayerView;
+            const info = view && getTextAudioItems(view.text)[view.clip];
+            if (!info || !info.b) return;
+            if (!confirm('Сбросить границы блоков? Они снова расставятся по длине строк.')) return;
+            delete info.b;
+            view.notice = '';
+            saveData();
+            renderAudioPlayer();
+        }
+
+        // ——— Границы по паузам ———
+        // Между пунктами диктор делает паузу. Звук раскладываем на тишину и речь
+        // (громкость окнами по 20 мс) и выбираем столько пауз, сколько нужно
+        // границ: длинные — охотнее, но поближе к прикидке по длине строк, чтобы
+        // пауза между двумя предложениями одного пункта не перебила паузу между
+        // пунктами. Звук разбирается один раз, по нажатию: для трёх минут это
+        // секунда-другая работы и около десяти мегабайт памяти на время разбора.
+        async function findAudioPauses(url) {
+            const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+            if (!Offline) throw new Error('no-offline-audio');
+            const data = await fetch(url).then(response => response.arrayBuffer());
+            // Низкая частота — меньше памяти; старые Safari её не умеют — тогда обычная.
+            let context;
+            try {
+                context = new Offline(1, 1, 16000);
+            } catch (e) {
+                context = new Offline(1, 1, 44100);
+            }
+            // Старые Safari отвечают только через функции обратного вызова, новые — обещанием.
+            const audio = await new Promise((resolve, reject) => {
+                const result = context.decodeAudioData(data, resolve, reject);
+                if (result && typeof result.then === 'function') result.then(resolve, reject);
+            });
+            const samples = audio.getChannelData(0);
+            const step = Math.max(1, Math.round(audio.sampleRate * 0.02));
+            const windowSeconds = step / audio.sampleRate;
+            const levels = [];
+            for (let i = 0; i < samples.length; i += step) {
+                const end = Math.min(samples.length, i + step);
+                let sum = 0;
+                for (let j = i; j < end; j++) sum += samples[j] * samples[j];
+                levels.push(Math.sqrt(sum / (end - i)));
+            }
+            // Порог тишины — от уровня самого звука: у записей с телефона фон громче,
+            // чем у файлов из сервисов озвучки.
+            const sorted = levels.slice().sort((a, b) => a - b);
+            const floor = sorted[Math.floor(sorted.length * 0.1)] || 0;
+            const loud = sorted[Math.floor(sorted.length * 0.9)] || 0;
+            const threshold = floor + (loud - floor) * 0.1;
+            const pauses = [];
+            let start = -1;
+            for (let i = 0; i <= levels.length; i++) {
+                const quiet = i < levels.length && levels[i] <= threshold;
+                if (quiet && start < 0) start = i;
+                if (!quiet && start >= 0) {
+                    // Тишина в самом начале и в самом конце — не граница между блоками.
+                    if (start > 0 && i < levels.length && (i - start) * windowSeconds >= 0.25) {
+                        pauses.push({ from: start * windowSeconds, to: i * windowSeconds });
+                    }
+                    start = -1;
+                }
+            }
+            return { pauses, duration: audio.duration };
+        }
+
+        // Выбор пауз под границы: лучшая сумма «длина паузы минус штраф за
+        // удалённость от прикидки», границы строго по порядку. Если пауз не хватает,
+        // недостающие границы остаются на прикидке. Граница встаёт к концу паузы —
+        // за мгновение до первого слова блока.
+        function pickAudioPauseMarks(pauses, estimate, duration) {
+            const distanceCost = 6 / Math.max(40, duration);
+            const candidates = pauses.map(pause => ({
+                time: Math.max((pause.from + pause.to) / 2, pause.to - 0.2),
+                length: pause.to - pause.from,
+                pause: true
+            })).concat(estimate.map(time => ({ time, length: 0, pause: false }))).sort((a, b) => a.time - b.time);
+            const best = estimate.map(() => candidates.map(() => -Infinity));
+            const from = estimate.map(() => candidates.map(() => -1));
+            estimate.forEach((target, k) => {
+                candidates.forEach((candidate, j) => {
+                    if (candidate.time < AUDIO_BLOCK_MIN_GAP || candidate.time > duration - AUDIO_BLOCK_MIN_GAP) return;
+                    const gain = candidate.length - distanceCost * Math.abs(candidate.time - target);
+                    if (k === 0) {
+                        best[k][j] = gain;
+                        return;
+                    }
+                    for (let i = 0; i < j; i++) {
+                        if (best[k - 1][i] === -Infinity || candidate.time - candidates[i].time < AUDIO_BLOCK_MIN_GAP) continue;
+                        if (best[k - 1][i] + gain > best[k][j]) {
+                            best[k][j] = best[k - 1][i] + gain;
+                            from[k][j] = i;
+                        }
+                    }
+                });
+            });
+            const last = estimate.length - 1;
+            let j = best[last].indexOf(Math.max(...best[last]));
+            if (j < 0 || best[last][j] === -Infinity) return null;
+            const marks = [];
+            let guessed = 0;
+            for (let k = last; k >= 0; k--) {
+                marks.unshift(candidates[j].time);
+                if (!candidates[j].pause) guessed++;
+                j = from[k][j];
+            }
+            return { marks, guessed };
+        }
+
+        async function findAudioBlockMarksByPauses() {
+            const view = audioPlayerView;
+            const layout = view && view.layout;
+            if (!layout || !layout.duration || layout.count < 2 || view.searching) return;
+            const stamp = view.stamp;
+            view.searching = true;
+            view.notice = '';
+            renderAudioPlayer();
+            let notice;
+            try {
+                const url = await loadAudioUrl(view.text, view.clip);
+                if (!url) throw new Error('no-audio');
+                const found = await findAudioPauses(url);
+                const duration = layout.duration;
+                const estimate = estimateAudioMarks(layout.weights, 0, duration);
+                const picked = pickAudioPauseMarks(found.pauses.filter(pause => pause.to < duration), estimate, duration);
+                if (!picked || audioPlayerView !== view || view.stamp !== stamp) throw new Error('no-marks');
+                saveAudioBlockMarks(view, picked.marks);
+                notice = !picked.guessed
+                    ? 'Границы поставлены по паузам. Проверьте их: нажмите на блок в списке — он заиграет с начала. Неточную границу поправьте.'
+                    : 'Пауз в звуке меньше, чем границ: часть границ прикинута по длине строк. Проверьте их и поправьте.';
+            } catch (error) {
+                notice = 'Не получилось разобрать звук на паузы. Расставьте границы вручную или на слух.';
+            }
+            view.searching = false;
+            view.notice = notice;
+            renderAudioPlayer();
+        }
+
+        // Разметка на слух: звук играет с начала, пользователь нажимает кнопку на
+        // начале каждого следующего блока. Прежние границы помним до конца разметки
+        // — «Отменить» их вернёт.
+        function startAudioTapMarking() {
+            const view = audioPlayerView;
+            const layout = view && view.layout;
+            if (!layout || !layout.duration || layout.count < 2) return;
+            const info = getTextAudioItems(view.text)[view.clip];
+            view.tap = { next: 0, backup: info && Array.isArray(info.b) ? info.b.slice() : null };
+            view.notice = '';
+            playAudioPlayerFrom(view, 0);
+            renderAudioPlayer();
+            // Наверх: дорожка и большая кнопка должны быть видны вместе.
+            const body = document.getElementById('audioPlayerBody');
+            if (body) body.scrollTop = 0;
+        }
+
+        function tapAudioBlockMark() {
+            const view = audioPlayerView;
+            const layout = view && view.layout;
+            if (!view || !view.tap || !layout || !layout.duration) return;
+            const i = view.tap.next;
+            const marks = layout.marks.slice();
+            const low = (i > 0 ? marks[i - 1] : 0) + AUDIO_BLOCK_MIN_GAP;
+            const high = layout.duration - AUDIO_BLOCK_MIN_GAP * (marks.length - i);
+            marks[i] = Math.min(high, Math.max(low, getAudioPlayerTime(view) - AUDIO_TAP_REACTION));
+            // Следующие границы ещё не размечены: если новая их обогнала, раскладываем
+            // их заново по длине строк — от неё до конца звука.
+            if (i + 1 < marks.length && marks[i + 1] < marks[i] + AUDIO_BLOCK_MIN_GAP) {
+                const rest = estimateAudioMarks(layout.weights.slice(i + 1), marks[i], layout.duration);
+                marks.splice(i + 1, rest.length, ...rest);
+            }
+            saveAudioBlockMarks(view, marks);
+            view.tap.next = i + 1;
+            if (view.tap.next >= marks.length) {
+                view.tap = null;
+                view.notice = 'Все границы расставлены. Проверьте их: нажмите на блок в списке — он заиграет с начала.';
+            }
+            renderAudioPlayer();
+        }
+
+        function cancelAudioTapMarking() {
+            const view = audioPlayerView;
+            if (!view || !view.tap) return;
+            const info = getTextAudioItems(view.text)[view.clip];
+            if (info) {
+                if (view.tap.backup) info.b = view.tap.backup;
+                else delete info.b;
+                saveData();
+            }
+            view.tap = null;
+            renderAudioPlayer();
+        }
+
+        // ——— Дорожка под пальцем ———
+        // Касание дорожки перематывает, ведение пальцем — тоже (звук догоняет на
+        // отпускании). В правке границ касание у кружка берёт границу: её можно
+        // тащить, а на отпускании плеер встаёт на начало блока. Вертикальное
+        // движение отдаём прокрутке окна (touch-action: pan-y) — тогда браузер
+        // присылает pointercancel, и всё возвращается как было.
+        function onAudioTrackPointerDown(event) {
+            const view = audioPlayerView;
+            const layout = view && view.layout;
+            const track = event.currentTarget;
+            if (!layout || !layout.duration || audioPlayerDrag || event.button > 0) return;
+            const rect = track.getBoundingClientRect();
+            if (!rect.width) return;
+            let markIndex = -1;
+            let offset = 0;
+            if (view.editing && !view.tap) {
+                let best = 24;
+                layout.marks.forEach((mark, i) => {
+                    const x = rect.left + mark / layout.duration * rect.width;
+                    if (Math.abs(x - event.clientX) <= best) {
+                        best = Math.abs(x - event.clientX);
+                        markIndex = i;
+                        offset = x - event.clientX;
+                    }
+                });
+            }
+            audioPlayerDrag = { view, track, rect, markIndex, offset, pointerId: event.pointerId, marks: layout.marks.slice(), time: 0, startX: event.clientX, moved: false };
+            try {
+                track.setPointerCapture(event.pointerId);
+            } catch (e) {
+                // Без захвата палец, ушедший с дорожки, просто перестанет её двигать.
+            }
+            track.addEventListener('pointermove', onAudioTrackPointerMove);
+            track.addEventListener('pointerup', onAudioTrackPointerUp);
+            track.addEventListener('pointercancel', onAudioTrackPointerCancel);
+            track.classList.add('is-dragging');
+            if (markIndex >= 0) {
+                const mark = track.querySelector('.ap-mark[data-mark="' + markIndex + '"]');
+                if (mark) mark.classList.add('is-active');
+            }
+            updateAudioTrackDrag(event.clientX);
+        }
+
+        function updateAudioTrackDrag(clientX) {
+            const drag = audioPlayerDrag;
+            const layout = drag.view.layout;
+            const ratio = Math.min(1, Math.max(0, (clientX + drag.offset - drag.rect.left) / drag.rect.width));
+            const time = ratio * layout.duration;
+            if (drag.markIndex < 0) {
+                drag.time = time;
+                syncAudioPlayerTime(time);
+                return;
+            }
+            const i = drag.markIndex;
+            const low = (i > 0 ? drag.marks[i - 1] : 0) + AUDIO_BLOCK_MIN_GAP;
+            const high = (i + 1 < drag.marks.length ? drag.marks[i + 1] : layout.duration) - AUDIO_BLOCK_MIN_GAP;
+            drag.marks[i] = Math.min(high, Math.max(low, time));
+            drag.time = drag.marks[i];
+            // Меняются только два соседних блока и сама граница.
+            [i, i + 1].forEach(blockIndex => {
+                const seg = drag.track.querySelector('.ap-seg[data-block="' + blockIndex + '"]');
+                if (!seg) return;
+                const start = blockIndex > 0 ? drag.marks[blockIndex - 1] : 0;
+                const end = blockIndex < drag.marks.length ? drag.marks[blockIndex] : layout.duration;
+                seg.style.left = (start / layout.duration * 100).toFixed(3) + '%';
+                seg.style.width = ((end - start) / layout.duration * 100).toFixed(3) + '%';
+            });
+            const mark = drag.track.querySelector('.ap-mark[data-mark="' + i + '"]');
+            if (mark) mark.style.transform = 'translateX(' + (drag.marks[i] / layout.duration * 100).toFixed(3) + '%)';
+            const label = document.getElementById('apTime');
+            if (label) label.textContent = 'Блок ' + (i + 2) + ' с ' + formatAudioMark(drag.marks[i]);
+        }
+
+        function onAudioTrackPointerMove(event) {
+            const drag = audioPlayerDrag;
+            if (!drag || event.pointerId !== drag.pointerId) return;
+            if (Math.abs(event.clientX - drag.startX) > 3) drag.moved = true;
+            updateAudioTrackDrag(event.clientX);
+        }
+
+        function onAudioTrackPointerUp(event) {
+            const drag = audioPlayerDrag;
+            if (!drag || event.pointerId !== drag.pointerId) return;
+            updateAudioTrackDrag(event.clientX);
+            endAudioTrackDrag(true);
+        }
+
+        function onAudioTrackPointerCancel(event) {
+            const drag = audioPlayerDrag;
+            if (!drag || event.pointerId !== drag.pointerId) return;
+            endAudioTrackDrag(false);
+        }
+
+        function endAudioTrackDrag(commit) {
+            const drag = audioPlayerDrag;
+            if (!drag) return;
+            audioPlayerDrag = null;
+            drag.track.removeEventListener('pointermove', onAudioTrackPointerMove);
+            drag.track.removeEventListener('pointerup', onAudioTrackPointerUp);
+            drag.track.removeEventListener('pointercancel', onAudioTrackPointerCancel);
+            drag.track.classList.remove('is-dragging');
+            try {
+                drag.track.releasePointerCapture(drag.pointerId);
+            } catch (e) {
+                // Захват уже снят браузером.
+            }
+            if (commit && drag.markIndex >= 0) {
+                if (drag.moved) {
+                    drag.view.notice = '';
+                    saveAudioBlockMarks(drag.view, drag.marks);
+                }
+                seekAudioPlayer(drag.marks[drag.markIndex]);
+            } else if (commit) {
+                seekAudioPlayer(drag.time);
+            }
+            renderAudioPlayer();
+        }
+
+        // Клавиши в открытом плеере: пробел — играть и пауза, ← → — на 5 секунд,
+        // ↑ ↓ — к блокам, Enter при разметке на слух — граница.
+        function handleAudioPlayerKey(e) {
+            const view = audioPlayerView;
+            if (!view || !view.open) return false;
+            if (e.key === ' ' || e.code === 'Space') {
+                // Гасим и нажатие кнопки в фокусе: иначе пробел нажал бы её второй раз.
+                e.preventDefault();
+                if (!e.repeat) toggleAudioPlayerPlay();
+                return true;
+            }
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                e.preventDefault();
+                skipAudioPlayer(e.key === 'ArrowRight' ? AUDIO_SKIP_SECONDS : -AUDIO_SKIP_SECONDS);
+                return true;
+            }
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                stepAudioPlayerBlock(e.key === 'ArrowDown' ? 1 : -1);
+                return true;
+            }
+            if (e.key === 'Enter' && view.tap) {
+                e.preventDefault();
+                if (!e.repeat) tapAudioBlockMark();
+                return true;
+            }
+            return false;
         }
 
         // ——— Карточка «термин ↔ текст» ———
@@ -18171,6 +19440,8 @@
                     cancelHint();
                 } else if (openModal.id === 'audioModal') {
                     closeAudioModal();
+                } else if (openModal.id === 'audioPlayerModal') {
+                    closeAudioPlayer();
                 } else if (openModal.id === 'flashcardModal') {
                     closeFlashcardModal();
                 } else if (openModal.id === 'flashcardImportModal') {
@@ -19197,6 +20468,7 @@
             const activeElement = document.activeElement;
             const tag = activeElement ? activeElement.tagName : '';
             if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+            if (!e.metaKey && !e.ctrlKey && !e.altKey && handleAudioPlayerKey(e)) return;
             // Cmd+C повторяет кнопку копирования там, где она есть:
             // — на экране выбора слов — «Скопировать материал». Текст в карточке
             //   выделить нельзя (долгое нажатие отдано отметке сложных), так что
