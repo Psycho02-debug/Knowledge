@@ -14276,6 +14276,7 @@ self.onmessage = event => {
             const playback = audioPlayback;
             if (!playback) return;
             audioPlayback = null;
+            if (playback.paceTimer) clearTimeout(playback.paceTimer);
             if (playback.tts && isSpeechSupported()) window.speechSynthesis.cancel();
             // Ненужные больше фразы нейроголоса снимаем с очереди — но после того,
             // как следующий пункт (если это переход) успел заявить свои.
@@ -14312,8 +14313,18 @@ self.onmessage = event => {
         // Заряд: синтезатор работает, только пока звучит; в простое — ничего.
         // Выбор голоса и скорость — настройки этого устройства (localStorage
         // speechVoice, speechRate), в данные материалов они не входят.
-        const SPEECH_RATES = [0.5, 0.75, 0.9, 1, 1.15, 1.3, 1.5];
+        const SPEECH_RATES = [0.3, 0.4, 0.5, 0.75, 0.9, 1, 1.15, 1.3, 1.5];
         const SPEECH_CHUNK_MAX = 180;
+        // На этой скорости и медленнее голос устройства читает по словам с паузами
+        // (speakPacedAudioItem): сам синтезатор так не замедляется.
+        const SPEECH_PACED_MAX_RATE = 0.5;
+        // Обычный темп «Милены» (замер на одиннадцати фразах): 62–65 мс на знак
+        // вместе с пробелом; запятая, тире, точка посреди пункта — ещё ~4 знака
+        // паузы; цифра читается словом — ещё ~5 знаков, «=», «/», «%» — ~4.
+        const SPEECH_MS_PER_CHAR = 64;
+        const SPEECH_PAUSE_CHARS = 4;
+        const SPEECH_DIGIT_CHARS = 5;
+        const SPEECH_SIGN_CHARS = 4;
         const SPEECH_VOICE_HELP = 'На iPhone: Настройки → Универсальный доступ → Устный контент → Голоса → Русский.';
         let speechPrimed = false;
         let speechVoicesWatched = false;
@@ -14483,15 +14494,19 @@ self.onmessage = event => {
         function speakAudioItem(playback) {
             const line = buildNumbersLines(playback.text)[playback.itemIndex];
             const rate = getSpeechRate();
-            // Медленнее — фразы короче: на 0,5× фраза в 180 знаков звучит ~25 с,
-            // а Chrome обрывает всё, что длиннее ~15 с.
+            const voice = getSpeechVoice();
+            if (rate <= SPEECH_PACED_MAX_RATE) {
+                speakPacedAudioItem(playback, line ? line.words.join(' ') : '', voice, rate);
+                return;
+            }
+            // Медленнее — фразы короче: на 0,75× фраза в 180 знаков звучала бы
+            // ~15 с, а Chrome обрывает всё, что длиннее.
             const chunks = splitSpeechText(line ? line.words.join(' ') : '', getSpeechChunkLimit(SPEECH_CHUNK_MAX, rate));
             if (!chunks.length) {
                 finishAudioItem(playback);
                 return;
             }
             const synth = window.speechSynthesis;
-            const voice = getSpeechVoice();
             playback.utterances = chunks.map((chunk, index) => {
                 const utterance = new SpeechSynthesisUtterance(chunk);
                 utterance.lang = voice ? voice.lang : 'ru-RU';
@@ -14505,6 +14520,89 @@ self.onmessage = event => {
             if (synth.paused) synth.resume();
             playback.utterances.forEach(utterance => synth.speak(utterance));
             speechPrimed = true;
+        }
+
+        // Медленная скорость голосом устройства — по словам, с паузами между ними.
+        // Сам синтезатор так не замедляется: «Милена» в Chrome на 0,5× читает лишь
+        // в 1,3 раза дольше обычного, а на 0,4× и 0,3× — в 1,4 (дальше не может).
+        // Недостающее время добираем паузами — получается диктовка. На iPhone
+        // синтезатор свой, там не проверено; если он сам читает достаточно
+        // медленно, пауз просто не будет.
+        // Сколько слово звучало бы на обычной скорости, оцениваем по знакам
+        // (getSpeechWordChars), а паузу отсчитываем от начала пункта: задержки
+        // запуска и неточность оценки не копятся от слова к слову.
+        // Каждое отдельное слово синтезатор обрамляет тишиной (~0,4 с у «Милены»),
+        // и на 0,5× пауз не хватает, чтобы её покрыть. Поэтому, отстав от графика,
+        // следующие два слова читаем одной фразой — так график догоняется сам.
+        function speakPacedAudioItem(playback, value, voice, rate) {
+            const words = splitSpeechWords(value);
+            if (!words.length) {
+                finishAudioItem(playback);
+                return;
+            }
+            const synth = window.speechSynthesis;
+            let started = performance.now();
+            let planned = 0;
+            playback.utterances = [];
+            const speakWords = (index, count) => {
+                const end = Math.min(words.length, index + count);
+                const utterance = new SpeechSynthesisUtterance(words.slice(index, end).join(' '));
+                utterance.lang = voice ? voice.lang : 'ru-RU';
+                if (voice) utterance.voice = voice;
+                utterance.rate = rate;
+                if (index === 0) utterance.onstart = () => { started = performance.now(); };
+                utterance.onend = () => {
+                    if (audioPlayback !== playback) return;
+                    for (let i = index; i < end; i++) {
+                        planned += getSpeechWordChars(words[i], i + 1 === words.length) * SPEECH_MS_PER_CHAR / rate;
+                    }
+                    const wait = started + planned - performance.now();
+                    playback.paceTimer = setTimeout(() => {
+                        playback.paceTimer = null;
+                        if (audioPlayback !== playback) return;
+                        if (end < words.length) speakWords(end, wait < 0 ? 2 : 1);
+                        else finishAudioItem(playback);
+                    }, Math.max(0, wait));
+                };
+                utterance.onerror = event => onSpeechError(playback, event);
+                // Живая ссылка на каждую фразу: иначе Chrome может собрать её
+                // сборщиком мусора, и onend не придёт.
+                playback.utterances.push(utterance);
+                synth.speak(utterance);
+            };
+            if (synth.speaking || synth.pending) synth.cancel();
+            if (synth.paused) synth.resume();
+            speakWords(0, 1);
+            speechPrimed = true;
+        }
+
+        // Сколько знаков обычной речи занимает слово вместе с пробелом за ним:
+        // цифры и знаки читаются словами, на знаках препинания голос делает паузу
+        // (в конце пункта — нет, там просто конец фразы).
+        function getSpeechWordChars(word, last) {
+            const digits = (word.match(/\p{N}/gu) || []).length;
+            const signs = (word.match(/[=+\/*×÷%<>≈≠≤≥−^°№§]/g) || []).length;
+            const pause = !last && /[,;:.!?…—–-]$/.test(word) ? SPEECH_PAUSE_CHARS : 0;
+            return word.length + 1 + digits * SPEECH_DIGIT_CHARS + signs * SPEECH_SIGN_CHARS + pause;
+        }
+
+        // Слова для диктовки. Знаки без букв и цифр («—», «=», «/») отдельно не
+        // произносятся — держим их при соседнем слове.
+        function splitSpeechWords(value) {
+            const words = [];
+            let pending = '';
+            String(value || '').split(/\s+/).filter(Boolean).forEach(token => {
+                if (/[\p{L}\p{N}]/u.test(token)) {
+                    words.push(pending ? pending + ' ' + token : token);
+                    pending = '';
+                } else if (words.length) {
+                    words[words.length - 1] += ' ' + token;
+                } else {
+                    pending = pending ? pending + ' ' + token : token;
+                }
+            });
+            if (pending) words.push(pending);
+            return words;
         }
 
         function onSpeechError(playback, event) {
@@ -14911,13 +15009,18 @@ self.onmessage = event => {
         // устройства, а первая — ещё короче: ждать начала почти не приходится.
         const NEURAL_CHUNK_MAX = 120;
         const NEURAL_FIRST_CHUNK_MAX = 60;
+        // Ниже этой скорости фразы дальше не укорачиваем: на 0,3× предел вышел
+        // бы 36 знаков, первая фраза — 18, то есть 2–3 слова, и каждое такое
+        // кусочное «предложение» нейроголос читал бы со своей интонацией конца.
+        const NEURAL_CHUNK_MIN_RATE = 0.5;
 
         // Счёт фразы занимает примерно четверть её звучания, а на медленной
         // скорости та же фраза звучит дольше. Поэтому пределы длины уменьшаются
-        // вместе со скоростью — тишина после нажатия и запас между фразами те же.
+        // вместе со скоростью — тишина после нажатия и запас между фразами те же
+        // (до NEURAL_CHUNK_MIN_RATE; медленнее первая фраза начинается чуть позже).
         function getSpeechChunksForItem(text, itemIndex) {
             const line = buildNumbersLines(text)[itemIndex];
-            const rate = getSpeechRate();
+            const rate = Math.max(getSpeechRate(), NEURAL_CHUNK_MIN_RATE);
             const firstMax = getSpeechChunkLimit(NEURAL_FIRST_CHUNK_MAX, rate);
             const chunks = splitSpeechText(line ? line.words.join(' ') : '', getSpeechChunkLimit(NEURAL_CHUNK_MAX, rate));
             // Первую фразу дробим только по запятым и тире: разрыв посреди
