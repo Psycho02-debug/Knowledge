@@ -5027,93 +5027,7 @@
             color: var(--text-primary);
         }
 
-        /* ——— Озвучка материала ——— */
-        .audio-modal {
-            max-width: 560px;
-            max-height: 86vh;
-            overflow-y: auto;
-        }
-
-        .audio-modal-lead {
-            margin-bottom: 14px;
-            color: var(--text-secondary);
-            line-height: 1.45;
-        }
-
-        .audio-modal-error {
-            margin-bottom: 12px;
-            padding: 10px 12px;
-            border-radius: 12px;
-            border: 1px solid var(--accent-wrong-text);
-            color: var(--accent-wrong-text);
-            font-size: 14px;
-            line-height: 1.4;
-        }
-
-        .audio-play-all-btn {
-            width: 100%;
-            margin-bottom: 12px;
-        }
-
-        .audio-item {
-            padding: 12px 14px;
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            background: var(--bg-card);
-            margin-bottom: 10px;
-        }
-
-        .audio-item.is-recording {
-            border-color: #ef4444;
-        }
-
-        .audio-item.is-playing {
-            border-color: var(--accent-primary);
-        }
-
-        .audio-item-head {
-            display: flex;
-            gap: 8px;
-            align-items: baseline;
-            margin-bottom: 10px;
-        }
-
-        .audio-item-num {
-            flex: 0 0 auto;
-            font-weight: 800;
-            color: var(--accent-primary);
-        }
-
-        .audio-item-text {
-            min-width: 0;
-            color: var(--text-primary);
-            line-height: 1.4;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-        }
-
-        .audio-item-actions {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        /* Пояснение под строкой: откуда звук (имя файла) или что делает строка. */
-        .audio-item-note {
-            margin: -4px 0 10px;
-            font-size: 13px;
-            line-height: 1.4;
-            color: var(--text-tertiary);
-            overflow-wrap: anywhere;
-        }
-
-        .audio-item.is-whole .audio-item-text {
-            font-weight: 700;
-        }
-
+        /* ——— Озвучка материала: кнопки окна плеера ——— */
         .audio-btn {
             padding: 9px 14px;
             border: 1px solid var(--border-color);
@@ -5142,26 +5056,9 @@
             border-color: rgba(239, 68, 68, 0.5);
         }
 
-        .audio-btn.rec.active {
-            background: #ef4444;
-            border-color: #ef4444;
-            color: #fff;
-        }
-
-        .audio-btn.play.active {
-            background: var(--accent-strong);
-            border-color: var(--accent-strong);
-            color: var(--accent-on-strong);
-        }
-
         .audio-btn.danger:hover:not([disabled]) {
             border-color: var(--accent-wrong-text);
             color: var(--accent-wrong-text);
-        }
-
-        .audio-open-btn.has-audio {
-            border-color: var(--accent-primary);
-            color: var(--accent-primary);
         }
 
         /* ——— Плеер озвучки (кнопка 🔊 в шапке) ——— */
@@ -5496,6 +5393,93 @@
             line-height: 1.5;
         }
 
+        .ap-error {
+            margin-bottom: 12px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--accent-wrong-text);
+            color: var(--accent-wrong-text);
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        /* Звука нет: две большие кнопки — файл и своя запись. */
+        .ap-add {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .ap-add .audio-btn {
+            padding: 16px 10px;
+            font-size: 15px;
+        }
+
+        .ap-edit .ap-add {
+            margin-bottom: 10px;
+        }
+
+        .ap-edit .ap-add .audio-btn {
+            padding: 12px 8px;
+            font-size: 14px;
+        }
+
+        /* Идёт запись: время крупно, большая кнопка «Стоп», ниже — сам текст по
+           пунктам, чтобы читать его вслух, не закрывая окна. */
+        .ap-rec {
+            margin-bottom: 14px;
+            padding: 14px;
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            border-radius: 16px;
+            text-align: center;
+        }
+
+        .ap-rec-state {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 800;
+            color: #ef4444;
+        }
+
+        .ap-rec-state::before {
+            content: '';
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ef4444;
+        }
+
+        .ap-rec-time {
+            margin: 4px 0 10px;
+            font-size: 34px;
+            font-weight: 800;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .ap-rec .ap-tap-btn {
+            margin-bottom: 0;
+            background: #ef4444;
+            color: #fff;
+        }
+
+        .ap-rec .ap-edit-hint {
+            margin: 10px 0 0;
+            text-align: left;
+        }
+
+        .ap-block.is-static {
+            cursor: default;
+        }
+
+        .ap-block.is-static .ap-block-text {
+            display: block;
+            overflow: visible;
+        }
+
         .ap-edit {
             margin-bottom: 14px;
             padding: 12px 14px;
@@ -5514,6 +5498,10 @@
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
+        }
+
+        .ap-edit-actions + .ap-edit-hint {
+            margin-top: 12px;
         }
 
         .ap-tap-btn {
@@ -7095,25 +7083,13 @@
         </div>
     </div>
 
-    <!-- Озвучка материала: свои записи и готовые аудиофайлы — ко всему тексту и к каждому
-         пункту (строке). Список рисует renderAudioModalList() — окно вне #app, render() его
-         не трогает. Поле выбора файла одно на всё окно: chooseAudioFile запоминает, куда класть. -->
-    <div class="modal" id="audioModal">
-        <div class="modal-content audio-modal">
-            <h3 id="audioModalTitle">Озвучка</h3>
-            <p class="audio-modal-lead" id="audioModalLead"></p>
-            <div id="audioModalList"></div>
-            <input type="file" id="audioFileInput" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.oga,.opus,.webm,.flac" hidden onchange="onAudioFileChosen(this)">
-            <div class="modal-buttons">
-                <button class="modal-save" onclick="closeAudioModal()">Готово</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Плеер озвучки: открывается кнопкой 🔊 в шапке. Содержимое рисует renderAudioPlayer();
-         пока звук играет, правятся только время, бегунок и текущий блок. -->
+    <!-- Плеер озвучки — единственное окно озвучки: открывается кнопкой 🔊 в шапке
+         и карточкой «Озвучка»; в нём же звук добавляют, заменяют и удаляют.
+         Содержимое рисует renderAudioPlayer(); пока звук играет, правятся только
+         время, бегунок и текущий блок. Поле файла — вне тела окна: оно перерисовывается. -->
     <div class="modal" id="audioPlayerModal">
         <div class="modal-content audio-player" id="audioPlayerBody" role="dialog" aria-label="Плеер озвучки"></div>
+        <input type="file" id="audioFileInput" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.oga,.opus,.webm,.flac" hidden onchange="onAudioFileChosen(this)">
     </div>
 
     <div class="modal" id="hintModal">
@@ -12759,7 +12735,7 @@
                         <div class="chooser-card" onclick="openTermInMode(state.currentText, 'numbers')">
                             <div class="chooser-card-title">Только номера строк</div>
                         </div>
-                        <div class="chooser-card" onclick="showAudioModal()">
+                        <div class="chooser-card" onclick="openAudioPlayer()">
                             <div class="chooser-card-title">🔊 Озвучка${getTextAudioCount(text) ? ' · ' + getTextAudioCount(text) : ''}</div>
                         </div>
                     </div>
@@ -13516,7 +13492,6 @@
                                     ${text.attention ? '★ Сложный' : '☆ Сложный'}
                                 </button>
                                 <button class="practice-textsize-btn ${state.practiceSizeControlOpen ? 'active' : ''}" onclick="togglePracticeSizeControl()" aria-label="Размер текста" title="Размер текста">Aa</button>
-                                <button class="practice-textsize-btn audio-open-btn${getTextAudioCount(text) ? ' has-audio' : ''}" onclick="showAudioModal()" aria-label="Озвучка" title="Озвучка: своя запись или аудиофайл">🔊${getTextAudioCount(text) ? ' ' + getTextAudioCount(text) : ''}</button>
                             </div>
                             ${progress.total > 0 ? `
                                 <div class="practice-progress">
@@ -13938,7 +13913,6 @@
                         </div>
                         <div class="numbers-secondary">
                             <button class="module-action-btn secondary" onclick="numbersHint()" ${allShown ? 'disabled' : ''}>Подсказка</button>
-                            <button class="module-action-btn secondary audio-open-btn${getTextAudioCount(text) ? ' has-audio' : ''}" onclick="showAudioModal()" title="Озвучка: своя запись или аудиофайл">🔊${getTextAudioCount(text) ? ' ' + getTextAudioCount(text) : ''}</button>
                             <span class="term-counter-inline">${nav.current + 1}/${nav.total}</span>
                         </div>
                     </div>
@@ -13948,12 +13922,14 @@
 
         // ——— Озвучка материала: свои записи и аудиофайлы ———
         // Звук к материалу — своя запись с микрофона или готовый аудиофайл
-        // (например, скачанный из сервиса озвучки). Его можно добавить ко всему
-        // тексту сразу (AUDIO_WHOLE_INDEX — так приходят файлы из сервисов) и к
-        // каждому пункту (строке) отдельно. Если строка одна, пункт один на весь
-        // термин. Пункты — те же строки, что в режиме «Номера» (buildNumbersLines),
-        // поэтому номера совпадают. Автоматической озвучки (голос устройства,
-        // нейроголоса) нет — её убрали в v138; код — в истории git до коммита 746ca7a.
+        // (например, скачанный из сервиса озвучки) ко всему тексту сразу
+        // (AUDIO_WHOLE_INDEX). Добавляют, заменяют и удаляют его в плеере озвучки —
+        // другого окна у озвучки нет (окно «Озвучка» с записью к каждому пункту
+        // убрано в v141). Звук к отдельным пунктам (строкам, как в «Номерах»), записанный
+        // раньше, остаётся: играет в «Номерах» и «Пунктах по порядку», удаляется из
+        // плеера. У материала из одной строки звук этой строки (пункт 0) и есть звук
+        // всего текста. Автоматической озвучки (голос устройства, нейроголоса) нет —
+        // её убрали в v138; код — в истории git до коммита 746ca7a.
         //
         // Хранение. Звук — не в localStorage: записи весят сотни килобайт, а данные
         // материалов переписываются целиком при каждом сохранении — каждое нажатие
@@ -13988,8 +13964,8 @@
         const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
 
         let audioDbPromise = null;
-        let audioModalText = null;
-        let audioModalError = '';
+        // Сообщение об ошибке озвучки — показывает плеер.
+        let audioError = '';
         let audioRecording = null;
         let audioPlayback = null;
         let audioPlayerEl = null;
@@ -14041,16 +14017,6 @@
 
         function getTextAudioCount(text) {
             return Object.keys(getTextAudioItems(text)).length;
-        }
-
-        // Пункты для записи: строки материала. Подпись — текст строки без номера.
-        function getAudioItemsForText(text) {
-            const lines = buildNumbersLines(text);
-            return lines.map((line, index) => ({
-                index,
-                marker: line.marker,
-                label: lines.length === 1 ? 'Весь термин' : (line.words.join(' ') || 'Пустая строка')
-            }));
         }
 
         function formatAudioSeconds(total) {
@@ -14111,118 +14077,33 @@
             return audioPlayerEl;
         }
 
-        // ——— Окно озвучки ———
-        function showAudioModal() {
-            const text = getCurrentStudyText();
-            if (!text) return;
-            audioModalText = text;
-            audioModalError = '';
-            preloadTextAudio(text);
-            document.getElementById('audioModalTitle').textContent = 'Озвучка: ' + (text.title || 'материал');
-            const items = getAudioItemsForText(text);
-            const n = items.length;
-            const itemsWord = (n % 10 === 1 && n % 100 !== 11) ? 'пункт'
-                : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 'пункта' : 'пунктов';
-            document.getElementById('audioModalLead').textContent = items.length > 1
-                ? 'В материале ' + n + ' ' + itemsWord + '. Загрузите готовый аудиофайл ко всему тексту — например, скачанный из сервиса озвучки — или запишите свой голос. К каждому пункту тоже можно добавить запись или файл. Звук хранится на этом устройстве.'
-                : 'Загрузите готовый аудиофайл к термину или запишите свой голос. Звук хранится на этом устройстве.';
-            renderAudioModalList();
-            document.getElementById('audioModal').classList.add('show');
-        }
-
-        function closeAudioModal() {
-            if (audioRecording) stopAudioRecording();
-            stopAudioPlayback();
-            closeModal('audioModal');
-            audioModalText = null;
-            render();
-        }
-
-        function renderAudioModalList() {
-            const list = document.getElementById('audioModalList');
-            const text = audioModalText;
-            if (!list || !text) return;
-            const items = getAudioItemsForText(text);
-            const meta = getTextAudioItems(text);
-            const busy = !!audioRecording || audioImporting;
-            const recorded = items.filter(item => meta[item.index]);
-            const parts = [];
-            if (audioModalError) parts.push('<div class="audio-modal-error" role="alert">' + escapeHtml(audioModalError) + '</div>');
-            // Весь текст одним звуком — так приходят файлы из сервисов озвучки.
-            // У материала из одной строки весь текст и есть единственный пункт.
-            if (items.length > 1 || meta[AUDIO_WHOLE_INDEX]) {
-                parts.push(getAudioItemRow(AUDIO_WHOLE_INDEX, '', 'Весь текст целиком', meta[AUDIO_WHOLE_INDEX], busy, true,
-                    'Одним файлом или одной записью. Кнопка 🔊 в шапке откроет его в плеере — там дорожку можно разделить на блоки по пунктам.'));
-            }
-            if (recorded.length > 1) {
-                const playingAll = audioPlayback && audioPlayback.all && audioPlayback.itemIndex !== AUDIO_WHOLE_INDEX;
-                parts.push('<button class="module-action-btn secondary audio-play-all-btn" onclick="' + (playingAll ? 'stopAudioPlayback()' : 'playAllAudio()') + '" ' + (busy ? 'disabled' : '') + '>' +
-                    (playingAll ? '■ Остановить' : '▶ Слушать пункты по порядку') + '</button>');
-            }
-            items.forEach(item => {
-                parts.push(getAudioItemRow(item.index, items.length > 1 ? item.marker : '', item.label, meta[item.index], busy, true, ''));
-            });
-            // Звук к пунктам, которых после правки текста уже нет: не теряем его
-            // молча — его можно дослушать и удалить.
-            Object.keys(meta).map(Number).filter(index => index >= items.length).sort((a, b) => a - b).forEach(index => {
-                parts.push(getAudioItemRow(index, (index + 1) + '.', 'Звук к пункту, которого больше нет в тексте', meta[index], busy, false, ''));
-            });
-            list.innerHTML = parts.join('');
-        }
-
-        // Строка окна: «Слушать» и «Удалить», под ними «Записать» и «Файл» —
-        // на ширине телефона это два ряда кнопок. Новая запись или файл заменяют
-        // прежний звук пункта. editable: false — у звука к исчезнувшему пункту,
-        // его можно только дослушать и удалить.
-        function getAudioItemRow(index, marker, label, info, busy, editable, hint) {
-            const isRecording = audioRecording && audioRecording.itemIndex === index;
-            const isPlaying = audioPlayback && audioPlayback.itemIndex === index;
-            const disabled = busy ? ' disabled' : '';
-            const playButton = info
-                ? '<button class="audio-btn play' + (isPlaying ? ' active' : '') + '" onclick="' + (isPlaying ? 'stopAudioPlayback()' : 'playAudioItem(' + index + ')') + '"' + disabled + '>' +
-                    (isPlaying ? '■ Стоп' : '▶ Слушать' + (info.d ? ' · ' + formatAudioSeconds(info.d) : '')) + '</button>'
-                : '';
-            const recordButton = !editable ? ''
-                : isRecording
-                    ? '<button class="audio-btn rec active" onclick="stopAudioRecording()">■ Стоп · <span id="audioRecTime">' + formatAudioSeconds(audioRecording.startedAt ? (Date.now() - audioRecording.startedAt) / 1000 : 0) + '</span></button>'
-                    : '<button class="audio-btn rec" onclick="startAudioRecording(' + index + ')"' + disabled + ' title="Записать свой голос">● Записать</button>';
-            const fileButton = editable && !isRecording
-                ? '<button class="audio-btn" onclick="chooseAudioFile(' + index + ')"' + disabled + ' title="Загрузить аудиофайл">' +
-                    (audioImporting && audioFileTarget && audioFileTarget.itemIndex === index ? 'Загружаю…' : '📁 Файл') + '</button>'
-                : '';
-            const deleteButton = info
-                ? '<button class="audio-btn danger" onclick="deleteAudioItem(' + index + ')"' + disabled + ' aria-label="Удалить звук" title="Удалить звук">🗑</button>'
-                : '';
-            const note = info && info.n ? 'Файл: ' + info.n : hint;
-            return '<div class="audio-item' + (index === AUDIO_WHOLE_INDEX ? ' is-whole' : '') + (isRecording ? ' is-recording' : '') + (isPlaying ? ' is-playing' : '') + '">' +
-                '<div class="audio-item-head">' + (marker ? '<span class="audio-item-num">' + escapeHtml(marker) + '</span>' : '') +
-                '<span class="audio-item-text">' + escapeHtml(label) + '</span></div>' +
-                (note ? '<div class="audio-item-note">' + escapeHtml(note) + '</div>' : '') +
-                '<div class="audio-item-actions">' + playButton + deleteButton + recordButton + fileButton + '</div></div>';
-        }
-
         // ——— Запись ———
         // getUserMedia вызывается синхронно, прямо в нажатии: так браузер
         // спрашивает разрешение на микрофон без лишних отказов.
-        function startAudioRecording(itemIndex) {
-            const text = audioModalText;
-            if (!text || audioRecording) return;
+        // Пишем звук того материала, что открыт в плеере, — ко всему тексту.
+        function startAudioRecording() {
+            const view = audioPlayerView;
+            if (!view || !view.open || audioRecording || audioImporting) return;
+            const text = view.text;
+            const itemIndex = getAudioPlayerTarget(view);
             stopAudioPlayback();
-            audioModalError = '';
+            audioError = '';
             if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function' || typeof MediaRecorder === 'undefined') {
-                audioModalError = 'Этот браузер не умеет записывать звук. На iPhone нужна iOS 14.3 или новее.';
-                renderAudioModalList();
+                audioError = 'Этот браузер не умеет записывать звук. На iPhone нужна iOS 14.3 или новее.';
+                renderAudioPlayer();
                 return;
             }
             const recording = { itemIndex, text, starting: true, chunks: [], startedAt: 0, timer: null, stream: null, recorder: null, stopRequested: false };
             audioRecording = recording;
-            renderAudioModalList();
+            renderAudioPlayer();
+            // «Стоп» и текст для чтения — вверху окна.
+            document.getElementById('audioPlayerBody').scrollTop = 0;
             navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
                 recording.stream = stream;
                 if (recording.stopRequested || audioRecording !== recording) {
                     stream.getTracks().forEach(track => track.stop());
                     if (audioRecording === recording) audioRecording = null;
-                    renderAudioModalList();
+                    renderAudioPlayer();
                     return;
                 }
                 const mimeType = pickAudioMimeType();
@@ -14237,13 +14118,13 @@
                 recording.starting = false;
                 recording.startedAt = Date.now();
                 scheduleAudioRecordingTick(recording);
-                renderAudioModalList();
+                renderAudioPlayer();
             }).catch(error => {
                 if (audioRecording === recording) audioRecording = null;
-                audioModalError = error && (error.name === 'NotAllowedError' || error.name === 'SecurityError')
+                audioError = error && (error.name === 'NotAllowedError' || error.name === 'SecurityError')
                     ? 'Нет доступа к микрофону. Разрешите его для этого сайта в настройках браузера (на iPhone: Настройки → Safari → Микрофон) и попробуйте снова.'
                     : 'Не удалось включить микрофон' + (error && error.message ? ': ' + error.message : '.');
-                renderAudioModalList();
+                renderAudioPlayer();
             });
         }
 
@@ -14272,7 +14153,7 @@
             } else if (!recording.recorder) {
                 // Микрофон ещё включается — запись отменится, как только он ответит.
                 audioRecording = null;
-                renderAudioModalList();
+                renderAudioPlayer();
             }
         }
 
@@ -14286,11 +14167,10 @@
                 try {
                     await saveAudioClip(text, recording.itemIndex, await blob.arrayBuffer(), recording.type, { d: duration, t: Date.now() });
                 } catch (error) {
-                    audioModalError = 'Не удалось сохранить запись' + (error && error.message ? ': ' + error.message : '.');
+                    audioError = 'Не удалось сохранить запись' + (error && error.message ? ': ' + error.message : '.');
                 }
             }
-            renderAudioModalList();
-            render();
+            afterAudioChange(text);
         }
 
         // Звук в базу, пометку в материал. info — { d, t } у записи, { d, t, n }
@@ -14316,10 +14196,11 @@
         // ——— Загрузка аудиофайла ———
         // Поле выбора файла открываем прямо в нажатии — иначе iPhone его не
         // покажет. Файл ложится в базу так же, как запись с микрофона.
-        function chooseAudioFile(itemIndex) {
+        function chooseAudioFile() {
+            const view = audioPlayerView;
             const input = document.getElementById('audioFileInput');
-            if (!input || !audioModalText || audioRecording || audioImporting) return;
-            audioFileTarget = { text: audioModalText, itemIndex };
+            if (!input || !view || !view.open || audioRecording || audioImporting) return;
+            audioFileTarget = { text: view.text, itemIndex: getAudioPlayerTarget(view) };
             input.value = '';
             input.click();
         }
@@ -14327,22 +14208,22 @@
         async function onAudioFileChosen(input) {
             const file = input.files && input.files[0];
             const target = audioFileTarget;
-            if (!file || !target || target.text !== audioModalText || audioRecording) {
+            if (!file || !target || audioRecording) {
                 audioFileTarget = null;
                 input.value = '';
                 return;
             }
-            audioModalError = '';
+            audioError = '';
             if (file.size > AUDIO_FILE_MAX_BYTES) {
                 audioFileTarget = null;
                 input.value = '';
-                audioModalError = 'Файл больше 50 МБ — для озвучки это слишком много. Выберите файл поменьше.';
-                renderAudioModalList();
+                audioError = 'Файл больше 50 МБ — для озвучки это слишком много. Выберите файл поменьше.';
+                renderAudioPlayer();
                 return;
             }
             stopAudioPlayback();
             audioImporting = true;
-            renderAudioModalList();
+            renderAudioPlayer();
             try {
                 const extension = (file.name.match(/\.([a-z0-9]+)$/i) || [])[1];
                 const type = file.type || AUDIO_FILE_TYPES[(extension || '').toLowerCase()] || 'audio/mpeg';
@@ -14350,13 +14231,12 @@
                 const data = await file.arrayBuffer();
                 await saveAudioClip(target.text, target.itemIndex, data, type, { d: duration, t: Date.now(), n: file.name.slice(0, 120) });
             } catch (error) {
-                audioModalError = error && error.message ? error.message : 'Не удалось загрузить файл.';
+                audioError = error && error.message ? error.message : 'Не удалось загрузить файл.';
             }
             audioImporting = false;
             audioFileTarget = null;
             input.value = '';
-            renderAudioModalList();
-            render();
+            afterAudioChange(target.text);
         }
 
         // Длительность — из заголовка файла, тем же плеером, что будет играть.
@@ -14412,25 +14292,23 @@
             }
         }
 
-        async function deleteAudioItem(itemIndex) {
-            const text = audioModalText;
-            if (!text || !hasAudioItem(text, itemIndex) || audioRecording) return;
-            if (!confirm(itemIndex === AUDIO_WHOLE_INDEX ? 'Удалить звук ко всему тексту?' : 'Удалить звук к этому пункту?')) return;
-            if (audioPlayback && audioPlayback.itemIndex === itemIndex) stopAudioPlayback();
-            const key = getAudioKey(text, itemIndex);
+        // Звук пунктов — из базы, пометки — из материала, ссылки — из памяти.
+        async function deleteAudioClips(text, indexes) {
+            if (audioPlayback && audioPlayback.text === text && indexes.includes(audioPlayback.itemIndex)) stopAudioPlayback();
+            const keys = indexes.map(index => getAudioKey(text, index));
             try {
-                await audioDbRequest('readwrite', store => store.delete(key));
+                await audioDbRequest('readwrite', store => keys.forEach(key => store.delete(key)));
             } catch (e) {
-                // Запись в базе могла уже пропасть — пометку всё равно снимаем.
+                // Записи в базе могли уже пропасть — пометки всё равно снимаем.
             }
-            delete text.audio.items[itemIndex];
-            if (audioUrlCache.urls.has(key)) {
-                URL.revokeObjectURL(audioUrlCache.urls.get(key));
-                audioUrlCache.urls.delete(key);
-            }
+            indexes.forEach(index => delete text.audio.items[index]);
+            keys.forEach(key => {
+                if (audioUrlCache.urls.has(key)) {
+                    URL.revokeObjectURL(audioUrlCache.urls.get(key));
+                    audioUrlCache.urls.delete(key);
+                }
+            });
             saveData();
-            renderAudioModalList();
-            render();
         }
 
         // Удаление материала, модуля или папки уносит и их записи.
@@ -14482,7 +14360,7 @@
                 loadAudioUrl(text, itemIndex).then(url => {
                     if (url) start(url);
                     else if (audioPlayback === playback) {
-                        audioModalError = 'Запись не найдена на этом устройстве.';
+                        audioError = 'Запись не найдена на этом устройстве.';
                         stopAudioPlayback();
                     }
                 }).catch(() => {
@@ -14509,23 +14387,19 @@
             else player.addEventListener('loadedmetadata', apply, { once: true });
         }
 
-        function playAudioItem(itemIndex) {
-            playAudioItemFor(audioModalText, itemIndex);
-        }
-
         // Пункты со звуком по порядку; звук ко всему тексту сюда не входит.
-        function playAllAudio(text = audioModalText) {
+        function playAllAudio(text) {
             if (!text) return;
-            const indexes = getAudioItemsForText(text)
-                .map(item => item.index)
+            const indexes = buildNumbersLines(text)
+                .map((line, index) => index)
                 .filter(index => hasAudioItem(text, index));
             if (!indexes.length) return;
             playAudioItemFor(text, indexes[0], indexes.slice(1), true);
         }
 
-        // Кнопка в шапке любого экрана изучения открывает плеер озвучки, а если
-        // звука у материала нет совсем — окно озвучки, чтобы его добавить. Пока
-        // звук играет (и после закрытия плеера тоже), кнопка подсвечена.
+        // Кнопка в шапке любого экрана изучения открывает плеер озвучки — и чтобы
+        // слушать, и чтобы добавить звук, если его ещё нет. Пока звук играет (и после
+        // закрытия плеера тоже), кнопка подсвечена.
         const TERM_LISTEN_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
 
         // Звучит весь текст (или пункты по порядку) и не стоит на паузе.
@@ -14604,15 +14478,15 @@
         }
 
         function refreshAudioUi() {
-            if (document.getElementById('audioModal').classList.contains('show')) renderAudioModalList();
             if (audioPlayerView && audioPlayerView.open) renderAudioPlayer();
             if (state.view === 'practice' && state.mode === 'numbers') render();
             else syncTermListenButton();
         }
 
         // ——— Плеер озвучки: дорожка, разделённая на блоки ———
-        // Кнопка 🔊 в шапке открывает плеер звука ко всему тексту: играть, ставить
-        // на паузу, перематывать. Дорожка поделена на пронумерованные блоки — это
+        // Кнопка 🔊 в шапке и карточка «Озвучка» открывают плеер звука ко всему
+        // тексту: играть, ставить на паузу, перематывать, а также добавить звук
+        // (файл или своя запись), заменить и удалить его. Дорожка поделена на пронумерованные блоки — это
         // пункты (строки) материала с теми же номерами, что в «Номерах»: блок 3 —
         // пункт 3. Границы между блоками пользователь двигает сам; они хранятся в
         // пометке звука: items[номер].b = [секунды…], по одной на стык — на одну
@@ -14759,35 +14633,67 @@
         function openAudioPlayer() {
             const text = getCurrentStudyText();
             if (!text) return;
-            if (!getTextAudioCount(text)) {
-                showAudioModal();
-                return;
-            }
             preloadTextAudio(text);
             if (!audioPlayerView || audioPlayerView.text !== text) {
-                audioPlayerView = { text, clip: null, stamp: null, position: 0, block: 0, editing: false, tap: null, notice: '', layout: null, exactDuration: 0, open: false, headTransform: '', rateMenu: false };
+                audioPlayerView = { text, clip: null, stamp: null, position: 0, block: 0, editing: false, tap: null, notice: '', layout: null, exactDuration: 0, open: false, headTransform: '', rateMenu: false, source: false };
             }
             const view = audioPlayerView;
             view.open = true;
             view.editing = false;
             view.tap = null;
             view.notice = '';
-            view.clip = getAudioPlayerClip(text);
-            // Звук заменили или удалили — прежние место и длительность к нему не относятся.
-            const info = view.clip === null ? null : getTextAudioItems(text)[view.clip];
-            const stamp = info ? view.clip + ':' + info.t : null;
-            if (view.stamp !== stamp) {
-                view.stamp = stamp;
-                view.position = 0;
-                view.exactDuration = 0;
-            }
-            if (info && !view.exactDuration) measureAudioPlayerDuration(view);
+            view.source = false;
+            audioError = '';
+            refreshAudioPlayerClip(view);
             renderAudioPlayer();
             document.getElementById('audioPlayerModal').classList.add('show');
         }
 
+        // Какой звук играет плеер и не сменился ли он. Звук заменили или удалили —
+        // прежние место, длительность и правка границ к нему не относятся.
+        function refreshAudioPlayerClip(view) {
+            view.clip = getAudioPlayerClip(view.text);
+            const info = view.clip === null ? null : getTextAudioItems(view.text)[view.clip];
+            const stamp = info ? view.clip + ':' + info.t : null;
+            const changed = view.stamp !== stamp;
+            if (changed) {
+                view.stamp = stamp;
+                view.position = 0;
+                view.exactDuration = 0;
+                view.editing = false;
+                view.tap = null;
+            }
+            if (info && !view.exactDuration) measureAudioPlayerDuration(view);
+            return changed;
+        }
+
+        // Куда ляжет новый файл или запись: на место звука плеера, а если его нет —
+        // ко всему тексту.
+        function getAudioPlayerTarget(view) {
+            return view.clip === null ? AUDIO_WHOLE_INDEX : view.clip;
+        }
+
+        // Звук к отдельным пунктам — кроме того, что играет сам плеер.
+        function getAudioLineClips(view) {
+            return Object.keys(getTextAudioItems(view.text)).map(Number)
+                .filter(index => index !== AUDIO_WHOLE_INDEX && index !== view.clip);
+        }
+
+        // Звук добавили, заменили или удалили: плеер — на новый звук, экран под ним —
+        // новое число на карточке «Озвучка».
+        function afterAudioChange(text) {
+            const view = audioPlayerView;
+            if (view && view.text === text) {
+                if (refreshAudioPlayerClip(view)) view.source = false;
+                renderAudioPlayer();
+            }
+            render();
+        }
+
         function closeAudioPlayer() {
             const view = audioPlayerView;
+            // Идущая запись останавливается и сохраняется.
+            if (audioRecording) stopAudioRecording();
             endAudioTrackDrag(false);
             setAudioRateMenu(false);
             closeModal('audioPlayerModal');
@@ -14795,6 +14701,7 @@
             view.open = false;
             view.editing = false;
             view.tap = null;
+            view.source = false;
             // Играющий звук закрытие не трогает: его можно слушать, глядя в текст,
             // и вернуться к нему той же кнопкой 🔊. Звук на паузе отпускаем, место помним.
             if (isAudioPlayerPlayback(view) && !audioPlayback.loading && audioPlayerEl.paused) {
@@ -14805,9 +14712,37 @@
             }
         }
 
-        function openAudioModalFromPlayer() {
-            closeAudioPlayer();
-            showAudioModal();
+        // «Файлы и записи» — панель под кнопками; вместе с правкой границ не открывается.
+        function toggleAudioPlayerSource() {
+            const view = audioPlayerView;
+            if (!view) return;
+            view.source = !view.source;
+            if (view.source) {
+                view.editing = false;
+                view.tap = null;
+                view.notice = '';
+            }
+            renderAudioPlayer();
+        }
+
+        async function deleteAudioPlayerClip() {
+            const view = audioPlayerView;
+            if (!view || view.clip === null || audioRecording || audioImporting) return;
+            const many = view.layout && view.layout.count > 1;
+            if (!confirm(many ? 'Удалить звук ко всему тексту? Границы блоков удалятся вместе с ним.' : 'Удалить звук?')) return;
+            audioError = '';
+            await deleteAudioClips(view.text, [view.clip]);
+            afterAudioChange(view.text);
+        }
+
+        async function deleteAudioPlayerItems() {
+            const view = audioPlayerView;
+            const indexes = view ? getAudioLineClips(view) : [];
+            if (!indexes.length || audioRecording || audioImporting) return;
+            if (!confirm('Удалить звук к отдельным пунктам (' + indexes.length + ')?')) return;
+            audioError = '';
+            await deleteAudioClips(view.text, indexes);
+            afterAudioChange(view.text);
         }
 
         // Точная длительность нужна дорожке сразу, до первого «Играть»: в пометке
@@ -14846,6 +14781,13 @@
             const text = view.text;
             const parts = ['<div class="ap-head"><h3 class="ap-title">' + escapeHtml(text.title || 'Материал') + '</h3>' +
                 '<button class="ap-close" onclick="closeAudioPlayer()" aria-label="Закрыть плеер" title="Закрыть">✕</button></div>'];
+            if (audioError) parts.push('<div class="ap-error" role="alert">' + escapeHtml(audioError) + '</div>');
+            if (audioRecording && audioRecording.text === text) {
+                view.layout = null;
+                parts.push(getAudioPlayerRecordingHtml(view));
+                body.innerHTML = parts.join('');
+                return;
+            }
             if (view.clip === null || !hasAudioItem(text, view.clip)) {
                 view.layout = null;
                 parts.push(getAudioPlayerEmptyHtml(view));
@@ -14893,9 +14835,10 @@
                 (layout.count > 1 && layout.duration
                     ? '<button class="audio-btn' + (view.editing ? ' active' : '') + '" onclick="toggleAudioPlayerEditing()">' + (view.editing ? '✓ Готово' : '✎ Границы блоков') + '</button>'
                     : '') +
-                '<button class="audio-btn" onclick="openAudioModalFromPlayer()" title="Заменить или удалить звук, записать свой голос">Файлы и записи</button>' +
+                '<button class="audio-btn' + (view.source ? ' active' : '') + '" onclick="toggleAudioPlayerSource()" title="Заменить звук файлом или своей записью, удалить его">Файлы и записи</button>' +
                 '</div>');
-            if (view.editing) parts.push(getAudioPlayerEditHtml(view, layout));
+            if (view.source) parts.push(getAudioPlayerSourceHtml(view));
+            else if (view.editing) parts.push(getAudioPlayerEditHtml(view, layout));
             if (layout.count > 1) {
                 const rows = [];
                 for (let i = 0; i < layout.count; i++) rows.push(getAudioBlockRow(view, layout, i, block));
@@ -14904,14 +14847,72 @@
             body.innerHTML = parts.join('');
         }
 
+        // Звука ко всему тексту нет — добавить его: файлом или своей записью. Звук
+        // к отдельным пунктам (так добавляли до v141) можно послушать по порядку и удалить.
         function getAudioPlayerEmptyHtml(view) {
+            const items = getAudioLineClips(view);
             const playingItems = isListeningWholeText(view.text);
-            return '<div class="ap-empty">Плеер играет звук ко всему тексту, а его пока нет — есть только звук к отдельным пунктам. ' +
-                'Загрузите готовый аудиофайл ко всему тексту или запишите его целиком: тогда здесь появится дорожка, и её можно будет разделить на блоки по пунктам.</div>' +
-                '<div class="ap-tools">' +
-                '<button class="audio-btn" onclick="openAudioModalFromPlayer()">📁 Добавить звук</button>' +
-                '<button class="audio-btn' + (playingItems ? ' active' : '') + '" onclick="toggleAudioPlayerItems()">' + (playingItems ? '■ Остановить' : '▶ Пункты по порядку') + '</button>' +
+            const busy = audioImporting ? ' disabled' : '';
+            const lead = items.length
+                ? 'Звука ко всему тексту пока нет — есть только звук к отдельным пунктам (' + items.length + '). '
+                : 'Звука к этому материалу пока нет. ';
+            return '<div class="ap-empty">' + lead +
+                'Загрузите готовый аудиофайл — например, скачанный из сервиса озвучки, — или запишите текст своим голосом.' +
+                (buildNumbersLines(view.text).length > 1 ? ' Потом дорожку можно разделить на блоки по пунктам.' : '') +
+                ' Звук хранится на этом устройстве.</div>' +
+                '<div class="ap-add">' +
+                '<button class="audio-btn" onclick="chooseAudioFile()"' + busy + '>' + (audioImporting ? 'Загружаю…' : '📁 Загрузить файл') + '</button>' +
+                '<button class="audio-btn rec" onclick="startAudioRecording()"' + busy + '>● Записать голосом</button>' +
+                '</div>' +
+                (items.length
+                    ? '<div class="ap-tools">' +
+                        '<button class="audio-btn' + (playingItems ? ' active' : '') + '" onclick="toggleAudioPlayerItems()">' + (playingItems ? '■ Остановить' : '▶ Пункты по порядку') + '</button>' +
+                        '<button class="audio-btn danger" onclick="deleteAudioPlayerItems()"' + busy + '>🗑 Удалить звук к пунктам</button>' +
+                        '</div>'
+                    : '');
+        }
+
+        // «Файлы и записи»: чем озвучен материал, заменить звук файлом или своей
+        // записью, удалить. Новый звук заменяет и границы блоков.
+        function getAudioPlayerSourceHtml(view) {
+            const info = getTextAudioItems(view.text)[view.clip] || {};
+            const items = getAudioLineClips(view);
+            const busy = audioImporting ? ' disabled' : '';
+            const now = (info.n ? 'Сейчас звучит файл «' + info.n + '»' : 'Сейчас звучит своя запись') +
+                (info.d ? ', ' + formatAudioSeconds(info.d) : '') + '. Новый файл или запись заменят его' +
+                (view.layout && view.layout.count > 1 ? ' — и границы блоков вместе с ним.' : '.');
+            return '<div class="ap-edit">' +
+                '<div class="ap-edit-hint">' + escapeHtml(now) + '</div>' +
+                '<div class="ap-add">' +
+                '<button class="audio-btn" onclick="chooseAudioFile()"' + busy + '>' + (audioImporting ? 'Загружаю…' : '📁 Другой файл') + '</button>' +
+                '<button class="audio-btn rec" onclick="startAudioRecording()"' + busy + '>● Записать голосом</button>' +
+                '</div>' +
+                '<div class="ap-edit-actions"><button class="audio-btn danger" onclick="deleteAudioPlayerClip()"' + busy + '>🗑 Удалить звук</button></div>' +
+                (items.length
+                    ? '<div class="ap-edit-hint">Есть ещё звук к отдельным пунктам (' + items.length + ') — он играет кнопками ▶ в режиме «Номера».</div>' +
+                        '<div class="ap-edit-actions"><button class="audio-btn danger" onclick="deleteAudioPlayerItems()"' + busy + '>🗑 Удалить звук к пунктам</button></div>'
+                    : '') +
                 '</div>';
+        }
+
+        // Идёт запись: крупное время, «Стоп» и сам текст по пунктам — его читают вслух.
+        // Время раз в секунду правит scheduleAudioRecordingTick (#audioRecTime).
+        function getAudioPlayerRecordingHtml(view) {
+            const recording = audioRecording;
+            const lines = buildNumbersLines(view.text);
+            const elapsed = recording.startedAt ? (Date.now() - recording.startedAt) / 1000 : 0;
+            const rows = lines.map((line, index) => '<div class="ap-block is-static">' +
+                '<span class="ap-block-num">' + (lines.length > 1 ? index + 1 : '') + '</span>' +
+                '<span class="ap-block-text">' + escapeHtml(line.words.join(' ') || 'Пустая строка') + '</span></div>').join('');
+            return '<div class="ap-rec">' +
+                '<div class="ap-rec-state">' + (recording.starting ? 'Включаю микрофон…' : 'Идёт запись') + '</div>' +
+                '<div class="ap-rec-time" id="audioRecTime">' + formatAudioSeconds(elapsed) + '</div>' +
+                '<button class="ap-tap-btn" onclick="stopAudioRecording()">' + (recording.starting ? 'Отменить' : '■ Стоп и сохранить') + '</button>' +
+                '<div class="ap-edit-hint">' + (lines.length > 1
+                    ? 'Читайте текст подряд и делайте паузу между пунктами — тогда кнопка «По паузам» сама расставит границы блоков. '
+                    : '') + 'Запись остановится сама через 5 минут.</div>' +
+                '</div>' +
+                '<div class="ap-blocks">' + rows + '</div>';
         }
 
         function toggleAudioPlayerItems() {
@@ -15169,6 +15170,7 @@
             view.editing = !view.editing;
             view.tap = null;
             view.notice = '';
+            if (view.editing) view.source = false;
             renderAudioPlayer();
         }
 
@@ -19579,8 +19581,6 @@
                     cancelBatchHint();
                 } else if (openModal.id === 'hintModal') {
                     cancelHint();
-                } else if (openModal.id === 'audioModal') {
-                    closeAudioModal();
                 } else if (openModal.id === 'audioPlayerModal') {
                     if (audioPlayerView && audioPlayerView.rateMenu) setAudioRateMenu(false);
                     else closeAudioPlayer();
