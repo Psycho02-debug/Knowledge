@@ -5612,8 +5612,8 @@
             align-items: center;
         }
 
-        /* Занимает ровно то место, где стоял пустой отступ, — заголовок остаётся
-           по центру шапки. */
+        /* Справа в шапке экрана изучения — «Слушать» и «Править»: вместе они
+           примерно шириной «← Назад», так что заголовок остаётся почти по центру. */
         .term-edit-btn {
             width: 36px;
             height: 36px;
@@ -5632,6 +5632,17 @@
         .term-edit-btn:hover {
             color: var(--accent-primary);
             background: rgba(255, 255, 255, 0.06);
+        }
+
+        /* «Слушать весь текст» в шапке; пока читает — квадрат «стоп» на подложке. */
+        .term-listen-btn.active {
+            color: var(--accent-primary);
+            background: var(--bg-badge);
+        }
+
+        .term-listen-btn:disabled {
+            opacity: 0.35;
+            cursor: default;
         }
 
         /* Отдельной строкой над «Отмена/Сохранить»: втроём в одном ряду подпись
@@ -10188,6 +10199,7 @@ self.onmessage = event => {
         const optionLetters = ['A', 'B', 'C', 'D'];
         
         function setPrimaryView(view) {
+            stopAudioPlayback();
             if (view === 'learning' || view === 'folders') {
                 state.currentFolder = null;
                 state.currentSubfolder = null;
@@ -12565,15 +12577,19 @@ self.onmessage = event => {
 
         function getTermNavHeader(text) {
             // Справа в шапке раньше стоял пустой отступ, только чтобы заголовок
-            // держался по центру. Ставим туда правку исходного текста: она нужна
-            // из любого режима, а спускаться ради неё на экран термина — лишний шаг.
+            // держался по центру. Ставим туда то, что нужно из любого режима:
+            // прослушать весь текст и поправить исходный текст, — спускаться ради
+            // них на экран термина было бы лишним шагом.
             return `
                 <div class="header">
                     <button class="back-btn" onclick="goBackToChooser()">← Назад</button>
                     <h1>${text.title}</h1>
-                    <button class="term-edit-btn" onclick="showEditTextModal()" title="Редактировать текст" aria-label="Редактировать текст">
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                    </button>
+                    <div class="header-actions">
+                        ${getTermListenButton(text)}
+                        <button class="term-edit-btn" onclick="showEditTextModal()" title="Редактировать текст" aria-label="Редактировать текст">
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                        </button>
+                    </div>
                 </div>
             `;
         }
@@ -14148,8 +14164,7 @@ self.onmessage = event => {
             playAudioItemFor(audioModalText, itemIndex);
         }
 
-        function playAllAudio() {
-            const text = audioModalText;
+        function playAllAudio(text = audioModalText) {
             if (!text) return;
             const indexes = getAudioItemsForText(text)
                 .map(item => item.index)
@@ -14172,6 +14187,55 @@ self.onmessage = event => {
                 player.src = SILENT_WAV;
                 player.play().catch(() => {});
             }
+        }
+
+        // Кнопка в шапке любого экрана изучения: весь текст подряд, как «Слушать
+        // все» в окне озвучки, — свои записи и выбранный голос, — но сразу, без
+        // окна. Повторное нажатие останавливает.
+        const TERM_LISTEN_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
+        const TERM_STOP_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2.5"/></svg>';
+
+        function isListeningWholeText(text) {
+            return !!(text && audioPlayback && audioPlayback.all && audioPlayback.text === text);
+        }
+
+        function getTermListenButtonState(playing) {
+            return playing
+                ? { className: 'term-edit-btn term-listen-btn active', label: 'Остановить чтение', icon: TERM_STOP_ICON }
+                : { className: 'term-edit-btn term-listen-btn', label: 'Слушать весь текст выбранным голосом', icon: TERM_LISTEN_ICON };
+        }
+
+        // Кнопку рисуем всегда и только гасим: шапка есть и в «Вписать», где
+        // появление узлов пересобирало бы соседей вместе с полем ввода.
+        function getTermListenButton(text) {
+            const view = getTermListenButtonState(isListeningWholeText(text));
+            const canListen = /\S/.test(text.content || '') && (isVoiceAvailable() || getTextAudioCount(text) > 0);
+            return '<button class="' + view.className + '" onclick="toggleListenWholeText()"' + (canListen ? '' : ' disabled') +
+                ' title="' + view.label + '" aria-label="' + view.label + '">' + view.icon + '</button>';
+        }
+
+        function toggleListenWholeText() {
+            const text = getCurrentStudyText();
+            if (!text) return;
+            if (isListeningWholeText(text)) {
+                stopAudioPlayback();
+                return;
+            }
+            preloadTextAudio(text);
+            playAllAudio(text);
+        }
+
+        // Старт и конец чтения меняют только эту кнопку — правим её на месте,
+        // а не перерисовываем экран. Разметка та же, что у getTermListenButton.
+        function syncTermListenButton() {
+            const button = document.querySelector('#app .term-listen-btn');
+            if (!button) return;
+            const view = getTermListenButtonState(isListeningWholeText(getCurrentStudyText()));
+            if (button.className === view.className) return;
+            button.className = view.className;
+            button.title = view.label;
+            button.setAttribute('aria-label', view.label);
+            button.innerHTML = view.icon;
         }
 
         // ▶ у строки в режиме «Номера».
@@ -14227,6 +14291,7 @@ self.onmessage = event => {
         function refreshAudioUi() {
             if (document.getElementById('audioModal').classList.contains('show')) renderAudioModalList();
             if (state.view === 'practice' && state.mode === 'numbers') render();
+            else syncTermListenButton();
         }
 
         // ——— Голос устройства: озвучка без записи ———
@@ -14247,7 +14312,7 @@ self.onmessage = event => {
         // Заряд: синтезатор работает, только пока звучит; в простое — ничего.
         // Выбор голоса и скорость — настройки этого устройства (localStorage
         // speechVoice, speechRate), в данные материалов они не входят.
-        const SPEECH_RATES = [0.75, 0.9, 1, 1.15, 1.3, 1.5];
+        const SPEECH_RATES = [0.5, 0.75, 0.9, 1, 1.15, 1.3, 1.5];
         const SPEECH_CHUNK_MAX = 180;
         const SPEECH_VOICE_HELP = 'На iPhone: Настройки → Универсальный доступ → Устный контент → Голоса → Русский.';
         let speechPrimed = false;
@@ -14382,6 +14447,12 @@ self.onmessage = event => {
         // пробелу после знака конца фразы, чтобы «1.5» и «т.е.» не разваливались
         // на части; слишком длинное предложение — по запятым и тире, и только
         // если и этого мало — по словам.
+        // Предел длины фразы под скорость: на медленной фраза держится столько
+        // же секунд, сколько на обычной. Быстрее обычной предел не растёт.
+        function getSpeechChunkLimit(max, rate) {
+            return Math.round(max * Math.min(1, rate));
+        }
+
         function splitSpeechText(value, limit) {
             const max = limit || SPEECH_CHUNK_MAX;
             const chunks = [];
@@ -14411,14 +14482,16 @@ self.onmessage = event => {
 
         function speakAudioItem(playback) {
             const line = buildNumbersLines(playback.text)[playback.itemIndex];
-            const chunks = splitSpeechText(line ? line.words.join(' ') : '');
+            const rate = getSpeechRate();
+            // Медленнее — фразы короче: на 0,5× фраза в 180 знаков звучит ~25 с,
+            // а Chrome обрывает всё, что длиннее ~15 с.
+            const chunks = splitSpeechText(line ? line.words.join(' ') : '', getSpeechChunkLimit(SPEECH_CHUNK_MAX, rate));
             if (!chunks.length) {
                 finishAudioItem(playback);
                 return;
             }
             const synth = window.speechSynthesis;
             const voice = getSpeechVoice();
-            const rate = getSpeechRate();
             playback.utterances = chunks.map((chunk, index) => {
                 const utterance = new SpeechSynthesisUtterance(chunk);
                 utterance.lang = voice ? voice.lang : 'ru-RU';
@@ -14778,6 +14851,18 @@ self.onmessage = event => {
             neuralAudioUrls.clear();
         }
 
+        // Скорость нейроголоса задаёт length_scale модели — во сколько раз
+        // растянуть звуки. Ускоряет она почти точно (1,5× → 1/1,5), а замедляет
+        // слабее, чем просят: замер на всех четырёх голосах — речь удлиняется
+        // примерно в 1 + 0,74·(length_scale − 1) раза, так что 2 давало лишь
+        // 1,74 вместо 2. Для медленных скоростей растяжку пересчитываем, чтобы
+        // 0,5× звучало действительно вдвое дольше.
+        const NEURAL_SLOWDOWN_GAIN = 0.74;
+
+        function getNeuralLengthScale(rate) {
+            return rate < 1 ? 1 + (1 / rate - 1) / NEURAL_SLOWDOWN_GAIN : 1 / rate;
+        }
+
         // Фраза нейроголосом: готовая из памяти, уже заказанная или новый заказ потоку.
         function synthesizeNeural(voice, text) {
             const rate = getSpeechRate();
@@ -14800,7 +14885,7 @@ self.onmessage = event => {
                 getNeuralWorker().postMessage({
                     type: 'synth', id: job.id, key, text, voiceId: voice.id, modelUrl: getNeuralModelUrl(voice),
                     sampleRate: NEURAL_MODEL_CONFIG.sampleRate, noiseScale: NEURAL_MODEL_CONFIG.noiseScale,
-                    noiseW: NEURAL_MODEL_CONFIG.noiseW, lengthScale: NEURAL_MODEL_CONFIG.lengthScale / rate
+                    noiseW: NEURAL_MODEL_CONFIG.noiseW, lengthScale: NEURAL_MODEL_CONFIG.lengthScale * getNeuralLengthScale(rate)
                 });
             }
             return { key, promise: job.promise };
@@ -14827,16 +14912,21 @@ self.onmessage = event => {
         const NEURAL_CHUNK_MAX = 120;
         const NEURAL_FIRST_CHUNK_MAX = 60;
 
+        // Счёт фразы занимает примерно четверть её звучания, а на медленной
+        // скорости та же фраза звучит дольше. Поэтому пределы длины уменьшаются
+        // вместе со скоростью — тишина после нажатия и запас между фразами те же.
         function getSpeechChunksForItem(text, itemIndex) {
             const line = buildNumbersLines(text)[itemIndex];
-            const chunks = splitSpeechText(line ? line.words.join(' ') : '', NEURAL_CHUNK_MAX);
+            const rate = getSpeechRate();
+            const firstMax = getSpeechChunkLimit(NEURAL_FIRST_CHUNK_MAX, rate);
+            const chunks = splitSpeechText(line ? line.words.join(' ') : '', getSpeechChunkLimit(NEURAL_CHUNK_MAX, rate));
             // Первую фразу дробим только по запятым и тире: разрыв посреди
             // предложения нейроголос прочёл бы как точку.
-            if (chunks.length && chunks[0].length > NEURAL_FIRST_CHUNK_MAX) {
+            if (chunks.length && chunks[0].length > firstMax) {
                 const head = [];
                 chunks[0].replace(/([,—–])\s+/g, '$1\n').split('\n').forEach(clause => {
                     const last = head.length - 1;
-                    if (last >= 0 && head[last].length + 1 + clause.length <= NEURAL_FIRST_CHUNK_MAX) head[last] += ' ' + clause;
+                    if (last >= 0 && head[last].length + 1 + clause.length <= firstMax) head[last] += ' ' + clause;
                     else head.push(clause);
                 });
                 chunks.splice(0, 1, ...head);
@@ -17341,6 +17431,8 @@ self.onmessage = event => {
         }
         
         function goBackToTexts() {
+            // В списке материалов кнопки «Стоп» нет — чтение кончается вместе с экраном.
+            stopAudioPlayback();
             state.view = 'texts';
             if (state.returnToRootTexts) {
                 state.currentSubfolder = null;
@@ -17406,6 +17498,8 @@ self.onmessage = event => {
         function navigateToTerm(direction) {
             const target = getStudyNavigationTarget(direction);
             if (!target) return;
+            // Чтение прошлого материала поверх нового сбивало бы — останавливаем.
+            stopAudioPlayback();
             saveData();
             const currentMode = state.mode;
             const text = applyStudyNavigationTarget(target);
