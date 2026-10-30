@@ -5399,6 +5399,97 @@
             color: var(--accent-primary);
         }
 
+        /* Скорость: кнопка и выпадающий под ней список. Список лежит поверх
+           кнопок и блоков ниже и вёрстку не двигает. */
+        .ap-rate {
+            position: relative;
+            display: inline-flex;
+        }
+
+        .ap-rate > .audio-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .ap-rate-chevron {
+            transition: transform 0.2s ease;
+        }
+
+        .ap-rate.is-open > .audio-btn {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+        }
+
+        .ap-rate.is-open .ap-rate-chevron {
+            transform: rotate(180deg);
+        }
+
+        .ap-rate-menu {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            z-index: 5;
+            width: 176px;
+            padding: 6px;
+            border: 1px solid var(--border-input);
+            border-radius: 16px;
+            background: var(--bg-card);
+            box-shadow: var(--shadow-card);
+            scroll-margin-bottom: 14px;
+        }
+
+        /* Докрученный к низу окна список не прилипает к его краю: этот отступ
+           продлевает прокрутку окна, а scroll-margin — докрутку. */
+        .ap-rate-menu::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 1px;
+            height: 14px;
+        }
+
+        .ap-rate-menu[hidden] {
+            display: none;
+        }
+
+        .ap-rate-item {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) 1.2em;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            min-height: 42px;
+            padding: 0 10px 0 12px;
+            border: none;
+            border-radius: 11px;
+            background: none;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 16px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .ap-rate-item small {
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--text-tertiary);
+        }
+
+        .ap-rate-item.is-current {
+            background: var(--accent-light);
+            color: var(--accent-primary);
+        }
+
+        .ap-rate-check {
+            text-align: right;
+        }
+
         .ap-empty {
             margin-bottom: 14px;
             color: var(--text-secondary);
@@ -14538,7 +14629,10 @@
         // Палец отстаёт от услышанного: при разметке на слух границу ставим чуть раньше нажатия.
         const AUDIO_TAP_REACTION = 0.3;
         const AUDIO_SKIP_SECONDS = 5;
-        const AUDIO_PLAYER_RATES = [1, 0.75, 0.5, 1.25, 1.5];
+        // Скорости по порядку, как в выпадающем списке. Медленнее 0,5× записанный
+        // голос растягивается до невнятного.
+        const AUDIO_PLAYER_RATES = [0.5, 0.6, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
+        const AP_CHEVRON_ICON = '<svg class="ap-rate-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
         const AP_PLAY_ICON = '<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>';
         const AP_PAUSE_ICON = '<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4.5" height="14" rx="1.2"/><rect x="13.5" y="5" width="4.5" height="14" rx="1.2"/></svg>';
         const AP_PREV_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="2.5" height="14" rx="1"/><path d="M19 6.2v11.6a1 1 0 0 1-1.55.83L9.6 13.2a1.4 1.4 0 0 1 0-2.4l7.85-5.43A1 1 0 0 1 19 6.2z"/></svg>';
@@ -14671,7 +14765,7 @@
             }
             preloadTextAudio(text);
             if (!audioPlayerView || audioPlayerView.text !== text) {
-                audioPlayerView = { text, clip: null, stamp: null, position: 0, block: 0, editing: false, tap: null, notice: '', layout: null, exactDuration: 0, open: false, headTransform: '' };
+                audioPlayerView = { text, clip: null, stamp: null, position: 0, block: 0, editing: false, tap: null, notice: '', layout: null, exactDuration: 0, open: false, headTransform: '', rateMenu: false };
             }
             const view = audioPlayerView;
             view.open = true;
@@ -14695,6 +14789,7 @@
         function closeAudioPlayer() {
             const view = audioPlayerView;
             endAudioTrackDrag(false);
+            setAudioRateMenu(false);
             closeModal('audioPlayerModal');
             if (!view) return;
             view.open = false;
@@ -14794,7 +14889,7 @@
                 '<button class="ap-ctrl" onclick="stepAudioPlayerBlock(1)"' + (layout.duration && layout.count > 1 ? '' : ' disabled') + ' aria-label="Следующий блок" title="Следующий блок">' + AP_NEXT_ICON + '</button>' +
                 '</div>');
             parts.push('<div class="ap-tools">' +
-                '<button class="audio-btn" id="apRate" onclick="cycleAudioPlayerRate()" title="Скорость воспроизведения">' + formatAudioRate(audioPlayerRate) + '</button>' +
+                getAudioRateHtml(view) +
                 (layout.count > 1 && layout.duration
                     ? '<button class="audio-btn' + (view.editing ? ' active' : '') + '" onclick="toggleAudioPlayerEditing()">' + (view.editing ? '✓ Готово' : '✎ Границы блоков') + '</button>'
                     : '') +
@@ -14939,9 +15034,55 @@
             playAudioPlayerFrom(view, getAudioBlockStart(layout, index));
         }
 
-        function cycleAudioPlayerRate() {
-            const index = AUDIO_PLAYER_RATES.indexOf(audioPlayerRate);
-            audioPlayerRate = AUDIO_PLAYER_RATES[(index + 1) % AUDIO_PLAYER_RATES.length];
+        // ——— Скорость: выпадающий список ———
+        // Открыть и закрыть список — правка на месте: закрытие приходит и нажатием
+        // мимо списка (pointerdown), а перерисовка в этот момент подменила бы кнопку
+        // под пальцем, и её нажатие пропало бы. Слушатель на документе висит,
+        // только пока список открыт.
+        function getAudioRateHtml(view) {
+            const open = !!view.rateMenu;
+            const items = AUDIO_PLAYER_RATES.map(rate => {
+                const current = rate === audioPlayerRate;
+                return '<button class="ap-rate-item' + (current ? ' is-current' : '') + '" role="menuitemradio" aria-checked="' + current + '" onclick="setAudioPlayerRate(' + rate + ')">' +
+                    '<span>' + formatAudioRate(rate) + '</span><small>' + (rate === 1 ? 'обычная' : '') + '</small>' +
+                    '<span class="ap-rate-check">' + (current ? '✓' : '') + '</span></button>';
+            }).join('');
+            return '<div class="ap-rate' + (open ? ' is-open' : '') + '" id="apRateBox">' +
+                '<button class="audio-btn" id="apRate" onclick="toggleAudioRateMenu()" aria-haspopup="menu" aria-expanded="' + open + '" title="Скорость воспроизведения">' +
+                formatAudioRate(audioPlayerRate) + AP_CHEVRON_ICON + '</button>' +
+                '<div class="ap-rate-menu" id="apRateMenu" role="menu" aria-label="Скорость воспроизведения"' + (open ? '' : ' hidden') + '>' + items + '</div></div>';
+        }
+
+        function toggleAudioRateMenu() {
+            const view = audioPlayerView;
+            if (!view) return;
+            setAudioRateMenu(!view.rateMenu);
+            // Внизу окна список ушёл бы за край — окно докручивается, чтобы он был виден целиком.
+            const menu = view.rateMenu && document.getElementById('apRateMenu');
+            if (menu) menu.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+
+        function setAudioRateMenu(open) {
+            const view = audioPlayerView;
+            if (view) view.rateMenu = open;
+            const box = document.getElementById('apRateBox');
+            if (box) {
+                box.classList.toggle('is-open', open);
+                document.getElementById('apRate').setAttribute('aria-expanded', String(open));
+                document.getElementById('apRateMenu').hidden = !open;
+            }
+            if (open) document.addEventListener('pointerdown', onAudioRateMenuOutside, true);
+            else document.removeEventListener('pointerdown', onAudioRateMenuOutside, true);
+        }
+
+        // Нажатие мимо списка его закрывает и при этом срабатывает как обычно.
+        function onAudioRateMenuOutside(e) {
+            if (!(e.target instanceof Element) || !e.target.closest('#apRateBox')) setAudioRateMenu(false);
+        }
+
+        function setAudioPlayerRate(rate) {
+            if (!AUDIO_PLAYER_RATES.includes(rate)) return;
+            audioPlayerRate = rate;
             try {
                 localStorage.setItem('audioPlayerRate', String(audioPlayerRate));
             } catch (e) {
@@ -14951,8 +15092,8 @@
                 audioPlayerEl.defaultPlaybackRate = audioPlayerRate;
                 audioPlayerEl.playbackRate = audioPlayerRate;
             }
-            const button = document.getElementById('apRate');
-            if (button) button.textContent = formatAudioRate(audioPlayerRate);
+            setAudioRateMenu(false);
+            renderAudioPlayer();
         }
 
         // ——— Обновление во время игры ———
@@ -19441,7 +19582,8 @@
                 } else if (openModal.id === 'audioModal') {
                     closeAudioModal();
                 } else if (openModal.id === 'audioPlayerModal') {
-                    closeAudioPlayer();
+                    if (audioPlayerView && audioPlayerView.rateMenu) setAudioRateMenu(false);
+                    else closeAudioPlayer();
                 } else if (openModal.id === 'flashcardModal') {
                     closeFlashcardModal();
                 } else if (openModal.id === 'flashcardImportModal') {
