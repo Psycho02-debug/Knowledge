@@ -5052,6 +5052,44 @@
             margin-bottom: 12px;
         }
 
+        /* Голос устройства: выбор голоса и скорости над списком пунктов. */
+        .audio-voice-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+            gap: 10px;
+        }
+
+        .audio-voice-field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 0;
+        }
+
+        .audio-voice-field span {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-tertiary);
+        }
+
+        /* 16px: на iPhone поле мельче приближает страницу при выборе. */
+        .modal-content .audio-voice-field select {
+            margin-bottom: 0;
+            padding: 10px 12px;
+            font-size: 16px;
+        }
+
+        .audio-voice-note {
+            margin: 8px 0 14px;
+            font-size: 13px;
+            line-height: 1.4;
+            color: var(--text-tertiary);
+        }
+
+        .audio-voice-settings .audio-modal-error {
+            margin: 10px 0 14px;
+        }
+
         .audio-item {
             padding: 12px 14px;
             border: 1px solid var(--border-color);
@@ -6635,12 +6673,14 @@
         </div>
     </div>
 
-    <!-- Озвучка материала: голосовые записи к каждому пункту (строке) текста.
-         Список рисует renderAudioModalList() — окно вне #app, render() его не трогает. -->
+    <!-- Озвучка материала: голос устройства или своя запись к каждому пункту (строке) текста.
+         Выбор голоса рисует renderAudioVoiceSettings(), список — renderAudioModalList();
+         окно вне #app, render() его не трогает. -->
     <div class="modal" id="audioModal">
         <div class="modal-content audio-modal">
             <h3 id="audioModalTitle">Озвучка</h3>
             <p class="audio-modal-lead" id="audioModalLead"></p>
+            <div class="audio-voice-settings" id="audioVoiceSettings"></div>
             <div id="audioModalList"></div>
             <div class="modal-buttons">
                 <button class="modal-save" onclick="closeAudioModal()">Готово</button>
@@ -12291,7 +12331,7 @@
                             <div class="chooser-card-title">Только номера строк</div>
                         </div>
                         <div class="chooser-card" onclick="showAudioModal()">
-                            <div class="chooser-card-title">🎙 Озвучка пунктов${getTextAudioCount(text) ? ' · ' + getTextAudioCount(text) : ''}</div>
+                            <div class="chooser-card-title">🔊 Озвучка пунктов${getTextAudioCount(text) ? ' · ' + getTextAudioCount(text) : ''}</div>
                         </div>
                     </div>
                     
@@ -13043,7 +13083,7 @@
                                     ${text.attention ? '★ Сложный' : '☆ Сложный'}
                                 </button>
                                 <button class="practice-textsize-btn ${state.practiceSizeControlOpen ? 'active' : ''}" onclick="togglePracticeSizeControl()" aria-label="Размер текста" title="Размер текста">Aa</button>
-                                <button class="practice-textsize-btn audio-open-btn${getTextAudioCount(text) ? ' has-audio' : ''}" onclick="showAudioModal()" aria-label="Озвучка" title="Голосовые записи к пунктам">🎙${getTextAudioCount(text) ? ' ' + getTextAudioCount(text) : ''}</button>
+                                <button class="practice-textsize-btn audio-open-btn${getTextAudioCount(text) ? ' has-audio' : ''}" onclick="showAudioModal()" aria-label="Озвучка" title="Озвучка пунктов: голос устройства или своя запись">🔊${getTextAudioCount(text) ? ' ' + getTextAudioCount(text) : ''}</button>
                             </div>
                             ${progress.total > 0 ? `
                                 <div class="practice-progress">
@@ -13323,20 +13363,30 @@
 
         // Строки с номером и словами. Текст хранится с пробелами вокруг знаков
         // препинания, поэтому знак приклеиваем к предыдущему слову: подсказка
-        // открывает слово, а не отдельную запятую.
+        // открывает слово, а не отдельную запятую. Тире — исключение: оно стоит
+        // с пробелами и идёт вместе со следующим словом («— ом»), а не
+        // прилипает к предыдущему («сопротивления— ом»).
         function buildNumbersLines(text) {
             return getTextManualLines(formatContentForReading(text.content)).map((line, index) => {
                 const markerMatch = line.match(NUMBERS_MARKER_RE);
                 const marker = markerMatch ? markerMatch[1] : (index + 1) + '.';
                 const body = markerMatch ? line.slice(markerMatch[0].length) : line;
                 const words = [];
+                let dash = '';
                 body.split(/\s+/).filter(Boolean).forEach(token => {
-                    if (words.length && isPunctuationToken(token) && !/[(«„“‘\[{]$/.test(token)) {
+                    if (/^[—–-]+$/.test(token)) {
+                        dash = dash ? dash + ' ' + token : token;
+                    } else if (words.length && isPunctuationToken(token) && !/[(«„“‘\[{]$/.test(token)) {
                         words[words.length - 1] += token;
                     } else {
-                        words.push(token);
+                        words.push(dash ? dash + ' ' + token : token);
+                        dash = '';
                     }
                 });
+                if (dash) {
+                    if (words.length) words[words.length - 1] += ' ' + dash;
+                    else words.push(dash);
+                }
                 return { marker, words };
             });
         }
@@ -13422,13 +13472,16 @@
 
             let shownBefore = 0;
             if (getTextAudioCount(text)) preloadTextAudio(text);
+            const speech = isSpeechSupported();
             const rows = lines.map((line, lineIndex) => {
                 const visible = Math.max(0, Math.min(line.words.length, count - shownBefore));
                 shownBefore += line.words.length;
                 const shownText = line.words.slice(0, visible).join(' ');
                 const playing = audioPlayback && audioPlayback.text === text && audioPlayback.itemIndex === lineIndex;
-                const audioButton = hasAudioItem(text, lineIndex)
-                    ? `<button class="numbers-audio-btn${playing ? ' active' : ''}" onclick="playNumbersAudio(${lineIndex})" aria-label="${playing ? 'Остановить запись' : 'Слушать запись пункта'}">${playing ? '■' : '▶'}</button>`
+                // Своя запись важнее; нет её — пункт читает голос устройства.
+                const recorded = hasAudioItem(text, lineIndex);
+                const audioButton = recorded || (speech && line.words.length)
+                    ? `<button class="numbers-audio-btn${playing ? ' active' : ''}" onclick="playNumbersAudio(${lineIndex})" aria-label="${playing ? 'Остановить' : recorded ? 'Слушать запись пункта' : 'Прочитать пункт голосом'}">${playing ? '■' : '▶'}</button>`
                     : '';
                 return `
                     <div class="linecards-row">
@@ -13455,7 +13508,7 @@
                         </div>
                         <div class="numbers-secondary">
                             <button class="module-action-btn secondary" onclick="numbersHint()" ${allShown ? 'disabled' : ''}>Подсказка</button>
-                            <button class="module-action-btn secondary audio-open-btn${getTextAudioCount(text) ? ' has-audio' : ''}" onclick="showAudioModal()" title="Голосовые записи к пунктам">🎙${getTextAudioCount(text) ? ' ' + getTextAudioCount(text) : ''}</button>
+                            <button class="module-action-btn secondary audio-open-btn${getTextAudioCount(text) ? ' has-audio' : ''}" onclick="showAudioModal()" title="Озвучка пунктов: голос устройства или своя запись">🔊${getTextAudioCount(text) ? ' ' + getTextAudioCount(text) : ''}</button>
                             <span class="term-counter-inline">${nav.current + 1}/${nav.total}</span>
                         </div>
                     </div>
@@ -13463,11 +13516,12 @@
             `;
         }
 
-        // ——— Озвучка материала: голосовые записи к пунктам ———
-        // К каждому пункту (строке) материала можно записать голос и слушать его
-        // отдельно; если строка одна, запись одна на весь термин. Пункты — те же
-        // строки, что в режиме «Номера» (buildNumbersLines), поэтому номера
-        // совпадают.
+        // ——— Озвучка материала: голос устройства и свои записи к пунктам ———
+        // Каждый пункт (строку) материала можно послушать отдельно: его читает
+        // голос устройства (см. «Голос устройства» ниже), а если к пункту
+        // записан свой голос — играет запись. Если строка одна, пункт один на
+        // весь термин. Пункты — те же строки, что в режиме «Номера»
+        // (buildNumbersLines), поэтому номера совпадают.
         //
         // Хранение. Звук — не в localStorage: записи весят сотни килобайт, а данные
         // материалов переписываются целиком при каждом сохранении — каждое нажатие
@@ -13555,7 +13609,8 @@
             return lines.map((line, index) => ({
                 index,
                 marker: line.marker,
-                label: lines.length === 1 ? 'Весь термин' : (line.words.join(' ') || 'Пустая строка')
+                label: lines.length === 1 ? 'Весь термин' : (line.words.join(' ') || 'Пустая строка'),
+                speakable: line.words.length > 0
             }));
         }
 
@@ -13623,9 +13678,15 @@
             const n = items.length;
             const itemsWord = (n % 10 === 1 && n % 100 !== 11) ? 'пункт'
                 : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 'пункта' : 'пунктов';
-            document.getElementById('audioModalLead').textContent = items.length > 1
-                ? 'В материале ' + n + ' ' + itemsWord + ' — к каждому можно записать голос и слушать его отдельно. Записи хранятся на этом устройстве.'
-                : 'Запишите голос ко всему термину. Запись хранится на этом устройстве.';
+            document.getElementById('audioModalLead').textContent = isSpeechSupported()
+                ? (items.length > 1
+                    ? 'В материале ' + n + ' ' + itemsWord + '. Каждый можно послушать голосом устройства или записать к нему свой голос — тогда играет ваша запись.'
+                    : 'Послушайте термин голосом устройства или запишите свой голос — тогда играет ваша запись.')
+                : (items.length > 1
+                    ? 'В материале ' + n + ' ' + itemsWord + ' — к каждому можно записать голос и слушать его отдельно. Записи хранятся на этом устройстве.'
+                    : 'Запишите голос ко всему термину. Запись хранится на этом устройстве.');
+            watchSpeechVoices();
+            renderAudioVoiceSettings();
             renderAudioModalList();
             document.getElementById('audioModal').classList.add('show');
         }
@@ -13645,10 +13706,11 @@
             const items = getAudioItemsForText(text);
             const meta = getTextAudioItems(text);
             const busy = !!audioRecording;
+            const speech = isSpeechSupported();
             const recorded = items.filter(item => meta[item.index]);
             const parts = [];
             if (audioModalError) parts.push('<div class="audio-modal-error" role="alert">' + escapeHtml(audioModalError) + '</div>');
-            if (recorded.length > 1) {
+            if (items.length > 1 && (speech || recorded.length > 1)) {
                 const playingAll = audioPlayback && audioPlayback.all;
                 parts.push('<button class="module-action-btn secondary audio-play-all-btn" onclick="' + (playingAll ? 'stopAudioPlayback()' : 'playAllAudio()') + '" ' + (busy ? 'disabled' : '') + '>' +
                     (playingAll ? '■ Остановить' : '▶ Слушать все по порядку') + '</button>');
@@ -13660,15 +13722,21 @@
                 const recordButton = isRecording
                     ? '<button class="audio-btn rec active" onclick="stopAudioRecording()">■ Стоп · <span id="audioRecTime">' + formatAudioSeconds(audioRecording.startedAt ? (Date.now() - audioRecording.startedAt) / 1000 : 0) + '</span></button>'
                     : '<button class="audio-btn rec" onclick="startAudioRecording(' + item.index + ')" ' + (busy ? 'disabled' : '') + '>● ' + (info ? 'Перезаписать' : 'Записать') + '</button>';
+                // Своя запись важнее; нет её — пункт читает голос устройства.
                 const playButton = info
                     ? '<button class="audio-btn play' + (isPlaying ? ' active' : '') + '" onclick="' + (isPlaying ? 'stopAudioPlayback()' : 'playAudioItem(' + item.index + ')') + '" ' + (busy ? 'disabled' : '') + '>' +
-                        (isPlaying ? '■ Стоп' : '▶ Слушать · ' + formatAudioSeconds(info.d)) + '</button>' +
-                      '<button class="audio-btn danger" onclick="deleteAudioItem(' + item.index + ')" ' + (busy ? 'disabled' : '') + ' aria-label="Удалить запись" title="Удалить запись">🗑</button>'
+                        (isPlaying ? '■ Стоп' : '▶ Слушать · ' + formatAudioSeconds(info.d)) + '</button>'
+                    : speech && item.speakable
+                        ? '<button class="audio-btn play' + (isPlaying ? ' active' : '') + '" onclick="' + (isPlaying ? 'stopAudioPlayback()' : 'playAudioItem(' + item.index + ')') + '" ' + (busy ? 'disabled' : '') + ' title="Прочитает голос устройства">' +
+                            (isPlaying ? '■ Стоп' : '🔊 Прочитать') + '</button>'
+                        : '';
+                const deleteButton = info
+                    ? '<button class="audio-btn danger" onclick="deleteAudioItem(' + item.index + ')" ' + (busy ? 'disabled' : '') + ' aria-label="Удалить запись" title="Удалить запись">🗑</button>'
                     : '';
                 parts.push('<div class="audio-item' + (isRecording ? ' is-recording' : '') + (isPlaying ? ' is-playing' : '') + '">' +
                     '<div class="audio-item-head">' + (items.length > 1 ? '<span class="audio-item-num">' + escapeHtml(item.marker) + '</span>' : '') +
                     '<span class="audio-item-text">' + escapeHtml(item.label) + '</span></div>' +
-                    '<div class="audio-item-actions">' + recordButton + playButton + '</div></div>');
+                    '<div class="audio-item-actions">' + playButton + recordButton + deleteButton + '</div></div>');
             });
             // Записи к пунктам, которых после правки текста уже нет: не теряем их
             // молча — их можно дослушать и удалить.
@@ -13846,8 +13914,17 @@
         // если она уже прочитана из базы, а если нет — пустой звук, чтобы Safari
         // на iPhone разрешил играть, когда запись дочитается.
         function playAudioItemFor(text, itemIndex, queue, all) {
-            if (!text || !hasAudioItem(text, itemIndex) || audioRecording) return;
+            if (!text || audioRecording) return;
+            const recorded = hasAudioItem(text, itemIndex);
+            if (!recorded && !canSpeakAudioItem(text, itemIndex)) return;
             stopAudioPlayback();
+            if (!recorded) {
+                const spoken = { itemIndex, text, queue: queue || [], all: !!all, loading: false, tts: true, utterances: [] };
+                audioPlayback = spoken;
+                speakAudioItem(spoken);
+                refreshAudioUi();
+                return;
+            }
             const player = getAudioPlayer();
             // loading: пока играет пустой звук-разрешение, его конец — не конец записи.
             const playback = { itemIndex, text, queue: queue || [], all: !!all, loading: true };
@@ -13887,9 +13964,24 @@
         function playAllAudio() {
             const text = audioModalText;
             if (!text) return;
-            const indexes = Object.keys(getTextAudioItems(text)).map(Number).sort((a, b) => a - b);
+            const indexes = getAudioItemsForText(text)
+                .map(item => item.index)
+                .filter(index => hasAudioItem(text, index) || canSpeakAudioItem(text, index));
             if (!indexes.length) return;
+            // Голос и записи вперемешку: следующий пункт запускается уже не из
+            // нажатия, а iPhone пускает и синтезатор, и плеер только после того,
+            // как они хоть раз заиграли из нажатия. Поэтому здесь, в нажатии,
+            // «разрешаем» тот, что вступит не первым.
+            const firstRecorded = hasAudioItem(text, indexes[0]);
+            const hasSpoken = indexes.some(index => !hasAudioItem(text, index));
+            const hasRecorded = indexes.some(index => hasAudioItem(text, index));
+            if (firstRecorded && hasSpoken) primeSpeech();
             playAudioItemFor(text, indexes[0], indexes.slice(1), true);
+            if (!firstRecorded && hasRecorded && audioPlayback) {
+                const player = getAudioPlayer();
+                player.src = SILENT_WAV;
+                player.play().catch(() => {});
+            }
         }
 
         // ▶ у строки в режиме «Номера».
@@ -13904,7 +13996,15 @@
 
         function onAudioPlaybackEnded() {
             const playback = audioPlayback;
-            if (!playback || playback.loading) return;
+            // Конец пустого звука-разрешения — не конец пункта, в том числе
+            // когда пункт сейчас читает голос устройства.
+            if (!playback || playback.loading || playback.tts) return;
+            finishAudioItem(playback);
+        }
+
+        // Пункт доиграл (запись или голос): следующий в очереди или стоп.
+        function finishAudioItem(playback) {
+            if (audioPlayback !== playback) return;
             const next = playback.queue.shift();
             if (next !== undefined) {
                 playAudioItemFor(playback.text, next, playback.queue, playback.all);
@@ -13914,8 +14014,10 @@
         }
 
         function stopAudioPlayback() {
-            if (!audioPlayback) return;
+            const playback = audioPlayback;
+            if (!playback) return;
             audioPlayback = null;
+            if (playback.tts && isSpeechSupported()) window.speechSynthesis.cancel();
             if (audioPlayerEl) {
                 audioPlayerEl.pause();
                 audioPlayerEl.removeAttribute('src');
@@ -13927,6 +14029,194 @@
         function refreshAudioUi() {
             if (document.getElementById('audioModal').classList.contains('show')) renderAudioModalList();
             if (state.view === 'practice' && state.mode === 'numbers') render();
+        }
+
+        // ——— Голос устройства: озвучка без записи ———
+        // Пункт без своей записи читает встроенный синтезатор речи браузера
+        // (Web Speech API, speechSynthesis). Скачивать ничего не нужно и
+        // интернет не нужен: на iPhone русский голос («Милена») есть в системе,
+        // на компьютере — свой системный. Ни ключей, ни серверов, ни платы.
+        //
+        // Звук синтезатора на iPhone, как и плеер, пускают только из нажатия:
+        // speak() вызывается прямо в обработчике. При беззвучном режиме iPhone
+        // голос синтезатора может молчать — об этом подсказка в окне.
+        //
+        // Длинный пункт делим на фразы до SPEECH_CHUNK_MAX знаков: Chrome
+        // обрывает речь, если одна фраза звучит дольше ~15 секунд. Фразы держим
+        // в playback.utterances — иначе Chrome может собрать их сборщиком мусора,
+        // и конец речи так и не наступит.
+        //
+        // Заряд: синтезатор работает, только пока звучит; в простое — ничего.
+        // Выбор голоса и скорость — настройки этого устройства (localStorage
+        // speechVoice, speechRate), в данные материалов они не входят.
+        const SPEECH_RATES = [0.75, 0.9, 1, 1.15, 1.3, 1.5];
+        const SPEECH_CHUNK_MAX = 180;
+        const SPEECH_VOICE_HELP = 'На iPhone: Настройки → Универсальный доступ → Устный контент → Голоса → Русский.';
+        let speechPrimed = false;
+        let speechVoicesWatched = false;
+
+        function isSpeechSupported() {
+            return typeof window.speechSynthesis !== 'undefined' && typeof window.SpeechSynthesisUtterance === 'function';
+        }
+
+        function canSpeakAudioItem(text, itemIndex) {
+            if (!isSpeechSupported()) return false;
+            const line = buildNumbersLines(text)[itemIndex];
+            return !!(line && line.words.length);
+        }
+
+        function getRussianVoices() {
+            if (!isSpeechSupported()) return [];
+            return window.speechSynthesis.getVoices().filter(voice => /^ru(?:[-_]|$)/i.test(voice.lang || ''));
+        }
+
+        // Голос по умолчанию: «премиум» или «улучшенный» (на iPhone их скачивают
+        // в настройках, звучат заметно живее), затем тот, что работает без интернета.
+        function rankSpeechVoice(voice) {
+            let score = 0;
+            if (/premium|премиум/i.test(voice.name)) score += 4;
+            else if (/enhanced|улучш/i.test(voice.name)) score += 3;
+            if (voice.localService) score += 1;
+            if (voice.default) score += 0.5;
+            return score;
+        }
+
+        function getSpeechVoice() {
+            const voices = getRussianVoices();
+            if (!voices.length) return null;
+            const saved = localStorage.getItem('speechVoice');
+            return voices.find(voice => voice.voiceURI === saved)
+                || voices.slice().sort((a, b) => rankSpeechVoice(b) - rankSpeechVoice(a))[0];
+        }
+
+        function getSpeechRate() {
+            const saved = Number(localStorage.getItem('speechRate')) / 100;
+            return SPEECH_RATES.includes(saved) ? saved : 1;
+        }
+
+        function setSpeechVoice(voiceURI) {
+            if (voiceURI) localStorage.setItem('speechVoice', voiceURI);
+            else localStorage.removeItem('speechVoice');
+        }
+
+        function setSpeechRate(value) {
+            localStorage.setItem('speechRate', String(Math.round(Number(value) * 100)));
+        }
+
+        // Chrome отдаёт список голосов не сразу, а по событию voiceschanged.
+        // Слушатель — одно событие, без таймеров; вешается при первом открытии окна.
+        function watchSpeechVoices() {
+            if (speechVoicesWatched || !isSpeechSupported()) return;
+            speechVoicesWatched = true;
+            const synth = window.speechSynthesis;
+            const onChange = () => {
+                if (document.getElementById('audioModal').classList.contains('show')) renderAudioVoiceSettings();
+            };
+            if (typeof synth.addEventListener === 'function') synth.addEventListener('voiceschanged', onChange);
+            else synth.onvoiceschanged = onChange;
+        }
+
+        function renderAudioVoiceSettings() {
+            const box = document.getElementById('audioVoiceSettings');
+            if (!box) return;
+            if (!isSpeechSupported()) {
+                box.innerHTML = '<div class="audio-voice-note">Этот браузер не умеет читать текст голосом — можно записать свой.</div>';
+                return;
+            }
+            const voices = getRussianVoices();
+            const saved = localStorage.getItem('speechVoice');
+            const savedFound = voices.some(voice => voice.voiceURI === saved);
+            const auto = getSpeechVoice();
+            const rate = getSpeechRate();
+            const voiceOptions = ['<option value=""' + (savedFound ? '' : ' selected') + '>' + (auto ? 'Авто: ' + escapeHtml(auto.name) : 'Авто') + '</option>']
+                .concat(voices.map(voice => '<option value="' + escapeHtmlAttr(voice.voiceURI) + '"' + (voice.voiceURI === saved ? ' selected' : '') + '>' + escapeHtml(voice.name) + '</option>'));
+            const rateOptions = SPEECH_RATES.map(value => '<option value="' + value + '"' + (value === rate ? ' selected' : '') + '>' +
+                String(value).replace('.', ',') + '×</option>');
+            // Список голосов пришёл, а русского в нём нет — без него текст прочтут
+            // чужим голосом или не прочтут вовсе.
+            const noRussian = window.speechSynthesis.getVoices().length > 0 && !voices.length;
+            box.innerHTML = '<div class="audio-voice-row">' +
+                '<label class="audio-voice-field"><span>Голос</span><select onchange="setSpeechVoice(this.value)"' + (voices.length ? '' : ' disabled') + '>' + voiceOptions.join('') + '</select></label>' +
+                '<label class="audio-voice-field"><span>Скорость</span><select onchange="setSpeechRate(this.value)">' + rateOptions.join('') + '</select></label>' +
+                '</div>' +
+                (noRussian
+                    ? '<div class="audio-modal-error">На устройстве нет русского голоса. Добавьте его: ' + escapeHtml(SPEECH_VOICE_HELP) + '</div>'
+                    : '<div class="audio-voice-note">Нет звука — выключите беззвучный режим. Живее звучит «улучшенный» голос: ' + escapeHtml(SPEECH_VOICE_HELP) + '</div>');
+        }
+
+        // Фразы до SPEECH_CHUNK_MAX знаков. Режем только по пробелу после знака
+        // конца фразы, чтобы «1.5» и «т.е.» не разваливались на части.
+        function splitSpeechText(value) {
+            const chunks = [];
+            let current = '';
+            const add = piece => {
+                if (current && current.length + 1 + piece.length > SPEECH_CHUNK_MAX) {
+                    chunks.push(current);
+                    current = piece;
+                } else {
+                    current = current ? current + ' ' + piece : piece;
+                }
+            };
+            String(value || '').replace(/([.!?…;:])\s+/g, '$1\n').split('\n').forEach(sentence => {
+                const trimmed = sentence.trim();
+                if (!trimmed) return;
+                if (trimmed.length <= SPEECH_CHUNK_MAX) add(trimmed);
+                else trimmed.split(/\s+/).forEach(add);
+            });
+            if (current) chunks.push(current);
+            return chunks;
+        }
+
+        function speakAudioItem(playback) {
+            const line = buildNumbersLines(playback.text)[playback.itemIndex];
+            const chunks = splitSpeechText(line ? line.words.join(' ') : '');
+            if (!chunks.length) {
+                finishAudioItem(playback);
+                return;
+            }
+            const synth = window.speechSynthesis;
+            const voice = getSpeechVoice();
+            const rate = getSpeechRate();
+            playback.utterances = chunks.map((chunk, index) => {
+                const utterance = new SpeechSynthesisUtterance(chunk);
+                utterance.lang = voice ? voice.lang : 'ru-RU';
+                if (voice) utterance.voice = voice;
+                utterance.rate = rate;
+                if (index === chunks.length - 1) utterance.onend = () => finishAudioItem(playback);
+                utterance.onerror = event => onSpeechError(playback, event);
+                return utterance;
+            });
+            if (synth.speaking || synth.pending) synth.cancel();
+            if (synth.paused) synth.resume();
+            playback.utterances.forEach(utterance => synth.speak(utterance));
+            speechPrimed = true;
+        }
+
+        function onSpeechError(playback, event) {
+            if (audioPlayback !== playback) return;
+            const code = event && event.error;
+            // Свою речь мы прерываем, только уже сменив audioPlayback, — значит,
+            // прервало что-то снаружи (звонок, другой звук). Тихо останавливаемся.
+            if (code === 'interrupted' || code === 'canceled') {
+                stopAudioPlayback();
+                return;
+            }
+            audioModalError = code === 'not-allowed'
+                ? 'Браузер не дал включить голос. Нажмите «Прочитать» ещё раз.'
+                : code === 'language-unavailable' || code === 'voice-unavailable'
+                    ? 'На устройстве нет русского голоса. ' + SPEECH_VOICE_HELP
+                    : 'Не удалось прочитать текст голосом' + (code ? ' (' + code + ').' : '.');
+            stopAudioPlayback();
+        }
+
+        // «Разрешение» синтезатора в нажатии: беззвучная пустая фраза. Нужна,
+        // когда первым в «Слушать все» играет запись, а голос вступит позже.
+        function primeSpeech() {
+            if (speechPrimed || !isSpeechSupported()) return;
+            speechPrimed = true;
+            const utterance = new SpeechSynthesisUtterance(' ');
+            utterance.volume = 0;
+            window.speechSynthesis.speak(utterance);
         }
 
         // ——— Карточка «термин ↔ текст» ———
