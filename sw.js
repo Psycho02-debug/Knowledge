@@ -1,4 +1,4 @@
-const CACHE = 'zapominalka-v134';
+const CACHE = 'zapominalka-v135';
 
 // Файлы приложения меняются с каждой версией — при установке их всегда проверяем на сервере.
 const APP_ASSETS = [
@@ -108,10 +108,15 @@ self.addEventListener('install', e => {
   self.skipWaiting();
 });
 
+// Нейроголоса (движок из tts/ и модели по ~60 МБ) кладёт в свой кэш само приложение,
+// по кнопке «Скачать». Этот кэш переживает смену версий — иначе после каждого
+// обновления голос пришлось бы качать заново. Имя то же, что VOICES_CACHE в index.html.
+const VOICES_CACHE = 'zapominalka-voices';
+
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+      Promise.all(keys.filter(k => k !== CACHE && k !== VOICES_CACHE).map(k => caches.delete(k)))
     )
   );
   self.clients.claim();
