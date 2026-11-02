@@ -13061,10 +13061,13 @@
 
         // Включает режим фокуса (если он выключен) и ведёт по словам текста по
         // порядку, ничего не раскрывая. Первое нажатие встаёт на первое слово.
+        // Когда все скрытые слова открыты, фокуса нет: ни стрелка, ни кнопка
+        // его не включают.
         function focusNextPracticeWord() {
             if (!isPracticeFocusModeEnabled()) return false;
             if (state.currentText === null || state.currentFolder === null) return false;
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+            if (!getUnrevealedFocusTargets(text).length) return false;
             const targets = getPracticeFocusTargets(text);
             if (!targets.length) return false;
 
@@ -13482,6 +13485,16 @@
             const halfRevealedSet = new Set(text.halfRevealedWords || []);
             const pendingSet = new Set(state.pendingWords);
             const hardSet = new Set(text.hardWords || []);
+            // Скрытые слова (в «По строкам» — строки), которые ещё не открыты.
+            const unrevealedCount = state.mode === 'practice' ? getUnrevealedFocusTargets(text).length : 0;
+            // Фокус нужен, пока есть что вспоминать. Когда открыто всё, он гаснет
+            // сам. Слова открывают по-разному: нажатием, Return, «Открыть слово»,
+            // а в «По строкам» фокус переезжает на следующую строку, которая может
+            // быть уже открыта. Поэтому проверка стоит здесь, в отрисовке, а не в
+            // каждом из этих мест.
+            if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled && unrevealedCount === 0) {
+                exitPracticeFocusMode();
+            }
             // Цели фокуса нужны, только пока фокус включён: без него ни одна ветка
             // ниже их не читает, а это полный проход по тексту на каждое нажатие.
             const focusTargets = isPracticeFocusModeEnabled() && state.practiceFocusEnabled
@@ -13676,13 +13689,14 @@
             // «По строкам» — строку, а потом ведёт дальше (practiceLinesPrimaryAction).
             const primaryAction = line ? 'toggleAllWordsReveal()'
                 : (!progress || progress.total === 0 ? '' : 'toggleAllWordsReveal()');
-            // Пока фокус выключен, кнопка нужна, чтобы его включить, — если в тексте
-            // осталось что вспоминать. Когда включён, она ведёт по всем словам текста,
-            // поэтому нужна, пока есть куда перейти: хотя бы два слова.
-            const unrevealedCount = isPracticeLayout ? getUnrevealedFocusTargets(text).length : 0;
+            // Кнопка нужна, только пока в тексте осталось что вспоминать: когда всё
+            // открыто, фокус выключен (см. выше) и включить его нельзя. Включённый
+            // фокус ведёт по всем словам текста, поэтому ему нужно, куда перейти:
+            // хотя бы два слова.
             const canFocusNext = isPracticeLayout &&
                 isPracticeFocusModeEnabled() &&
-                (state.practiceFocusEnabled ? focusTargets.length > 1 : unrevealedCount > 0);
+                unrevealedCount > 0 &&
+                (!state.practiceFocusEnabled || focusTargets.length > 1);
             // Подсказка относится к слову под фокусом, а без фокуса — к первому ещё
             // не открытому слову текста (см. getActivePracticeTargetIndex).
             const hintTargetIndex = isPracticeLayout ? getActivePracticeTargetIndex(text) : null;
