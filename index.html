@@ -2526,6 +2526,29 @@
             width: 100%;
         }
 
+        /* Цифра клавиши в углу плитки. Только там, где есть мышь: на телефоне
+           клавиатуры нет, и цифры с подсказкой о них только мешали бы. */
+        .scrambled-words.has-keys .scrambled-word {
+            position: relative;
+        }
+
+        .game-key-badge {
+            position: absolute;
+            top: 5px;
+            left: 9px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--accent-primary);
+        }
+
+        @media (hover: none) {
+            .game-key-badge,
+            .game-key-hint {
+                display: none;
+            }
+        }
+
         .game-stats {
             display: flex;
             justify-content: space-between;
@@ -9379,6 +9402,36 @@
             if (!gs.byLines || !gs.lineDone) return false;
             startGameLine(getCurrentFolder().texts[state.currentText], gs.lineIndex + 1, gs.errors);
             render();
+            return true;
+        }
+
+        // Какие плитки уже собраны. Одинаковые слова гаснут слева направо: столько,
+        // сколько раз слово уже стоит в собранном. Счётчики за один проход — раньше
+        // для каждого слова заново перебирались оба списка целиком, то есть квадрат
+        // от длины текста: на материале в 150 строк — 30 мс на каждое нажатие.
+        function getGameUsedTiles(gs) {
+            const usedCounts = new Map();
+            gs.selectedWords.forEach(word => usedCounts.set(word, (usedCounts.get(word) || 0) + 1));
+            const seenCounts = new Map();
+            const used = new Set();
+            gs.scrambledWords.forEach((item, i) => {
+                const sameWordsBefore = seenCounts.get(item.word) || 0;
+                seenCounts.set(item.word, sameWordsBefore + 1);
+                if (sameWordsBefore < (usedCounts.get(item.word) || 0)) used.add(i);
+            });
+            return used;
+        }
+
+        // Клавиши 1…9 и 0 — первые десять плиток слева направо (цифры нарисованы
+        // на плитках), остальные выбираются мышью. Собранную плитку цифра не
+        // нажимает, как и мышь (у .used pointer-events: none): иначе повторное
+        // нажатие засчитывалось бы ошибкой.
+        function selectGameTileByKey(key) {
+            const gs = state.gameState;
+            if (!gs.byLines || gs.lineDone || gs.completed) return false;
+            const index = key === '0' ? 9 : Number(key) - 1;
+            if (index >= gs.scrambledWords.length || getGameUsedTiles(gs).has(index)) return false;
+            selectWord(index);
             return true;
         }
 
@@ -16472,13 +16525,7 @@
                 `;
             }
             
-            // Сколько раз каждое слово уже собрано и сколько таких же слов стоит
-            // левее — счётчики за один проход. Раньше для каждого слова заново
-            // перебирались оба списка целиком, то есть квадрат от длины текста:
-            // на материале в 150 строк — 30 мс на каждое нажатие по слову.
-            const usedCounts = new Map();
-            gs.selectedWords.forEach(word => usedCounts.set(word, (usedCounts.get(word) || 0) + 1));
-            const seenCounts = new Map();
+            const usedTiles = getGameUsedTiles(gs);
 
             return `
                 ${getTermNavHeader(text)}
@@ -16496,7 +16543,7 @@
                     </div>
                     
                     <div class="help-text">
-                        ${gs.byLines ? 'Соберите строку: нажимайте на её слова в правильном порядке. Строки идут по порядку.' : 'Нажимайте на слова в правильном порядке, чтобы собрать текст.'}
+                        ${gs.byLines ? 'Соберите строку: нажимайте на её слова в правильном порядке. Строки идут по порядку.<span class="game-key-hint"> На клавиатуре — цифры 1–9 и 0, по номерам на словах.</span>' : 'Нажимайте на слова в правильном порядке, чтобы собрать текст.'}
                     </div>
 
                     <div class="game-nav-row">
@@ -16518,15 +16565,14 @@
                             }
                         </div>
 
-                        ${gs.lineDone ? `<button class="action-btn btn-save game-next-line-btn" onclick="nextGameLine()">Следующая строка ›</button>` : `<div class="scrambled-words">
+                        ${gs.lineDone ? `<button class="action-btn btn-save game-next-line-btn" onclick="nextGameLine()">Следующая строка ›</button>` : `<div class="scrambled-words${gs.byLines ? ' has-keys' : ''}">
                             ${gs.scrambledWords.map((item, i) => {
-                                const sameWordsBefore = seenCounts.get(item.word) || 0;
-                                seenCounts.set(item.word, sameWordsBefore + 1);
-                                const thisUsed = sameWordsBefore < (usedCounts.get(item.word) || 0);
+                                // По строкам: у первых десяти плиток — цифра клавиши (selectGameTileByKey).
+                                const keyBadge = gs.byLines && i < 10 ? `<span class="game-key-badge" aria-hidden="true">${(i + 1) % 10}</span>` : '';
 
-                                return `<span class="scrambled-word ${thisUsed ? 'used' : ''}"
+                                return `<span class="scrambled-word ${usedTiles.has(i) ? 'used' : ''}"
                                     onclick="selectWord(${i})"
-                                    id="word-${i}">${escapeHtml(item.word)}</span>`;
+                                    id="word-${i}">${keyBadge}${escapeHtml(item.word)}</span>`;
                             }).join('')}
                         </div>`}
                     </div>
@@ -21220,6 +21266,19 @@
                 }
             }
             if (e.ctrlKey && !e.metaKey && !e.altKey) {
+                return;
+            }
+            // «Собери текст по строкам»: цифры 1…9 и 0 выбирают плитку с этим
+            // номером. Здесь цифры не переключают режимы изучения и не уводят в
+            // «Карточки» («9» ниже): промах мимо плитки выбрасывал бы из игры.
+            // Когда выбирать нечего (строка собрана, игра окончена, открыто окно),
+            // цифра просто молчит. С Cmd или Alt — сочетание браузера (Cmd+1 —
+            // вкладка): ему не мешаем, но и режим не меняем.
+            if (state.view === 'practice' && state.mode === 'game' && state.gameState && state.gameState.byLines &&
+                /^[0-9]$/.test(e.key)) {
+                if (e.metaKey || e.altKey) return;
+                e.preventDefault();
+                if (!e.repeat && !document.querySelector('.modal.show')) selectGameTileByKey(e.key);
                 return;
             }
             // «9» с любого экрана — раздел «Карточки» (папки флеш-карточек), куда
