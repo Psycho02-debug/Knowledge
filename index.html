@@ -2542,9 +2542,44 @@
             color: var(--accent-primary);
         }
 
+        /* Поле номеров в строке результата: без рамки и фона, курсор — сразу
+           после собранных слов. Обёртка слов не мешает им переноситься как
+           прежде: display: contents. */
+        .game-result-words {
+            display: contents;
+        }
+
+        .game-type-input {
+            flex: 1 1 80px;
+            min-width: 80px;
+            border: none;
+            background: transparent;
+            outline: none;
+            color: var(--text-primary);
+            font: inherit;
+            font-size: 0.88rem;
+            padding: 4px 2px;
+        }
+
+        .game-type-input::placeholder {
+            color: var(--text-tertiary);
+            font-style: italic;
+        }
+
+        .game-result.has-type-input:focus-within:not(.is-line-done) {
+            border-color: var(--accent-primary);
+        }
+
         @media (hover: none) {
             .game-key-badge,
-            .game-key-hint {
+            .game-key-hint,
+            .game-type-input {
+                display: none;
+            }
+        }
+
+        @media (hover: hover) {
+            .game-result.has-type-input .game-placeholder {
                 display: none;
             }
         }
@@ -8004,7 +8039,7 @@
 
         function getRenderableHiddenIndices(text) {
             ensureTextStudyData(text);
-            const hiddenSorted = [...(text.hiddenWords || [])].sort((a, b) => a - b);
+            const hiddenSorted = [...getPracticeHiddenWords(text)].sort((a, b) => a - b);
             // «По строкам»: всё, что идёт по скрытым словам (подсказка, «Открыть
             // слово», Return, «М»), видит только строку на экране.
             if (isPracticeLinesMode()) {
@@ -9387,6 +9422,11 @@
                 correctOrder: line.words,
                 scrambledWords: shuffleArray(line.words.map((w, i) => ({ word: w, originalIndex: i }))),
                 selectedWords: [],
+                // Номера плиток, которые собраны, по порядку собранных слов. Гаснет
+                // именно выбранная плитка: при одинаковых словах подсчёт по словам
+                // гасил бы первую такую плитку, и набранный номер оставался бы
+                // гореть на экране.
+                pickedTiles: [],
                 errors: errors,
                 completed: false
             };
@@ -9405,11 +9445,13 @@
             return true;
         }
 
-        // Какие плитки уже собраны. Одинаковые слова гаснут слева направо: столько,
-        // сколько раз слово уже стоит в собранном. Счётчики за один проход — раньше
-        // для каждого слова заново перебирались оба списка целиком, то есть квадрат
-        // от длины текста: на материале в 150 строк — 30 мс на каждое нажатие.
+        // Какие плитки уже собраны. По строкам — ровно выбранные (pickedTiles). По
+        // словам одинаковые слова гаснут слева направо: столько, сколько раз слово
+        // уже стоит в собранном. Счётчики за один проход — раньше для каждого слова
+        // заново перебирались оба списка целиком, то есть квадрат от длины текста:
+        // на материале в 150 строк — 30 мс на каждое нажатие.
         function getGameUsedTiles(gs) {
+            if (gs.pickedTiles) return new Set(gs.pickedTiles);
             const usedCounts = new Map();
             gs.selectedWords.forEach(word => usedCounts.set(word, (usedCounts.get(word) || 0) + 1));
             const seenCounts = new Map();
@@ -9422,17 +9464,81 @@
             return used;
         }
 
-        // Клавиши 1…9 и 0 — первые десять плиток слева направо (цифры нарисованы
-        // на плитках), остальные выбираются мышью. Собранную плитку цифра не
-        // нажимает, как и мышь (у .used pointer-events: none): иначе повторное
-        // нажатие засчитывалось бы ошибкой.
+        // Номера плиток (по строкам): цифры 1…9 и 0 получают первые десять слов
+        // строки по порядку текста, а нумеруются они в порядке плиток на экране —
+        // номер не выдаёт место слова. Слова дальше десятого — без номера: это
+        // всегда конец строки, его дощёлкивают мышью после набранных номеров.
+        function getGameTileKeys(gs) {
+            const keys = gs.scrambledWords.map(() => '');
+            if (!gs.byLines) return keys;
+            let count = 0;
+            gs.scrambledWords.forEach((item, i) => {
+                if (item.originalIndex < 10) keys[i] = String(++count % 10);
+            });
+            return keys;
+        }
+
+        // Цифра — плитка с этим номером. Собранную плитку цифра не нажимает, как и
+        // мышь (у .used pointer-events: none): иначе повторное нажатие
+        // засчитывалось бы ошибкой.
         function selectGameTileByKey(key) {
             const gs = state.gameState;
             if (!gs.byLines || gs.lineDone || gs.completed) return false;
-            const index = key === '0' ? 9 : Number(key) - 1;
-            if (index >= gs.scrambledWords.length || getGameUsedTiles(gs).has(index)) return false;
+            const index = getGameTileKeys(gs).indexOf(key);
+            if (index === -1 || getGameUsedTiles(gs).has(index)) return false;
             selectWord(index);
             return true;
+        }
+
+        // Поле номеров в строке результата (на компьютере). Набранная цифра сразу
+        // ставит слово, в самом поле ничего не остаётся. Backspace убирает
+        // последнее слово, Return после собранной строки — следующая строка.
+        // Остальные буквы глотаются: поле только для номеров, и из него клавиши
+        // не уходят в горячие клавиши экрана (диспетчер выходит на фокусе в поле).
+        function handleGameTypeKey(e) {
+            if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return;
+            if (/^[0-9]$/.test(e.key)) {
+                e.preventDefault();
+                if (!e.repeat) selectGameTileByKey(e.key);
+            } else if (e.key === 'Backspace' || e.key === 'Delete') {
+                e.preventDefault();
+                removeLastGameWord();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (!e.repeat) nextGameLine();
+            } else if (e.key.length === 1) {
+                e.preventDefault();
+            }
+        }
+
+        // Вставка или ввод в обход клавиш: берём из поля цифры по порядку.
+        function handleGameTypeInput(input) {
+            const digits = input.value.replace(/\D/g, '');
+            input.value = '';
+            for (const digit of digits) {
+                if (!selectGameTileByKey(digit) && (state.gameState.lineDone || state.gameState.completed)) break;
+            }
+        }
+
+        function removeLastGameWord() {
+            const gs = state.gameState;
+            if (!gs.byLines || gs.lineDone || gs.completed || !gs.selectedWords.length) return false;
+            removeFromResult(gs.selectedWords.length - 1);
+            return true;
+        }
+
+        // Поле номеров держим в фокусе, чтобы номера набирались сразу: после входа,
+        // новой строки, «Начать заново» и клика по плитке без номера (клик по
+        // плитке уводит фокус на body). Чужое поле и открытое окно не трогаем, а на
+        // телефоне поля нет — там клавиатура закрыла бы полэкрана.
+        function syncGameTypeFocus() {
+            const input = document.querySelector('.game-type-input');
+            if (!input || document.querySelector('.modal.show')) return;
+            if (window.matchMedia && window.matchMedia('(hover: none)').matches) return;
+            const active = document.activeElement;
+            if (active === input) return;
+            if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
+            input.focus({ preventScroll: true });
         }
 
         function initQuiz() {
@@ -9724,6 +9830,7 @@
             // Строго после восстановления прокрутки: ограничение высоты текста само
             // подкручивает экран к полю ввода, и возврат позиции отменил бы это.
             if (state.view === 'type') syncTypeTextClamp();
+            if (state.view === 'practice' && state.mode === 'game') syncGameTypeFocus();
         }
 
         // Нижние панели закреплены поверх контента, поэтому контейнер должен
@@ -13146,7 +13253,7 @@
                     for (let idx = group.leader + 1; idx <= lastIndex; idx++) suppressed.add(idx);
                 });
             }
-            const hidden = new Set(text.hiddenWords || []);
+            const hidden = new Set(getPracticeHiddenWords(text));
             const targets = [];
             // «По строкам» — фокус ходит по строке на экране и после её конца
             // возвращается к её началу.
@@ -13184,7 +13291,7 @@
             const targets = getPracticeFocusTargets(text);
             const start = targets.indexOf(leaderIndex);
             if (start === -1) return [];
-            const hidden = new Set(text.hiddenWords || []);
+            const hidden = new Set(getPracticeHiddenWords(text));
             if (hidden.has(leaderIndex)) return [leaderIndex];
             const span = [];
             for (let i = start; i < targets.length; i++) {
@@ -13203,7 +13310,7 @@
             const span = getPracticeFocusSpan(text, leaderIndex);
             if (!span.length) return null;
             const last = span[span.length - 1];
-            return (text.hiddenWords || []).includes(last) ? last : null;
+            return getPracticeHiddenWords(text).includes(last) ? last : null;
         }
 
         // Следующий шаг по тексту; после последнего — снова первый. Отсчитываем от
@@ -13357,37 +13464,48 @@
         // ——— «Строка по кругу» ———
         // Вариант «По строкам» (practiceMode 'circle', isPracticeLinesMode для
         // него тоже true — строки, навигация, подсказка общие). Слова для
-        // скрытия отмечают прямо на строке нажатием — это те же hiddenWords, что
-        // в «Выборе», так что отметки видны и в других режимах. Дальше строку
-        // проходят кругами одной кнопкой (пробел, Return): спрятать отмеченные,
-        // открывать по одному по порядку, снова спрятать — круг 2, круг 3…
-        // Первые разы с новым термином тяжелее всего, поэтому строка
-        // открывается целиком: сначала прочитать, потом прятать.
+        // скрытия отмечают прямо на строке нажатием, каждый раз с чистого листа:
+        // при входе в режим не отмечено ничего. Это свои отметки режима, а не
+        // hiddenWords из «Выбора» — разметка материала не трогается, и чужие
+        // отметки не подставляются. Дальше строку проходят кругами одной кнопкой
+        // (пробел, Return): спрятать отмеченные, открывать по одному по порядку,
+        // снова спрятать — круг 2, круг 3…
         function isPracticeCircleMode() {
             return state.view === 'practice' && state.mode === 'practice' && state.practiceMode === 'circle';
         }
 
-        // Сколько кругов начато на каждой строке. Состояние экрана, как открытые
-        // слова: на диск не пишется и обнуляется при входе в материал (ключ —
-        // какой материал открыт).
-        let practiceCircleCounts = { key: '', byLine: {} };
+        // Отметки и счёт кругов по строкам. Состояние экрана, как открытые слова:
+        // на диск не пишется и обнуляется при входе в материал (ключ — какой
+        // материал открыт; длина текста — чтобы правка текста не сдвинула
+        // отметки на чужие слова).
+        let practiceCircleSession = { key: '', counts: {}, marks: [] };
 
         function getPracticeCircleKey(text) {
             return [state.currentFolder, state.currentSubfolder, state.currentText, String(text.content || '').length].join('|');
         }
 
-        function getPracticeCircleCount(text, lineIndex) {
+        function getPracticeCircleSession(text) {
             const key = getPracticeCircleKey(text);
-            if (practiceCircleCounts.key !== key) practiceCircleCounts = { key, byLine: {} };
-            return practiceCircleCounts.byLine[lineIndex] || 0;
+            if (practiceCircleSession.key !== key) practiceCircleSession = { key, counts: {}, marks: [] };
+            return practiceCircleSession;
         }
 
-        // Вход в материал (и переход к соседнему): все отмеченные слова видны,
-        // круги с нуля.
+        function getPracticeCircleCount(text, lineIndex) {
+            return getPracticeCircleSession(text).counts[lineIndex] || 0;
+        }
+
+        // Скрытые слова практики: в «Строке по кругу» — отметки режима, иначе —
+        // разметка материала. Через эту функцию на скрытые слова смотрят
+        // отрисовка практики, getRenderableHiddenIndices и цели и связки фокуса.
+        function getPracticeHiddenWords(text) {
+            return isPracticeCircleMode() ? getPracticeCircleSession(text).marks : (text.hiddenWords || []);
+        }
+
+        // Вход в материал (и переход к соседнему): ничего не отмечено, круги с нуля.
         function startPracticeCircle(text) {
-            text.revealedWords = [...text.hiddenWords];
+            text.revealedWords = [];
             text.halfRevealedWords = [];
-            practiceCircleCounts = { key: getPracticeCircleKey(text), byLine: {} };
+            practiceCircleSession = { key: getPracticeCircleKey(text), counts: {}, marks: [] };
         }
 
         // Слово, которое можно отметить: не знак препинания, не «/» и не номер
@@ -13399,18 +13517,21 @@
         }
 
         // Нажатие по видимому слову: обычное — отметить, отмеченное — снять
-        // отметку (как в «Выборе», вместе с вопросом к слову). Отмеченное посреди
-        // круга слово остаётся видным до следующего круга.
+        // отметку. Отмеченное посреди круга слово остаётся видным до следующего
+        // круга.
         function toggleCircleMark(index) {
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
-            if (text.hiddenWords.includes(index)) {
-                unmarkHiddenWord(text, index);
+            const session = getPracticeCircleSession(text);
+            const pos = session.marks.indexOf(index);
+            if (pos !== -1) {
+                session.marks.splice(pos, 1);
+                text.revealedWords = removeIndexesFromArray(text.revealedWords, [index]);
+                text.halfRevealedWords = removeIndexesFromArray(text.halfRevealedWords, [index]);
             } else {
                 if (!isCircleMarkableWord(text.content.split(/(\s+)/), index)) return;
-                markHiddenWord(text, index);
+                session.marks.push(index);
                 text.revealedWords.push(index);
             }
-            saveData();
             render();
         }
 
@@ -13420,11 +13541,11 @@
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             const indexes = getCircleUnmarkedLineWords(text);
             if (!indexes.length) return false;
+            const session = getPracticeCircleSession(text);
             indexes.forEach(index => {
-                markHiddenWord(text, index);
+                session.marks.push(index);
                 text.revealedWords.push(index);
             });
-            saveData();
             render();
             return true;
         }
@@ -13432,7 +13553,7 @@
         function getCircleUnmarkedLineWords(text) {
             const words = text.content.split(/(\s+)/);
             const line = getPracticeLineRange(text);
-            const hidden = new Set(text.hiddenWords);
+            const hidden = new Set(getPracticeCircleSession(text).marks);
             const result = [];
             for (let i = line.start; i <= line.end; i++) {
                 if (!hidden.has(i) && isCircleMarkableWord(words, i)) result.push(i);
@@ -13471,10 +13592,8 @@
             text.revealedWords = text.revealedWords.filter(index => !lineWords.has(index));
             text.halfRevealedWords = text.halfRevealedWords.filter(index => !lineWords.has(index));
             const lineIndex = getPracticeLineRange(text).index;
-            // Сначала счёт: getPracticeCircleCount может завести новую память
-            // (другой материал), и запись должна попасть уже в неё.
-            const count = getPracticeCircleCount(text, lineIndex);
-            practiceCircleCounts.byLine[lineIndex] = count + 1;
+            const session = getPracticeCircleSession(text);
+            session.counts[lineIndex] = (session.counts[lineIndex] || 0) + 1;
         }
 
         function getPracticeCirclePrimaryLabel(text, progress, lineIndex) {
@@ -13671,6 +13790,10 @@
         function toggleHardWord(index) {
             if (state.currentText === null || state.currentFolder === null) return false;
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+            // Сложное — свойство скрытого слова материала (при починке разметки
+            // сложные вне hiddenWords отбрасываются). В «Строке по кругу» до
+            // слова доходят только через отметки режима, так что сложным там
+            // становится отмеченное слово, которое скрыто и в «Выборе».
             if (!(text.hiddenWords || []).includes(index)) return false;
             const pos = text.hardWords.indexOf(index);
             if (pos === -1) text.hardWords.push(index);
@@ -13785,7 +13908,7 @@
             // Раньше это были includes и indexOf по массивам внутри цикла по словам,
             // то есть квадрат от длины текста: на 580 словах и 172 скрытых — десятки
             // тысяч сравнений на каждую перерисовку, а перерисовка идёт на каждое нажатие.
-            const hiddenSet = new Set(text.hiddenWords || []);
+            const hiddenSet = new Set(getPracticeHiddenWords(text));
             const revealedSet = new Set(text.revealedWords || []);
             const halfRevealedSet = new Set(text.halfRevealedWords || []);
             const pendingSet = new Set(state.pendingWords);
@@ -13991,7 +14114,7 @@
             // Ряд «Фокус… / Открыть слово» и угловая подсказка зависят от всего
             // текста, а не от строки: иначе на строке без скрытых слов панель
             // теряла бы ряд и меняла высоту.
-            const hasHiddenWords = isPracticeLayout && (text.hiddenWords || []).length > 0;
+            const hasHiddenWords = isPracticeLayout && getPracticeHiddenWords(text).length > 0;
             // Главная кнопка открывает сразу все скрытые слова — свериться с текстом
             // целиком. Поштучное раскрытие кнопкой убрано: слово открывают нажатием
             // на него. Когда открыто всё, та же кнопка прячет слова обратно.
@@ -16524,6 +16647,19 @@
             }
             
             const usedTiles = getGameUsedTiles(gs);
+            const tileKeys = getGameTileKeys(gs);
+            const resultWords = gs.selectedWords.length === 0 ?
+                '<span class="game-placeholder">Нажимайте на слова ниже...</span>' :
+                gs.selectedWords.map((w, i) =>
+                    `<span class="game-result-word" onclick="removeFromResult(${i})">${escapeHtml(w)}</span>`
+                ).join('');
+            // По строкам в строке результата — поле номеров (handleGameTypeKey). Число
+            // детей у .game-result держится постоянным (номер строки, обёртка слов,
+            // поле): иначе точечное обновление пересобрало бы его целиком, поле
+            // пересоздалось бы и потеряло фокус на каждом слове.
+            const resultContent = gs.byLines
+                ? `<span class="game-line-marker">${escapeHtml(gs.lineMarker)}</span><span class="game-result-words">${resultWords}</span><input class="game-type-input" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Номера слов по порядку" placeholder="${gs.selectedWords.length || gs.lineDone ? '' : 'Наберите номера слов по порядку…'}" onkeydown="handleGameTypeKey(event)" oninput="handleGameTypeInput(this)">`
+                : resultWords;
 
             return `
                 ${getTermNavHeader(text)}
@@ -16541,7 +16677,7 @@
                     </div>
                     
                     <div class="help-text">
-                        ${gs.byLines ? 'Соберите строку: нажимайте на её слова в правильном порядке. Строки идут по порядку.<span class="game-key-hint"> На клавиатуре — цифры 1–9 и 0, по номерам на словах.</span>' : 'Нажимайте на слова в правильном порядке, чтобы собрать текст.'}
+                        ${gs.byLines ? 'Соберите строку: нажимайте на её слова в правильном порядке. Строки идут по порядку.<span class="game-key-hint"> На клавиатуре наберите номера слов по порядку, Backspace убирает последнее слово; слова без номера — в конце строки, мышью.</span>' : 'Нажимайте на слова в правильном порядке, чтобы собрать текст.'}
                     </div>
 
                     <div class="game-nav-row">
@@ -16554,19 +16690,14 @@
                             <span>Ошибок: ${gs.errors}</span>
                         </div>
 
-                        <div class="game-result${gs.lineDone ? ' is-line-done' : ''}">
-                            ${gs.byLines ? `<span class="game-line-marker">${escapeHtml(gs.lineMarker)}</span>` : ''}${gs.selectedWords.length === 0 ?
-                                '<span class="game-placeholder">Нажимайте на слова ниже...</span>' :
-                                gs.selectedWords.map((w, i) =>
-                                    `<span class="game-result-word" onclick="removeFromResult(${i})">${escapeHtml(w)}</span>`
-                                ).join('')
-                            }
+                        <div class="game-result${gs.lineDone ? ' is-line-done' : ''}${gs.byLines ? ' has-type-input' : ''}">
+                            ${resultContent}
                         </div>
 
                         ${gs.lineDone ? `<button class="action-btn btn-save game-next-line-btn" onclick="nextGameLine()">Следующая строка ›</button>` : `<div class="scrambled-words${gs.byLines ? ' has-keys' : ''}">
                             ${gs.scrambledWords.map((item, i) => {
-                                // По строкам: у первых десяти плиток — цифра клавиши (selectGameTileByKey).
-                                const keyBadge = gs.byLines && i < 10 ? `<span class="game-key-badge" aria-hidden="true">${(i + 1) % 10}</span>` : '';
+                                // По строкам: у первых десяти слов строки — цифра клавиши (getGameTileKeys).
+                                const keyBadge = tileKeys[i] ? `<span class="game-key-badge" aria-hidden="true">${tileKeys[i]}</span>` : '';
 
                                 return `<span class="scrambled-word ${usedTiles.has(i) ? 'used' : ''}"
                                     onclick="selectWord(${i})"
@@ -17346,6 +17477,7 @@
             
             if (item.word === correctWord) {
                 gs.selectedWords.push(item.word);
+                if (gs.pickedTiles) gs.pickedTiles.push(scrambledIndex);
 
                 if (gs.selectedWords.length === gs.correctOrder.length) {
                     // По строкам: собрана последняя строка — весь текст собран.
@@ -17371,6 +17503,7 @@
             // Собранная строка уже верна — разбирать её незачем.
             if (gs.lineDone) return;
             gs.selectedWords = gs.selectedWords.slice(0, index);
+            if (gs.pickedTiles) gs.pickedTiles = gs.pickedTiles.slice(0, index);
             render();
         }
         
@@ -20603,7 +20736,7 @@
             }
         }
         
-        // Скрыть слово и снять скрытие — общие для «Выбора» и «Строки по кругу».
+        // Скрыть слово и снять скрытие в «Выборе» (нажатие и «Скрыть выбранные»).
         // Снятие убирает и вопрос к слову, а у слова из объединённой группы —
         // всю группу.
         function markHiddenWord(text, index) {
