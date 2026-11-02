@@ -2504,6 +2504,23 @@
             animation: shake 0.4s;
         }
 
+        /* «Собери текст по строкам»: номер строки перед собранными словами. */
+        .game-line-marker {
+            color: var(--text-secondary);
+            font-weight: 700;
+            margin-right: 2px;
+        }
+
+        .game-result.is-line-done {
+            border-style: solid;
+            border-color: var(--accent-correct-text);
+        }
+
+        .game-next-line-btn {
+            display: block;
+            width: 100%;
+        }
+
         .game-stats {
             display: flex;
             justify-content: space-between;
@@ -8748,6 +8765,10 @@
             folderQuizMode: false,
             matchingMode: false,
             matchingState: null,
+            // «Собери текст»: true — по одной строке («Собери текст по строкам»),
+            // false — весь текст сразу. Выбирается карточкой на экране материала
+            // и остаётся при переходе к соседнему материалу и кнопке «Игра».
+            gameByLines: false,
             gameState: {
                 scrambledWords: [],
                 selectedWords: [],
@@ -9297,6 +9318,10 @@
         
         function initGame() {
             const text = getCurrentFolder().texts[state.currentText];
+            if (state.gameByLines) {
+                startGameLine(text, 0, 0);
+                return;
+            }
             const words = text.content.split(/\s+/).filter(w => w.trim() !== '');
             
             state.gameState = {
@@ -9308,6 +9333,50 @@
             };
         }
         
+        // ——— «Собери текст по строкам» ———
+        // Длинный текст, перемешанный целиком, — это десятки плиток вперемешку,
+        // и искать среди них следующее слово труднее, чем вспоминать. Здесь
+        // перемешиваются слова одной строки, а строки идут по порядку. Строки и
+        // их номера — те же, что в «Номерах» (buildNumbersLines): свой маркер
+        // строки («1.», «2)», «а)», «—») или порядковый номер, знаки препинания
+        // приклеены к словам, так что запятая не становится отдельной плиткой.
+        // Строки без слов (один номер) пропускаются.
+        function getGameLines(text) {
+            return buildNumbersLines(text).filter(line => line.words.length);
+        }
+
+        function startGameLine(text, lineIndex, errors) {
+            const lines = getGameLines(text);
+            const line = lines[lineIndex] || { marker: '', words: [] };
+            state.gameState = {
+                byLines: true,
+                lineIndex: lineIndex,
+                lineCount: lines.length,
+                lineMarker: line.marker,
+                // Строка собрана: плитки сменяет кнопка «Следующая строка ›», чтобы
+                // собранную строку можно было прочитать целиком перед следующей.
+                lineDone: false,
+                correctOrder: line.words,
+                scrambledWords: shuffleArray(line.words.map((w, i) => ({ word: w, originalIndex: i }))),
+                selectedWords: [],
+                errors: errors,
+                completed: false
+            };
+        }
+
+        function openGameMode(index, byLines) {
+            state.gameByLines = byLines;
+            openTermInMode(index, 'game');
+        }
+
+        function nextGameLine() {
+            const gs = state.gameState;
+            if (!gs.byLines || !gs.lineDone) return false;
+            startGameLine(getCurrentFolder().texts[state.currentText], gs.lineIndex + 1, gs.errors);
+            render();
+            return true;
+        }
+
         function initQuiz() {
             const folder = getCurrentFolder();
             const terms = folder.texts;
@@ -12884,10 +12953,15 @@
                             <div class="chooser-card-title">Вопросы к термину</div>
                             <div class="chooser-card-desc">Лицевая — ваши вопросы к термину, оборотная — сам термин целиком</div>
                         </div>
-                        <div class="chooser-card chooser-card-accent" onclick="openTermInMode(state.currentText, 'game')">
+                        <div class="chooser-card chooser-card-accent" onclick="openGameMode(state.currentText, false)">
                             <div class="chooser-card-icon">🧩</div>
                             <div class="chooser-card-title">Собери текст по словам</div>
                             <div class="chooser-card-desc">Собрать текст из перемешанных слов</div>
+                        </div>
+                        <div class="chooser-card chooser-card-accent" onclick="openGameMode(state.currentText, true)">
+                            <div class="chooser-card-icon">🧩</div>
+                            <div class="chooser-card-title">Собери текст по строкам</div>
+                            <div class="chooser-card-desc">Слова перемешаны внутри одной строки, строки идут по порядку: «1.», потом «2.»</div>
                         </div>
                     </div>
 
@@ -16256,39 +16330,39 @@
                     </div>
                     
                     <div class="help-text">
-                        Нажимайте на слова в правильном порядке, чтобы собрать текст.
+                        ${gs.byLines ? 'Соберите строку: нажимайте на её слова в правильном порядке. Строки идут по порядку.' : 'Нажимайте на слова в правильном порядке, чтобы собрать текст.'}
                     </div>
-                    
+
                     <div class="game-nav-row">
                         ${getTermNavInline()}
                     </div>
-                    
+
                     <div class="game-area">
                         <div class="game-stats">
-                            <span>Собрано: ${gs.selectedWords.length}/${gs.correctOrder.length}</span>
+                            <span>${gs.byLines ? `Строка ${gs.lineIndex + 1}/${gs.lineCount}` : `Собрано: ${gs.selectedWords.length}/${gs.correctOrder.length}`}</span>
                             <span>Ошибок: ${gs.errors}</span>
                         </div>
-                        
-                        <div class="game-result">
-                            ${gs.selectedWords.length === 0 ? 
+
+                        <div class="game-result${gs.lineDone ? ' is-line-done' : ''}">
+                            ${gs.byLines ? `<span class="game-line-marker">${escapeHtml(gs.lineMarker)}</span>` : ''}${gs.selectedWords.length === 0 ?
                                 '<span class="game-placeholder">Нажимайте на слова ниже...</span>' :
-                                gs.selectedWords.map((w, i) => 
-                                    `<span class="game-result-word" onclick="removeFromResult(${i})">${w}</span>`
+                                gs.selectedWords.map((w, i) =>
+                                    `<span class="game-result-word" onclick="removeFromResult(${i})">${escapeHtml(w)}</span>`
                                 ).join('')
                             }
                         </div>
-                        
-                        <div class="scrambled-words">
+
+                        ${gs.lineDone ? `<button class="action-btn btn-save game-next-line-btn" onclick="nextGameLine()">Следующая строка ›</button>` : `<div class="scrambled-words">
                             ${gs.scrambledWords.map((item, i) => {
                                 const sameWordsBefore = seenCounts.get(item.word) || 0;
                                 seenCounts.set(item.word, sameWordsBefore + 1);
                                 const thisUsed = sameWordsBefore < (usedCounts.get(item.word) || 0);
-                                
-                                return `<span class="scrambled-word ${thisUsed ? 'used' : ''}" 
-                                    onclick="selectWord(${i})" 
-                                    id="word-${i}">${item.word}</span>`;
+
+                                return `<span class="scrambled-word ${thisUsed ? 'used' : ''}"
+                                    onclick="selectWord(${i})"
+                                    id="word-${i}">${escapeHtml(item.word)}</span>`;
                             }).join('')}
-                        </div>
+                        </div>`}
                     </div>
                     
                     <div class="action-buttons">
@@ -17062,9 +17136,11 @@
             
             if (item.word === correctWord) {
                 gs.selectedWords.push(item.word);
-                
+
                 if (gs.selectedWords.length === gs.correctOrder.length) {
-                    gs.completed = true;
+                    // По строкам: собрана последняя строка — весь текст собран.
+                    if (gs.byLines && gs.lineIndex < gs.lineCount - 1) gs.lineDone = true;
+                    else gs.completed = true;
                 }
                 render();
             } else {
@@ -17082,6 +17158,8 @@
         
         function removeFromResult(index) {
             const gs = state.gameState;
+            // Собранная строка уже верна — разбирать её незачем.
+            if (gs.lineDone) return;
             gs.selectedWords = gs.selectedWords.slice(0, index);
             render();
         }
@@ -21143,6 +21221,14 @@
             if (state.view === 'type' && e.key === 'ArrowDown' && !e.repeat) {
                 e.preventDefault();
                 toggleTypeFocusLine();
+                return;
+            }
+            // «Собери текст по строкам»: Return — следующая строка, когда текущая
+            // собрана (то же, что кнопка «Следующая строка ›» на месте плиток).
+            if (state.view === 'practice' && state.mode === 'game' && e.key === 'Enter' &&
+                state.gameState.lineDone && !document.querySelector('.modal.show')) {
+                e.preventDefault();
+                if (!e.repeat) nextGameLine();
                 return;
             }
             if (state.view === 'practice' && state.mode === 'practice') {

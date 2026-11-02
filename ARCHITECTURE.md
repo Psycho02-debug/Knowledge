@@ -4,7 +4,7 @@
 
 Номера строк ниже приблизительные: файл правится постоянно, и они сдвигаются. Ищите по имени — `grep -n "function имя(" index.html`. Свежую карту всех функций с номерами строк даёт команда из раздела [«Как быстро сориентироваться»](#как-быстро-сориентироваться).
 
-Сверено с кодом 2026-11-02: версия кэша `zapominalka-v146`, `index.html` — около 21 000 строк, 1 МБ (по сети — около 195 КБ: GitHub Pages отдаёт его сжатым gzip).
+Сверено с кодом 2026-11-02: версия кэша `zapominalka-v147`, `index.html` — около 21 000 строк, 1 МБ (по сети — около 195 КБ: GitHub Pages отдаёт его сжатым gzip).
 
 ---
 
@@ -180,6 +180,7 @@
 | `lineCardFlipped`, `lineCardCueMode` (`letter` или `word`), `termCardFlipped`, `questionsCardFlipped` | Стороны карточек |
 | `termCardFullscreen`, `termCardSizeControlOpen` | «Карточка» во весь экран и открыт ли ползунок «Aa». Полноэкранный сбрасывают `setMode`, `openTermInMode`, `goBackToChooser` (`resetTermCardFullscreen`); переход к соседнему материалу его сохраняет |
 | `gameState`, `quizState` | «Собери текст» и тест по материалу |
+| `gameByLines` | «Собери текст по строкам» (`true`) или по словам; выбирается карточкой экрана материала (`openGameMode`) и сохраняется при кнопке «Игра» и переходе между материалами |
 | `folderQuizMode`, `matchingMode`, `matchingState` | Игры по папке. Пока флаг поднят, `renderTextsView` рисует игру вместо списка |
 | `editingText`, `editingTermIndex`, `editingTermSubfolder`, `editingQuestionIndex` | Что именно правит открытое окно |
 | `pendingDescriptionImport`, `pendingFolderImport` | Разобранный перенос, ждущий сохранения окна |
@@ -535,7 +536,7 @@ render()
 12. Внутри материала: `E` — правка. Папка флеш-карточек (`card_folder`, есть карточки, окон нет): `E`/`У` — `swapFlashcardSides`, без автоповтора (`e.repeat` игнорируется, иначе удержание меняло бы стороны туда-обратно).
 13. `]` или `` ` `` — создать (на списках) или править (внутри материала).
 14. Тест (материала или папки): `↑` `↓` `Enter`.
-15. «Вписать»: `↓` — фокус на строке.
+15. «Вписать»: `↓` — фокус на строке. «Собери текст по строкам», строка собрана (`gameState.lineDone`), окон нет: `Enter` — `nextGameLine()`.
 16. Практика: `Delete`/`Backspace` — выключить фокус, `↓` — фокус дальше, `Shift` — ещё букву, `↑` — открыть или скрыть все, `Enter` — `revealNextHiddenWordInOrder()` (без фокуса — первое по тексту неоткрытое скрытое слово из `getUnrevealedFocusTargets`; с фокусом — все неоткрытые скрытые до конца связки под фокусом через `markHiddenWordsRevealed` одной отрисовкой, затем `advancePracticeFocus`, если под фокусом было скрытое слово; если до фокуса нечего — следующее после фокуса, и фокус за него; группа в «?» — один шаг; `preventDefault` и на автоповторе, иначе браузер нажал бы кнопку под фокусом; в режиме «По строкам», когда открывать нечего, — `stepPracticeLine(1)`), `M` — сложное слово.
 17. Экран папки флеш-карточек (`card_folder`): `1` — `startFlashcardStudy(false)`, как кнопка «Изучать»; в пустой папке молчит, как неактивная кнопка.
 18. Флеш-карточки, режим `flashcards`, занятие не завершено, окон нет: `S` — `toggleCurrentFlashcardAttention`, `R`/`К` — `restartFlashcardFromStart`, `E`/`У` — `showEditFlashcardModal(order[current])`, `Пробел` и `↓` — `flipFlashcard`, `→` и `Enter` — `stepFlashcard(1)`, `←` — `stepFlashcard(-1)`. `preventDefault` обязателен: после клика фокус стоит на карточке-кнопке, и браузер сам «нажал» бы её, — действие сработало бы дважды. После завершения клавиши молчат, иначе лишнее «Дальше» записало бы занятие в статистику повторно.
@@ -606,7 +607,7 @@ Enter / «Проверить» → checkTypeWord()
 
 ### Тексты: остальные режимы
 
-- `game` — `initGame()` перемешивает слова в `gameState.scrambledWords`; `selectWord`, `removeFromResult`, `restartGame`.
+- `game` — `initGame()` перемешивает слова в `gameState.scrambledWords`; `selectWord`, `removeFromResult`, `restartGame`. При `state.gameByLines` (карточка «Собери текст по строкам», `openGameMode(index, true)`) `initGame` зовёт `startGameLine(text, 0, 0)`: строки — `getGameLines` = `buildNumbersLines` без строк из одного номера, в `gameState` добавляются `byLines`, `lineIndex`, `lineCount`, `lineMarker`, `lineDone`, а `correctOrder` и плитки — слова одной строки. Собранная строка (кроме последней) ставит `lineDone`: плитки сменяет кнопка «Следующая строка ›» (`nextGameLine`, и `Enter`), собранные слова больше не снимаются; `errors` переносится между строками. Последняя строка ставит `completed`, как обычная игра. Слова в разметке игры идут через `escapeHtml`.
 - `quiz` — `initQuiz()` берёт описания до трёх других материалов той же папки как неверные варианты (нужно минимум два материала); `selectQuizOption`, `restartQuiz`.
 - `linecards` — `buildLineCards()` по строкам (`getTextManualLines`), подсказка — первая буква или первое слово (`lineCardCueMode`).
 - `numbers` — `buildNumbersLines()`: строки из `getTextManualLines(formatContentForReading(content))`, маркер строки (`NUMBERS_MARKER_RE`: «1.», «2)», «а)», «—», «•») или порядковый «N.», слова строки с приклеенными к ним знаками препинания (кроме тире: отдельно стоящее «—», «–», «-» идёт со следующим словом — «— ом», а не «сопротивления— ом»). Состояние — одно число открытых слов `numbersRevealCount` вне `state`, привязанное к материалу ключом `numbersRevealKey` (папка, подпапка, индекс, длина текста): сменился материал — счёт с нуля. `numbersHint` — +1 слово, `numbersShowLine` — до конца строки со следующим закрытым словом, при всём открытом — сброс. Стрелки на экране — `navigateToTerm(±1)`. Кнопка «Номера» стоит во всех панелях режимов рядом со «Строками»; у самой практики панели нет.
