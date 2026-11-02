@@ -1220,6 +1220,27 @@
             font-size: 13px;
         }
 
+        /* «По строкам»: на месте «Фокуса» у открытой строки встаёт «↺ Скрыть все
+           слова». Обе подписи всегда лежат в кнопке друг на друге, видна одна:
+           высота кнопки — по длинной, и смена подписи не меняет высоту дока
+           (на ширине 375 «Фокус на следующем слове» — две строки, «Скрыть» — одна). */
+        .practice-swap-labels {
+            display: grid;
+            align-items: center;
+            min-width: 0;
+        }
+
+        .practice-swap-label {
+            grid-area: 1 / 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .practice-swap-label.is-off {
+            visibility: hidden;
+        }
+
         .practice-assist-row .practice-hint-btn {
             flex: 0 0 auto;
             padding: 16px 18px;
@@ -13179,6 +13200,22 @@
             return true;
         }
 
+        // ↑ и кнопка «↺ Скрыть все слова» (она встаёт на место «Фокуса», когда
+        // строка открыта): закрытую строку открыть, открытую — спрятать обратно,
+        // чтобы пройти её ещё раз. Дальше по строкам ведут главная кнопка,
+        // Return и →. В строке без скрытых слов прятать нечего — ↑ ведёт дальше,
+        // как главная кнопка.
+        function togglePracticeLineReveal() {
+            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+            const progress = getPracticeProgress(text);
+            if (!progress.allRevealed) return practiceLinesPrimaryAction();
+            const lineWords = new Set(getRenderableHiddenIndices(text));
+            text.revealedWords = text.revealedWords.filter(index => !lineWords.has(index));
+            text.halfRevealedWords = text.halfRevealedWords.filter(index => !lineWords.has(index));
+            render();
+            return true;
+        }
+
         function getPracticeLinesPrimaryLabel(progress, line, nav) {
             if (progress.total > 0 && !progress.allRevealed) return 'Показать строку';
             if (line.index < line.count - 1) return 'Следующая строка ›';
@@ -13686,8 +13723,9 @@
             // Главная кнопка открывает сразу все скрытые слова — свериться с текстом
             // целиком. Поштучное раскрытие кнопкой убрано: слово открывают нажатием
             // на него. Когда открыто всё, та же кнопка прячет слова обратно.
-            // «По строкам» — строку, а потом ведёт дальше (practiceLinesPrimaryAction).
-            const primaryAction = line ? 'toggleAllWordsReveal()'
+            // «По строкам» — строку, а потом ведёт дальше (practiceLinesPrimaryAction);
+            // спрятать открытую строку — ↑ и кнопка на месте «Фокуса».
+            const primaryAction = line ? 'practiceLinesPrimaryAction()'
                 : (!progress || progress.total === 0 ? '' : 'toggleAllWordsReveal()');
             // Кнопка нужна, только пока в тексте осталось что вспоминать: когда всё
             // открыто, фокус выключен (см. выше) и включить его нельзя. Включённый
@@ -13707,6 +13745,15 @@
             // «Открыть слово» — то же, что Return: следующее скрытое слово строго
             // по порядку текста. Нужна, пока есть что открывать.
             const canOpenNext = isPracticeLayout && unrevealedCount > 0;
+            // «По строкам», строка открыта целиком: фокусу делать нечего, и его
+            // место занимает «↺ Скрыть все слова» — пройти строку ещё раз. Главная
+            // кнопка в это время ведёт к следующей строке.
+            const canHideLine = Boolean(line && progress && progress.allRevealed);
+            // В «По строкам» кнопка всегда несёт обе подписи (см. .practice-swap-labels),
+            // чтобы смена подписи не меняла высоту дока.
+            const focusSlotButton = line
+                ? `<button class="practice-skip-btn" onclick="${canHideLine ? 'togglePracticeLineReveal()' : 'focusNextPracticeWord()'}" ${canHideLine || canFocusNext ? '' : 'disabled'} title="${canHideLine ? 'Снова спрятать слова строки (↑)' : 'Перевести фокус на следующее слово, не открывая текущее'}"><span class="practice-swap-labels"><span class="practice-swap-label${canHideLine ? ' is-off' : ''}">Фокус на следующем слове</span><span class="practice-swap-label${canHideLine ? '' : ' is-off'}">↺ Скрыть все слова</span></span></button>`
+                : `<button class="practice-skip-btn" onclick="focusNextPracticeWord()" ${canFocusNext ? '' : 'disabled'} title="Перевести фокус на следующее слово, не открывая текущее">Фокус на следующем слове</button>`;
             // «Подсказка» стоит в правом верхнем углу карточки с текстом. Рисуем её
             // всегда, когда в тексте есть скрытые слова, и гасим, когда подсказывать
             // нечего: появление и исчезновение узла меняло бы число детей карточки,
@@ -13782,7 +13829,7 @@
                                 <!-- Ряд не исчезает, когда кнопки не нужны, — кнопки гаснут: иначе
                                      панель меняла высоту, страница укорачивалась и экран прыгал. -->
                                 <div class="practice-assist-row">
-                                    <button class="practice-skip-btn" onclick="focusNextPracticeWord()" ${canFocusNext ? '' : 'disabled'} title="Перевести фокус на следующее слово, не открывая текущее">Фокус на следующем слове</button>
+                                    ${focusSlotButton}
                                     <button class="practice-skip-btn practice-hint-btn" onclick="revealNextHiddenWordInOrder()" ${canOpenNext ? '' : 'disabled'} title="Открыть следующее скрытое слово по порядку; с фокусом — все скрытые слова до слова под фокусом (Return)">Открыть слово</button>
                                 </div>
                             ` : ''}
@@ -20741,7 +20788,7 @@
         }
         
         function toggleAllWordsReveal() {
-            if (isPracticeLinesMode()) return practiceLinesPrimaryAction();
+            if (isPracticeLinesMode()) return togglePracticeLineReveal();
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             if (!text.hiddenWords || !text.hiddenWords.length) return false;
             const allRevealed = text.hiddenWords.every(i => text.revealedWords.includes(i));
