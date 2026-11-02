@@ -13082,7 +13082,8 @@
             return state.view === 'practice' &&
                 state.mode === 'practice' &&
                 (state.practiceMode === 'default' || state.practiceMode === 'firstletter' ||
-                 state.practiceMode === 'hints' || state.practiceMode === 'lines');
+                 state.practiceMode === 'hints' || state.practiceMode === 'lines' ||
+                 state.practiceMode === 'circle');
         }
 
         // Фокус выключен, пока пользователь сам не включит его кнопкой
@@ -13413,8 +13414,8 @@
             render();
         }
 
-        // «Отметить все»: все слова строки, которые можно отметить. Тоже видны
-        // до следующего круга.
+        // «Отметить все» (клавиша «/», кнопки нет): все слова строки, которые
+        // можно отметить. Тоже видны до следующего круга.
         function markAllCircleLineWords() {
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             const indexes = getCircleUnmarkedLineWords(text);
@@ -13440,18 +13441,14 @@
         }
 
         // Главная кнопка, пробел и Return: есть закрытое слово — открыть
-        // следующее по порядку; всё открыто — спрятать отмеченные снова, это
-        // новый круг.
+        // следующее по порядку (с фокусом — как Return в других режимах: всё до
+        // слова под фокусом, и фокус дальше); всё открыто — спрятать отмеченные
+        // снова, это новый круг.
         function practiceCircleStep() {
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             const marked = getRenderableHiddenIndices(text);
             if (!marked.length) return false;
-            const revealedSet = new Set(text.revealedWords);
-            const next = marked.find(index => !revealedSet.has(index));
-            if (next !== undefined) {
-                revealWord(next);
-                return true;
-            }
+            if (revealNextHiddenWordInOrder()) return true;
             hidePracticeCircleLine(text, marked);
             render();
             return true;
@@ -13960,7 +13957,7 @@
                     // слово снова незачем, это сделает следующий круг.
                     practiceParts.push(`<span class="word revealed${isPracticeFocusWord ? ' practice-focus-active' : ''}${hardSet.has(i) ? ' hard-word' : ''}" data-widx="${i}" onclick="${isCircle ? 'toggleCircleMark' : 'hideWordAgain'}(${i})">${escapeHtml(word)}</span>`);
                 } else if (isCircle && isCircleMarkableWord(words, i)) {
-                    practiceParts.push(`<span class="word circle-markable" onclick="toggleCircleMark(${i})">${escapeHtml(word)}</span>`);
+                    practiceParts.push(`<span class="word circle-markable${isPracticeFocusActive && practiceFocusSpan.has(i) ? ' practice-focus-active' : ''}" onclick="toggleCircleMark(${i})">${escapeHtml(word)}</span>`);
                 } else if (isPracticeFocusActive && practiceFocusSpan.has(i)) {
                     practiceParts.push(`<span class="word practice-focus-active">${escapeHtml(word)}</span>`);
                 } else {
@@ -14025,11 +14022,12 @@
             // место занимает «↺ Скрыть все слова» — пройти строку ещё раз. Главная
             // кнопка в это время ведёт к следующей строке.
             const canHideLine = Boolean(line && progress && progress.allRevealed);
+            const focusButton = `<button class="practice-skip-btn" onclick="focusNextPracticeWord()" ${canFocusNext ? '' : 'disabled'} title="Перевести фокус на следующее слово, не открывая текущее">Фокус на следующем слове</button>`;
             // В «По строкам» кнопка всегда несёт обе подписи (см. .practice-swap-labels),
             // чтобы смена подписи не меняла высоту дока.
             const focusSlotButton = line
                 ? `<button class="practice-skip-btn" onclick="${canHideLine ? 'togglePracticeLineReveal()' : 'focusNextPracticeWord()'}" ${canHideLine || canFocusNext ? '' : 'disabled'} title="${canHideLine ? 'Снова спрятать слова строки (↑)' : 'Перевести фокус на следующее слово, не открывая текущее'}"><span class="practice-swap-labels"><span class="practice-swap-label${canHideLine ? ' is-off' : ''}">Фокус на следующем слове</span><span class="practice-swap-label${canHideLine ? '' : ' is-off'}">↺ Скрыть все слова</span></span></button>`
-                : `<button class="practice-skip-btn" onclick="focusNextPracticeWord()" ${canFocusNext ? '' : 'disabled'} title="Перевести фокус на следующее слово, не открывая текущее">Фокус на следующем слове</button>`;
+                : focusButton;
             // «Подсказка» стоит в правом верхнем углу карточки с текстом. Рисуем её
             // всегда, когда в тексте есть скрытые слова, и гасим, когда подсказывать
             // нечего: появление и исчезновение узла меняло бы число детей карточки,
@@ -14037,12 +14035,12 @@
             //
             // «Строка по кругу»: отметки ставят прямо здесь, и первое отмеченное
             // слово не должно добавлять ни ряд кнопок, ни подсказку — их рисуем
-            // всегда. Ряд в этом режиме свой: «Отметить все» и «Следующая строка ›»
-            // (главная кнопка ведёт круг).
+            // всегда. Ряд в этом режиме свой: фокус и «Следующая строка ›» (главная
+            // кнопка ведёт круг, «Отметить все слова» — клавиша «/», без кнопки).
             const showCornerHint = hasHiddenWords || isCircle;
             const showAssistRow = hasHiddenWords || isCircle;
             const assistButtons = isCircle
-                ? `<button class="practice-skip-btn" onclick="markAllCircleLineWords()" ${getCircleUnmarkedLineWords(text).length ? '' : 'disabled'} title="Отметить для скрытия все слова строки">Отметить все слова</button>`
+                ? focusButton
                     + `<button class="practice-skip-btn practice-hint-btn" onclick="stepPracticeLine(1)" ${line.index < line.count - 1 || nav.hasNext ? '' : 'disabled'} title="Следующая строка (→)">Следующая строка ›</button>`
                 : '';
             const circleCount = isCircle ? getPracticeCircleCount(text, line.index) : 0;
@@ -21482,11 +21480,20 @@
                 // следующее слово, а когда всё открыто — новый круг). preventDefault
                 // и на автоповторе: иначе пробел прокрутил бы страницу, а Return
                 // «нажал» бы кнопку, на которой остался фокус после клика.
-                if (isPracticeCircleMode() && (e.key === ' ' || e.key === 'Enter') &&
-                    !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && !document.querySelector('.modal.show')) {
-                    e.preventDefault();
-                    if (!e.repeat) practiceCircleStep();
-                    return;
+                if (isPracticeCircleMode() && !e.metaKey && !e.ctrlKey && !e.altKey && !document.querySelector('.modal.show')) {
+                    if ((e.key === ' ' || e.key === 'Enter') && !e.shiftKey) {
+                        e.preventDefault();
+                        if (!e.repeat) practiceCircleStep();
+                        return;
+                    }
+                    // «/» — отметить все слова строки, как «/» в «Выборе». Кнопки
+                    // для этого нет. В русской раскладке на той же клавише «.»,
+                    // поэтому сверяемся и с e.code.
+                    if (isSelectAllWordsHotkey || e.code === 'Slash') {
+                        e.preventDefault();
+                        if (!e.repeat) markAllCircleLineWords();
+                        return;
+                    }
                 }
                 if ((e.key === 'Delete' || e.key === 'Backspace') && !e.repeat && isPracticeFocusModeEnabled() && state.practiceFocusEnabled) {
                     e.preventDefault();
