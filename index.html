@@ -13348,73 +13348,6 @@
             return true;
         }
 
-        // Шаг назад — на связку перед текущей: скрытое слово само по себе,
-        // обычные слова — с начала их связки, то есть сразу за предыдущим
-        // скрытым словом (или с начала текста, строки). С первого шага — на
-        // последний, как вперёд с последнего на первый.
-        function retreatPracticeFocus(text) {
-            const targets = getPracticeFocusTargets(text);
-            if (!targets.length) return;
-            const hidden = new Set(getPracticeHiddenWords(text));
-            const pos = targets.indexOf(state.practiceFocusWordIndex);
-            let i = (pos > 0 ? pos : targets.length) - 1;
-            if (!hidden.has(targets[i])) {
-                while (i > 0 && !hidden.has(targets[i - 1])) i--;
-            }
-            state.practiceFocusWordIndex = targets[i];
-        }
-
-        // «б» и «,» на компьютере: фокус на шаг влево, ничего не открывая
-        // (вправо — «ю» и «.», это focusNextPracticeWord, как ↓). Выключенный
-        // фокус первое нажатие включает на первом слове, тоже как ↓.
-        function focusPrevPracticeWord() {
-            if (!state.practiceFocusEnabled) return focusNextPracticeWord();
-            if (!isPracticeFocusModeEnabled()) return false;
-            if (state.currentText === null || state.currentFolder === null) return false;
-            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
-            const before = state.practiceFocusWordIndex;
-            retreatPracticeFocus(text);
-            if (state.practiceFocusWordIndex === before) return false;
-            render();
-            scrollToFocusedWord();
-            return true;
-        }
-
-        // Return при включённом фокусе. Скрытое слово под фокусом закрыто —
-        // открыть, открыто — спрятать обратно; фокус остаётся на нём, к соседям
-        // его ведут «б» и «ю». Под фокусом обычные слова — открыть ближайшее
-        // закрытое скрытое слово после них (за концом — первое) и встать на него:
-        // следующий Return его же и спрячет. Только клавиша: кнопка «Открыть
-        // слово» и пробел в «Строке по кругу» открывают всё до фокуса и ведут
-        // дальше, как раньше. Открыли последнее закрытое слово — фокус гаснет,
-        // как всегда, когда вспоминать больше нечего.
-        function togglePracticeFocusedWord() {
-            if (!isPracticeFocusModeEnabled() || !state.practiceFocusEnabled) return false;
-            if (state.currentText === null || state.currentFolder === null) return false;
-            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
-            const hiddenIndex = getPracticeFocusSpanHiddenIndex(text, state.practiceFocusWordIndex);
-            if (hiddenIndex !== null) {
-                if (isFocusTargetFullyRevealed(text, hiddenIndex)) {
-                    hideWordAgain(hiddenIndex);
-                } else {
-                    markHiddenWordsRevealed(text, [hiddenIndex]);
-                    render();
-                }
-                return true;
-            }
-            const unrevealed = getUnrevealedFocusTargets(text);
-            if (!unrevealed.length) return false;
-            const span = getPracticeFocusSpan(text, state.practiceFocusWordIndex);
-            const from = span.length ? span[span.length - 1] : state.practiceFocusWordIndex;
-            const after = unrevealed.find(index => index > from);
-            const next = after !== undefined ? after : unrevealed[0];
-            markHiddenWordsRevealed(text, [next]);
-            state.practiceFocusWordIndex = next;
-            render();
-            scrollToFocusedWord();
-            return true;
-        }
-
         // ——— Режим «По строкам» ———
         // Тот же экран скрытых слов (state.practiceMode 'lines', слова — пустые
         // плашки, как в «Полностью скрытых»), но на экране одна строка материала.
@@ -14212,11 +14145,11 @@
             // место занимает «↺ Скрыть все слова» — пройти строку ещё раз. Главная
             // кнопка в это время ведёт к следующей строке.
             const canHideLine = Boolean(line && progress && progress.allRevealed);
-            const focusButton = `<button class="practice-skip-btn" onclick="focusNextPracticeWord()" ${canFocusNext ? '' : 'disabled'} title="Перевести фокус на следующее слово, не открывая текущее (↓ или ю; назад — б)">Фокус на следующем слове</button>`;
+            const focusButton = `<button class="practice-skip-btn" onclick="focusNextPracticeWord()" ${canFocusNext ? '' : 'disabled'} title="Перевести фокус на следующее слово, не открывая текущее">Фокус на следующем слове</button>`;
             // В «По строкам» кнопка всегда несёт обе подписи (см. .practice-swap-labels),
             // чтобы смена подписи не меняла высоту дока.
             const focusSlotButton = line
-                ? `<button class="practice-skip-btn" onclick="${canHideLine ? 'togglePracticeLineReveal()' : 'focusNextPracticeWord()'}" ${canHideLine || canFocusNext ? '' : 'disabled'} title="${canHideLine ? 'Снова спрятать слова строки (↑)' : 'Перевести фокус на следующее слово, не открывая текущее (↓ или ю; назад — б)'}"><span class="practice-swap-labels"><span class="practice-swap-label${canHideLine ? ' is-off' : ''}">Фокус на следующем слове</span><span class="practice-swap-label${canHideLine ? '' : ' is-off'}">↺ Скрыть все слова</span></span></button>`
+                ? `<button class="practice-skip-btn" onclick="${canHideLine ? 'togglePracticeLineReveal()' : 'focusNextPracticeWord()'}" ${canHideLine || canFocusNext ? '' : 'disabled'} title="${canHideLine ? 'Снова спрятать слова строки (↑)' : 'Перевести фокус на следующее слово, не открывая текущее'}"><span class="practice-swap-labels"><span class="practice-swap-label${canHideLine ? ' is-off' : ''}">Фокус на следующем слове</span><span class="practice-swap-label${canHideLine ? '' : ' is-off'}">↺ Скрыть все слова</span></span></button>`
                 : focusButton;
             // «Подсказка» стоит в правом верхнем углу карточки с текстом. Рисуем её
             // всегда, когда в тексте есть скрытые слова, и гасим, когда подсказывать
@@ -14311,7 +14244,7 @@
                                      панель меняла высоту, страница укорачивалась и экран прыгал. -->
                                 <div class="practice-assist-row">
                                     ${isCircle ? assistButtons : `${focusSlotButton}
-                                    <button class="practice-skip-btn practice-hint-btn" onclick="revealNextHiddenWordInOrder()" ${canOpenNext ? '' : 'disabled'} title="Открыть следующее скрытое слово по порядку; с фокусом — все скрытые слова до слова под фокусом (Return — без фокуса; с фокусом Return открывает и прячет слово под ним)">Открыть слово</button>`}
+                                    <button class="practice-skip-btn practice-hint-btn" onclick="revealNextHiddenWordInOrder()" ${canOpenNext ? '' : 'disabled'} title="Открыть следующее скрытое слово по порядку; с фокусом — все скрытые слова до слова под фокусом (Return)">Открыть слово</button>`}
                                 </div>
                             ` : ''}
                             <button class="practice-primary-btn" ${primaryAction ? `onclick="${primaryAction}"` : 'disabled'}>${primaryLabel}</button>
@@ -21681,11 +21614,9 @@
                 // и на автоповторе: иначе пробел прокрутил бы страницу, а Return
                 // «нажал» бы кнопку, на которой остался фокус после клика.
                 if (isPracticeCircleMode() && !e.metaKey && !e.ctrlKey && !e.altKey && !document.querySelector('.modal.show')) {
-                    // Return при фокусе — как везде: открыть или спрятать слово
-                    // под фокусом. Пробел — всегда главная кнопка.
                     if ((e.key === ' ' || e.key === 'Enter') && !e.shiftKey) {
                         e.preventDefault();
-                        if (!e.repeat && !(e.key === 'Enter' && togglePracticeFocusedWord())) practiceCircleStep();
+                        if (!e.repeat) practiceCircleStep();
                         return;
                     }
                     // «/» — отметить все слова строки, как «/» в «Выборе». Кнопки
@@ -21707,19 +21638,6 @@
                     e.preventDefault();
                     if (focusNextPracticeWord()) return;
                 }
-                // «б» / «,» — фокус влево, «ю» / «.» — вправо: одни и те же клавиши
-                // в обеих раскладках. Удержание ведёт дальше, как стрелки в тексте.
-                // В «Строке по кругу» русская «.» на клавише «/» (e.code 'Slash')
-                // сюда не доходит — это «отметить все», ветка выше.
-                const isFocusPrevHotkey = e.key === ',' || e.key === '<' || e.key === 'б' || e.key === 'Б';
-                const isFocusNextHotkey = e.key === '.' || e.key === '>' || e.key === 'ю' || e.key === 'Ю';
-                if ((isFocusPrevHotkey || isFocusNextHotkey) && isPracticeFocusModeEnabled() &&
-                    !e.metaKey && !e.ctrlKey && !e.altKey && !document.querySelector('.modal.show')) {
-                    e.preventDefault();
-                    if (isFocusPrevHotkey) focusPrevPracticeWord();
-                    else focusNextPracticeWord();
-                    return;
-                }
                 // Shift — это кнопка «Подсказка» («Ещё букву»): по одной букве за
                 // нажатие, у того же слова, к которому относится кнопка. Раньше Shift
                 // повторял «Открыть следующее слово», а подсказка оставалась без
@@ -21737,8 +21655,7 @@
                     toggleAllWordsReveal();
                     return;
                 }
-                // Return — с фокусом открыть или спрятать слово под ним, без фокуса —
-                // открыть следующее скрытое слово строго по порядку.
+                // Return — открыть следующее скрытое слово строго по порядку.
                 // preventDefault и на автоповторе: после клика фокус стоит на кнопке
                 // («Показать все скрытые слова», «Фокус…»), и браузер сам «нажал»
                 // бы её. Само открытие — только на отдельное нажатие.
@@ -21746,8 +21663,7 @@
                 if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey &&
                     !document.querySelector('.modal.show')) {
                     e.preventDefault();
-                    if (e.repeat || togglePracticeFocusedWord()) return;
-                    if (!revealNextHiddenWordInOrder() && isPracticeLinesMode()) stepPracticeLine(1);
+                    if (!e.repeat && !revealNextHiddenWordInOrder() && isPracticeLinesMode()) stepPracticeLine(1);
                     return;
                 }
                 // «М» отмечает подсвеченное слово сложным — то же, что долгое
