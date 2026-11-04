@@ -903,6 +903,17 @@
             padding-top: 52px;
         }
 
+        /* «Строка по кругу»: в углу три кнопки — «Выделить слова», «Убрать
+           выделение» и «Подсказка». На узком экране в один ряд они не встают,
+           и «Подсказка» уходит во второй, поэтому сверху отступ на два ряда.
+           Отступ зависит только от ширины экрана, а не от подписей: текст на
+           карточке не сдвигается, когда «Выделить слова» становится «Готово». */
+        @media (max-width: 560px) {
+            .practice-shell .text-display-row.has-corner-tools .text-display {
+                padding-top: 92px;
+            }
+        }
+
         /* Положение текста закреплено при входе в материал (syncPracticeTextAnchor):
            отступ сверху — тот, что дал центр, а прибавка от открытых слов растёт
            только вниз. Правило идёт после .has-corner-hint и сильнее его. */
@@ -935,6 +946,57 @@
         }
 
         .practice-corner-hint-btn[disabled] {
+            opacity: 0.4;
+            cursor: default;
+        }
+
+        .practice-corner-tools {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 6px;
+            pointer-events: none;
+        }
+
+        .practice-corner-tools .practice-corner-hint-btn {
+            position: static;
+            pointer-events: auto;
+            white-space: nowrap;
+        }
+
+        /* Идёт выбор слов: кнопка «Готово» горит, как нажатая. */
+        .practice-corner-hint-btn.is-active {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+        }
+
+        /* Обе подписи лежат в кнопке друг на друге, видна одна: ширина кнопки —
+           по длинной, и «Подсказка» не перескакивает из ряда в ряд. */
+        .corner-swap-labels {
+            display: inline-grid;
+        }
+
+        .corner-swap-labels > span {
+            grid-area: 1 / 1;
+        }
+
+        .corner-swap-labels > .is-off {
+            visibility: hidden;
+        }
+
+        /* Выделенное слово круга — пунктирная обводка: её видно и на закрытой
+           плашке, и на открытом слове, и рядом с кольцом фокуса (оно — тень). */
+        .word.circle-picked {
+            outline: 2px dashed var(--text-primary);
+            outline-offset: 2px;
+        }
+
+        /* Скрытое слово вне выделения: в круг не входит и не открывается. */
+        .word.hidden-word.circle-unpicked {
             opacity: 0.4;
             cursor: default;
         }
@@ -8017,6 +8079,9 @@
             // «Строка по кругу»: всё, что идёт по скрытым словам (подсказка,
             // Return, «М»), видит только строку на экране.
             if (isPracticeCircleMode()) {
+                // Выделены слова (кнопка «Выделить слова») — круг идёт только по ним.
+                const picked = getCirclePickedLineWords(text);
+                if (picked.length) return picked;
                 const line = getPracticeLineRange(text);
                 return hiddenSorted.filter(index => index >= line.start && index <= line.end);
             }
@@ -13228,6 +13293,11 @@
             // «Строка по кругу» — фокус ходит по строке на экране и после её конца
             // возвращается к её началу.
             const line = isPracticeCircleMode() ? getPracticeLineRange(text) : null;
+            // Выделены слова — фокус ходит только по ним, по одному.
+            if (line) {
+                const picked = getCirclePickedLineWords(text);
+                if (picked.length) return picked;
+            }
             const end = line ? line.end + 1 : words.length;
             for (let i = line ? line.start : 0; i < end; i++) {
                 const token = words[i];
@@ -13302,6 +13372,7 @@
             if (!isPracticeFocusModeEnabled()) return false;
             if (state.currentText === null || state.currentFolder === null) return false;
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+            if (isCirclePicking(text)) return false;
             if (!getUnrevealedFocusTargets(text).length) return false;
             const targets = getPracticeFocusTargets(text);
             if (!targets.length) return false;
@@ -13376,6 +13447,7 @@
             const line = getPracticeLineRange(text);
             const next = line.index + direction;
             if (next >= 0 && next < line.count) {
+                endCirclePicking(text);
                 hidePracticeCircleLineOnLeave(text);
                 state.practiceLineIndex = next;
                 // Включённый фокус встаёт на начало новой строки (renderPracticeView
@@ -13403,10 +13475,15 @@
             return state.view === 'practice' && state.mode === 'practice' && state.practiceMode === 'circle';
         }
 
-        // Счёт кругов по строкам. Состояние экрана, как открытые слова: на диск
-        // не пишется и обнуляется при входе в материал (ключ — какой материал
-        // открыт; длина текста — чтобы после правки текста счёт начался заново).
-        let practiceCircleSession = { key: '', counts: {} };
+        // Счёт кругов и выделенные слова по строкам. Состояние экрана, как
+        // открытые слова: на диск не пишется и обнуляется при входе в материал
+        // (ключ — какой материал открыт; длина текста — чтобы после правки
+        // текста счёт и выделение начались заново).
+        let practiceCircleSession = createPracticeCircleSession('');
+
+        function createPracticeCircleSession(key) {
+            return { key, counts: {}, picks: [], picking: false, pickStart: '' };
+        }
 
         function getPracticeCircleKey(text) {
             return [state.currentFolder, state.currentSubfolder, state.currentText, String(text.content || '').length].join('|');
@@ -13414,7 +13491,7 @@
 
         function getPracticeCircleSession(text) {
             const key = getPracticeCircleKey(text);
-            if (practiceCircleSession.key !== key) practiceCircleSession = { key, counts: {} };
+            if (practiceCircleSession.key !== key) practiceCircleSession = createPracticeCircleSession(key);
             return practiceCircleSession;
         }
 
@@ -13429,15 +13506,105 @@
         function startPracticeCircle(text) {
             text.revealedWords = [];
             text.halfRevealedWords = [];
-            practiceCircleSession = { key: getPracticeCircleKey(text), counts: {} };
+            practiceCircleSession = createPracticeCircleSession(getPracticeCircleKey(text));
+        }
+
+        // ——— Выделение слов в «Строке по кругу» ———
+        // Кнопки «Выделить слова» и «Убрать выделение» в углу карточки — чтобы
+        // на время остановиться на проблемных словах строки. Выделяют среди уже
+        // скрытых слов (скрывают слова по-прежнему только в «Выборе»), и
+        // выделенные становятся рабочим набором: главная кнопка, пробел, Return,
+        // фокус, ↑, R, подсказка и круги идут только по ним, а остальные скрытые
+        // слова строки остаются закрытыми, приглушены и нажатием не открываются.
+        // Выделение у каждой строки своё: строка без выделенных слов работает со
+        // всеми своими скрытыми. Живёт до выхода из режима или перехода к
+        // другому материалу, как счёт кругов.
+        function getCirclePickedLineWords(text) {
+            const picks = getPracticeCircleSession(text).picks;
+            if (!picks.length) return [];
+            const line = getPracticeLineRange(text);
+            const hidden = new Set(text.hiddenWords || []);
+            return picks.filter(index => index >= line.start && index <= line.end && hidden.has(index))
+                .sort((a, b) => a - b);
+        }
+
+        function isCirclePicking(text) {
+            return isPracticeCircleMode() && getPracticeCircleSession(text).picking;
+        }
+
+        // Все скрытые слова строки снова закрыты — и выделенные, и остальные.
+        function closePracticeCircleLine(text) {
+            const line = getPracticeLineRange(text);
+            const inLine = index => index >= line.start && index <= line.end;
+            text.revealedWords = text.revealedWords.filter(index => !inLine(index));
+            text.halfRevealedWords = text.halfRevealedWords.filter(index => !inLine(index));
+        }
+
+        // «Выделить слова» — начать выбор, «Готово» — закончить. На время выбора
+        // строка закрыта, фокус выключен, а нажатие по скрытому слову выделяет
+        // его или снимает выделение, но не открывает.
+        function toggleCirclePicking() {
+            if (!isPracticeCircleMode()) return false;
+            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+            const session = getPracticeCircleSession(text);
+            if (session.picking) {
+                endCirclePicking(text);
+            } else {
+                session.picking = true;
+                session.pickStart = getCirclePickedLineWords(text).join(',');
+                closePracticeCircleLine(text);
+                exitPracticeFocusMode();
+            }
+            render();
+            return true;
+        }
+
+        // Конец выбора (кнопка «Готово», главная кнопка, пробел, Return, уход со
+        // строки). Набор изменился — это новое упражнение, круги строки с первого.
+        function endCirclePicking(text) {
+            const session = getPracticeCircleSession(text);
+            if (!session.picking) return;
+            session.picking = false;
+            if (getCirclePickedLineWords(text).join(',') !== session.pickStart) {
+                session.counts[getPracticeLineRange(text).index] = 0;
+            }
+        }
+
+        function toggleCirclePick(index) {
+            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+            if (!isCirclePicking(text) || !(text.hiddenWords || []).includes(index)) return;
+            const session = getPracticeCircleSession(text);
+            const pos = session.picks.indexOf(index);
+            if (pos === -1) session.picks.push(index);
+            else session.picks.splice(pos, 1);
+            render();
+        }
+
+        // «Убрать выделение»: строка снова работает со всеми скрытыми словами —
+        // закрыта, круги с первого. Снимает выделение только этой строки.
+        function clearCirclePicks() {
+            if (!isPracticeCircleMode()) return false;
+            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+            const session = getPracticeCircleSession(text);
+            const picked = new Set(getCirclePickedLineWords(text));
+            session.picking = false;
+            if (picked.size) {
+                session.picks = session.picks.filter(index => !picked.has(index));
+                closePracticeCircleLine(text);
+                session.counts[getPracticeLineRange(text).index] = 0;
+                exitPracticeFocusMode();
+            }
+            render();
+            return true;
         }
 
         // Главная кнопка, пробел и Return: есть закрытое слово — открыть
         // следующее по порядку (с фокусом — как Return в других режимах: всё до
         // слова под фокусом, и фокус дальше); всё открыто — спрятать слова
-        // строки снова, это новый круг.
+        // строки снова, это новый круг. Пока выбирают слова — «Готово».
         function practiceCircleStep() {
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+            if (isCirclePicking(text)) return toggleCirclePicking();
             const marked = getRenderableHiddenIndices(text);
             if (!marked.length) return false;
             if (revealNextHiddenWordInOrder()) return true;
@@ -13449,6 +13616,7 @@
         // ↑: строку целиком — открыть, а открытую — спрятать (новый круг).
         function togglePracticeCircleLine() {
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+            if (isCirclePicking(text)) return false;
             const marked = getRenderableHiddenIndices(text);
             if (!marked.length) return false;
             const revealedSet = new Set(text.revealedWords);
@@ -13729,13 +13897,15 @@
             if (toggleHardWord(index)) e.preventDefault();
         });
 
-        function renderPracticeHiddenWord(displayText, extraClassName, wordIndex, isPracticeFocusWord, isHard) {
+        // action — что делает нажатие (по умолчанию открывает слово); пустая
+        // строка — плашка без нажатия.
+        function renderPracticeHiddenWord(displayText, extraClassName, wordIndex, isPracticeFocusWord, isHard, action = 'revealWord') {
             const className = ['word', 'hidden-word', extraClassName,
                 isPracticeFocusWord ? 'practice-focus-active' : '',
                 isHard ? 'hard-word' : '']
                 .filter(Boolean)
                 .join(' ');
-            return `<span class="${className}" data-widx="${wordIndex}" onclick="revealWord(${wordIndex})"><span class="word-hidden-label">${escapeHtml(String(displayText))}</span></span>`;
+            return `<span class="${className}" data-widx="${wordIndex}"${action ? ` onclick="${action}(${wordIndex})"` : ''}><span class="word-hidden-label">${escapeHtml(String(displayText))}</span></span>`;
         }
 
         function renderPracticeView() {
@@ -13786,6 +13956,9 @@
             const halfRevealedSet = new Set(text.halfRevealedWords || []);
             const pendingSet = new Set(state.pendingWords);
             const hardSet = new Set(text.hardWords || []);
+            // «Строка по кругу»: выделенные слова строки и идёт ли их выбор.
+            const circlePicking = isCircle && getPracticeCircleSession(text).picking;
+            const circlePickedSet = new Set(isCircle ? getCirclePickedLineWords(text) : []);
             // Скрытые слова (в «Строке по кругу» — на строке), которые
             // ещё не открыты.
             const unrevealedCount = state.mode === 'practice' ? getUnrevealedFocusTargets(text).length : 0;
@@ -13927,6 +14100,18 @@
                     continue;
                 }
 
+                // «Строка по кругу» с выделенными словами: остальные скрытые — закрытые
+                // приглушённые плашки без нажатия, в круг они не входят. Пока идёт
+                // выбор, нажатие по любому скрытому слову выделяет его, а не
+                // открывает.
+                if (isCircle && isMarked && circlePickedSet.size && !circlePickedSet.has(i) && !circlePicking) {
+                    practiceParts.push(renderPracticeHiddenWord('', 'circle-unpicked', i, false, hardSet.has(i), ''));
+                    continue;
+                }
+                // Класс на время выбора обязателен: patchChildNodes не сверяет
+                // onclick у чипов, считая, что обработчик выводится из класса и
+                // data-widx, — без него нажатие и дальше открывало бы слово.
+                const pickedClass = (circlePickedSet.has(i) ? ' circle-picked' : '') + (circlePicking ? ' circle-pickable' : '');
                 const isHalfRevealed = halfRevealedSet.has(i);
                 if (isMarked && !isRevealed && !isHalfRevealed) {
                     // Порядковых номеров на плашках нет: плашка — просто цветной квадрат.
@@ -13944,13 +14129,15 @@
                         displayHint = '';
                         hintClass = '';
                     }
-                    practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass, i, isPracticeFocusWord, hardSet.has(i)));
+                    practiceParts.push(renderPracticeHiddenWord(displayHint, hintClass + pickedClass, i, isPracticeFocusWord, hardSet.has(i),
+                        circlePicking ? 'toggleCirclePick' : 'revealWord'));
                 } else if (isMarked && isHalfRevealed && !isRevealed) {
                     practiceParts.push(renderPracticeHiddenWord(
                         getFirstLettersOnly(word, getVisibleHintLetters(text, i)),
-                        'has-letters', i, isPracticeFocusWord, hardSet.has(i)));
+                        'has-letters' + pickedClass, i, isPracticeFocusWord, hardSet.has(i),
+                        circlePicking ? 'toggleCirclePick' : 'revealWord'));
                 } else if (isMarked && isRevealed) {
-                    practiceParts.push(`<span class="word revealed${isPracticeFocusWord ? ' practice-focus-active' : ''}${hardSet.has(i) ? ' hard-word' : ''}" data-widx="${i}" onclick="hideWordAgain(${i})">${escapeHtml(word)}</span>`);
+                    practiceParts.push(`<span class="word revealed${pickedClass}${isPracticeFocusWord ? ' practice-focus-active' : ''}${hardSet.has(i) ? ' hard-word' : ''}" data-widx="${i}" onclick="${circlePicking ? 'toggleCirclePick' : 'hideWordAgain'}(${i})">${escapeHtml(word)}</span>`);
                 } else if (isPracticeFocusActive && practiceFocusSpan.has(i)) {
                     practiceParts.push(`<span class="word practice-focus-active">${escapeHtml(word)}</span>`);
                 } else {
@@ -13996,13 +14183,13 @@
             // фокус ведёт по всем словам текста, поэтому ему нужно, куда перейти:
             // хотя бы два слова.
             const canFocusNext = isPracticeLayout &&
-                isPracticeFocusModeEnabled() &&
+                isPracticeFocusModeEnabled() && !circlePicking &&
                 unrevealedCount > 0 &&
                 (!state.practiceFocusEnabled || focusTargets.length > 1);
             // Подсказка относится к слову под фокусом, а без фокуса — к первому ещё
             // не открытому слову текста (см. getActivePracticeTargetIndex).
             const hintTargetIndex = isPracticeLayout ? getActivePracticeTargetIndex(text) : null;
-            const canHint = isPracticeLayout && canRevealHintLetter(text, hintTargetIndex);
+            const canHint = isPracticeLayout && !circlePicking && canRevealHintLetter(text, hintTargetIndex);
             const hintLabel = isPracticeLayout && getVisibleHintLetters(text, hintTargetIndex) > 0
                 ? 'Ещё букву'
                 : 'Подсказка';
@@ -14027,12 +14214,24 @@
             const circleCount = isCircle ? getPracticeCircleCount(text, line.index) : 0;
             const progressLabel = !progress ? ''
                 : !isCircle ? `${progress.revealed} из ${progress.total} ${getWordGenitiveText(progress.total)}`
+                : circlePicking ? (circlePickedSet.size ? `Выделено: ${circlePickedSet.size}` : 'Выделите слова')
                 : progress.total === 0 ? 'Нет скрытых слов на строке'
                 : `Круг ${circleCount} · ${progress.revealed} из ${progress.total}`;
-            const primaryLabel = isCircle ? getPracticeCirclePrimaryLabel(progress)
+            const primaryLabel = circlePicking ? 'Готово'
+                : isCircle ? getPracticeCirclePrimaryLabel(progress)
                 : !progress || progress.total === 0
                 ? 'Нет скрытых слов'
                 : (progress.allRevealed ? '↺ Скрыть все слова' : 'Показать все скрытые слова');
+
+            const cornerHintButton = `<button class="practice-corner-hint-btn" onclick="revealNextHintLetter()" ${canHint ? '' : 'disabled'} title="Открыть следующую букву слова (Shift)">💡 ${hintLabel}</button>`;
+            // «Строка по кругу»: рядом с подсказкой — выделение слов строки.
+            const cornerTools = !showCornerHint ? ''
+                : !isCircle ? cornerHintButton
+                : `<div class="practice-corner-tools">`
+                    + `<button class="practice-corner-hint-btn${circlePicking ? ' is-active' : ''}" onclick="toggleCirclePicking()" ${circlePicking || progress.total > 0 ? '' : 'disabled'} title="${circlePicking ? 'Закончить выбор слов' : 'Выбрать слова строки, на которых остановиться'}"><span class="corner-swap-labels"><span${circlePicking ? ' class="is-off"' : ''}>Выделить слова</span><span${circlePicking ? '' : ' class="is-off"'}>Готово</span></span></button>`
+                    + `<button class="practice-corner-hint-btn" onclick="clearCirclePicks()" ${circlePickedSet.size ? '' : 'disabled'} title="Снова работать со всеми скрытыми словами строки">Убрать выделение</button>`
+                    + cornerHintButton
+                    + `</div>`;
 
             return `
                 ${getTermNavHeader(text)}
@@ -14067,12 +14266,12 @@
                         </div>
                     ` : `
                         <div class="help-text">
-                            Нажимайте на скрытые слова чтобы открыть их${isPracticeLayout ? ' · долгое нажатие отмечает слово сложным' : ''}
+                            ${circlePicking ? 'Нажимайте на скрытые слова, чтобы выделить их · «Готово» — закончить выбор' : `Нажимайте на скрытые слова чтобы открыть их${isPracticeLayout ? ' · долгое нажатие отмечает слово сложным' : ''}`}
                         </div>
                     `}
 
                     ${text.image ? `<div style="text-align:center;margin-bottom:12px;"><img src="${text.image}" loading="lazy" decoding="async" style="max-width:100%;max-height:150px;border-radius:12px;object-fit:cover;"></div>` : ''}
-                    <div class="text-display-row${showCornerHint ? ' has-corner-hint' : ''}"><div class="text-display ${sizeClass}${isPracticeFocusActive ? ' practice-focus-mode' : ''}${isPracticeLayout && getPracticeTextAnchorStyle() ? ' is-anchored' : ''}" style="${fitStyle}${isPracticeLayout ? getPracticeTextAnchorStyle() : ''}"><div class="text-display-inner">${practiceParts.join('')}</div></div>${showCornerHint ? `<button class="practice-corner-hint-btn" onclick="revealNextHintLetter()" ${canHint ? '' : 'disabled'} title="Открыть следующую букву слова (Shift)">💡 ${hintLabel}</button>` : ''}</div>
+                    <div class="text-display-row${showCornerHint ? ' has-corner-hint' : ''}${showCornerHint && isCircle ? ' has-corner-tools' : ''}"><div class="text-display ${sizeClass}${isPracticeFocusActive ? ' practice-focus-mode' : ''}${isPracticeLayout && getPracticeTextAnchorStyle() ? ' is-anchored' : ''}" style="${fitStyle}${isPracticeLayout ? getPracticeTextAnchorStyle() : ''}"><div class="text-display-inner">${practiceParts.join('')}</div></div>${cornerTools}</div>
 
                     ${isPracticeLayout ? '' : `
                         <div class="action-buttons">
@@ -20924,6 +21123,7 @@
         function revealNextHintLetter() {
             if (state.currentText === null || state.currentFolder === null) return;
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
+            if (isCirclePicking(text)) return;
             const index = getActivePracticeTargetIndex(text);
             if (!canRevealHintLetter(text, index)) return;
 
@@ -21076,6 +21276,7 @@
             // «Строка по кругу»: R прячет скрытые слова строки снова — это новый круг.
             // Иначе слова скрылись бы по всему тексту, а счётчик остался прежним.
             if (isPracticeCircleMode()) {
+                if (isCirclePicking(text)) return;
                 const marked = getRenderableHiddenIndices(text);
                 if (marked.length) hidePracticeCircleLine(text, marked);
                 render();
