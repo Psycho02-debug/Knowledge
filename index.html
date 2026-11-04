@@ -13446,7 +13446,7 @@
             return { index, count, start: lines[index].start, end: lines[index].end };
         }
 
-        // Стрелки ‹ › и ← →, «Следующая строка ›»: соседняя строка. За краем
+        // Стрелки ‹ › и ← →: соседняя строка. За краем
         // текста — соседний материал, строки идут дальше подряд; назад — с
         // последней строки предыдущего. Открытые слова строки, с которой уходят,
         // прячутся снова (hidePracticeCircleLineOnLeave).
@@ -13611,10 +13611,11 @@
             return true;
         }
 
-        // Главная кнопка, пробел и Return: есть закрытое слово — открыть
+        // «Открыть слово», пробел и Return: есть закрытое слово — открыть
         // следующее по порядку (с фокусом — как Return в других режимах: всё до
         // слова под фокусом, и фокус дальше); всё открыто — спрятать слова
-        // строки снова, это новый круг. Пока выбирают слова — «Готово».
+        // строки снова, это новый круг (кнопка тогда неактивна, круг начинает
+        // главная — «↺ Ещё круг»). Пока выбирают слова — «Готово».
         function practiceCircleStep() {
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             if (isCirclePicking(text)) return toggleCirclePicking();
@@ -13626,7 +13627,8 @@
             return true;
         }
 
-        // ↑: строку целиком — открыть, а открытую — спрятать (новый круг).
+        // Главная кнопка и ↑: строку целиком — открыть («Открыть все слова»), а
+        // открытую — спрятать («↺ Ещё круг», новый круг).
         function togglePracticeCircleLine() {
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             if (isCirclePicking(text)) return false;
@@ -13661,7 +13663,7 @@
 
         function getPracticeCirclePrimaryLabel(progress) {
             if (progress.total === 0) return 'Нет скрытых слов';
-            return progress.allRevealed ? '↺ Ещё круг' : 'Открыть слово';
+            return progress.allRevealed ? '↺ Ещё круг' : 'Открыть все слова';
         }
 
         // ——— Чтобы текст в практике не скакал ———
@@ -14188,8 +14190,11 @@
             // Главная кнопка открывает сразу все скрытые слова — свериться с текстом
             // целиком. Поштучное раскрытие кнопкой убрано: слово открывают нажатием
             // на него. Когда открыто всё, та же кнопка прячет слова обратно.
-            // В «Строке по кругу» она ведёт круг (practiceCircleStep).
-            const primaryAction = isCircle ? (progress.total === 0 ? '' : 'practiceCircleStep()')
+            // В «Строке по кругу» — так же для строки: открыть все её слова, а
+            // открытую — спрятать, это новый круг (togglePracticeCircleLine). Пока
+            // выбирают слова, она «Готово».
+            const primaryAction = isCircle ? (circlePicking ? 'toggleCirclePicking()'
+                    : progress.total === 0 ? '' : 'togglePracticeCircleLine()')
                 : (!progress || progress.total === 0 ? '' : 'toggleAllWordsReveal()');
             // Кнопка нужна, только пока в тексте осталось что вспоминать: когда всё
             // открыто, фокус выключен (см. выше) и включить его нельзя. Включённый
@@ -14216,14 +14221,16 @@
             // и точечное обновление пересобирало бы весь текст с чипами.
             //
             // «Строка по кругу»: ряд и подсказка рисуются всегда, даже в материале
-            // без скрытых слов, — «Следующая строка ›» нужна и там. Ряд в этом
-            // режиме свой: фокус и «Следующая строка ›» (главная кнопка ведёт круг).
+            // без скрытых слов: строки переключают стрелки, и от материала к
+            // материалу панель не должна менять высоту. Ряд — как в обычной
+            // практике: фокус и «Открыть слово» (practiceCircleStep — то же, что
+            // пробел и Return). «Следующей строки ›» здесь больше нет: пользователь
+            // попросил убрать её — строки листают стрелки ‹ › под главной кнопкой.
             const showCornerHint = hasHiddenWords || isCircle;
             const showAssistRow = hasHiddenWords || isCircle;
-            const assistButtons = isCircle
-                ? focusButton
-                    + `<button class="practice-skip-btn practice-hint-btn" onclick="stepPracticeLine(1)" ${line.index < line.count - 1 || nav.hasNext ? '' : 'disabled'} title="Следующая строка (→)">Следующая строка ›</button>`
-                : '';
+            const openWordButton = isCircle
+                ? `<button class="practice-skip-btn practice-hint-btn" onclick="practiceCircleStep()" ${canOpenNext && !circlePicking ? '' : 'disabled'} title="Открыть следующее скрытое слово строки по порядку; с фокусом — все скрытые слова до слова под фокусом (пробел, Return)">Открыть слово</button>`
+                : `<button class="practice-skip-btn practice-hint-btn" onclick="revealNextHiddenWordInOrder()" ${canOpenNext ? '' : 'disabled'} title="Открыть следующее скрытое слово по порядку; с фокусом — все скрытые слова до слова под фокусом (Return)">Открыть слово</button>`;
             const circleCount = isCircle ? getPracticeCircleCount(text, line.index) : 0;
             const progressLabel = !progress ? ''
                 : !isCircle ? `${progress.revealed} из ${progress.total} ${getWordGenitiveText(progress.total)}`
@@ -14311,8 +14318,8 @@
                                 <!-- Ряд не исчезает, когда кнопки не нужны, — кнопки гаснут: иначе
                                      панель меняла высоту, страница укорачивалась и экран прыгал. -->
                                 <div class="practice-assist-row">
-                                    ${isCircle ? assistButtons : `${focusButton}
-                                    <button class="practice-skip-btn practice-hint-btn" onclick="revealNextHiddenWordInOrder()" ${canOpenNext ? '' : 'disabled'} title="Открыть следующее скрытое слово по порядку; с фокусом — все скрытые слова до слова под фокусом (Return)">Открыть слово</button>`}
+                                    ${focusButton}
+                                    ${openWordButton}
                                 </div>
                             ` : ''}
                             <button class="practice-primary-btn" ${primaryAction ? `onclick="${primaryAction}"` : 'disabled'}>${primaryLabel}</button>
@@ -21678,8 +21685,8 @@
                 return;
             }
             if (state.view === 'practice' && state.mode === 'practice') {
-                // «Строка по кругу»: пробел и Return — главная кнопка (открыть
-                // следующее слово, а когда всё открыто — новый круг). preventDefault
+                // «Строка по кругу»: пробел и Return — «Открыть слово» (следующее
+                // слово, а когда всё открыто — новый круг). preventDefault
                 // и на автоповторе: иначе пробел прокрутил бы страницу, а Return
                 // «нажал» бы кнопку, на которой остался фокус после клика.
                 if (isPracticeCircleMode() && !e.metaKey && !e.ctrlKey && !e.altKey && !document.querySelector('.modal.show')) {
