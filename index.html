@@ -13550,6 +13550,8 @@
             if (session.picking) {
                 endCirclePicking(text);
             } else {
+                // Выбирать не из чего — кнопка тогда неактивна, молчит и клавиша.
+                if (!getRenderableHiddenIndices(text).length) return false;
                 session.picking = true;
                 session.pickStart = getCirclePickedLineWords(text).join(',');
                 closePracticeCircleLine(text);
@@ -13587,13 +13589,14 @@
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             const session = getPracticeCircleSession(text);
             const picked = new Set(getCirclePickedLineWords(text));
+            // Снимать нечего — кнопка тогда неактивна, молчит и клавиша (идущий
+            // выбор она тоже не заканчивает).
+            if (!picked.size) return false;
             session.picking = false;
-            if (picked.size) {
-                session.picks = session.picks.filter(index => !picked.has(index));
-                closePracticeCircleLine(text);
-                session.counts[getPracticeLineRange(text).index] = 0;
-                exitPracticeFocusMode();
-            }
+            session.picks = session.picks.filter(index => !picked.has(index));
+            closePracticeCircleLine(text);
+            session.counts[getPracticeLineRange(text).index] = 0;
+            exitPracticeFocusMode();
             render();
             return true;
         }
@@ -14228,8 +14231,8 @@
             const cornerTools = !showCornerHint ? ''
                 : !isCircle ? cornerHintButton
                 : `<div class="practice-corner-tools">`
-                    + `<button class="practice-corner-hint-btn${circlePicking ? ' is-active' : ''}" onclick="toggleCirclePicking()" ${circlePicking || progress.total > 0 ? '' : 'disabled'} title="${circlePicking ? 'Закончить выбор слов' : 'Выбрать слова строки, на которых остановиться'}"><span class="corner-swap-labels"><span${circlePicking ? ' class="is-off"' : ''}>Выделить слова</span><span${circlePicking ? '' : ' class="is-off"'}>Готово</span></span></button>`
-                    + `<button class="practice-corner-hint-btn" onclick="clearCirclePicks()" ${circlePickedSet.size ? '' : 'disabled'} title="Снова работать со всеми скрытыми словами строки">Убрать выделение</button>`
+                    + `<button class="practice-corner-hint-btn${circlePicking ? ' is-active' : ''}" onclick="toggleCirclePicking()" ${circlePicking || progress.total > 0 ? '' : 'disabled'} title="${circlePicking ? 'Закончить выбор слов (Ж)' : 'Выбрать слова строки, на которых остановиться (Ж)'}"><span class="corner-swap-labels"><span${circlePicking ? ' class="is-off"' : ''}>Выделить слова</span><span${circlePicking ? '' : ' class="is-off"'}>Готово</span></span></button>`
+                    + `<button class="practice-corner-hint-btn" onclick="clearCirclePicks()" ${circlePickedSet.size ? '' : 'disabled'} title="Снова работать со всеми скрытыми словами строки (Э)">Убрать выделение</button>`
                     + cornerHintButton
                     + `</div>`;
 
@@ -21673,6 +21676,19 @@
                     if ((e.key === ' ' || e.key === 'Enter') && !e.shiftKey) {
                         e.preventDefault();
                         if (!e.repeat) practiceCircleStep();
+                        return;
+                    }
+                    // «Ж» (она же «;») — «Выделить слова» / «Готово», «Э» (она же
+                    // «'») — «Убрать выделение». Сверка по букве обеих раскладок,
+                    // с Shift — тоже. Удержание не считается: иначе автоповтор
+                    // включал бы и выключал выбор.
+                    const isCirclePickHotkey = e.key === 'ж' || e.key === 'Ж' || e.key === ';' || e.key === ':';
+                    const isCircleClearHotkey = e.key === 'э' || e.key === 'Э' || e.key === "'" || e.key === '"';
+                    if (isCirclePickHotkey || isCircleClearHotkey) {
+                        e.preventDefault();
+                        if (e.repeat) return;
+                        if (isCirclePickHotkey) toggleCirclePicking();
+                        else clearCirclePicks();
                         return;
                     }
                 }
