@@ -989,10 +989,11 @@
         }
 
         /* Выделенное слово круга — пунктирная обводка: её видно и на закрытой
-           плашке, и на открытом слове, и рядом с кольцом фокуса (оно — тень). */
+           плашке, и на открытом слове, и рядом с кольцом фокуса (оно — тень).
+           Обводка внутри плашки: снаружи она заходила на соседние плашки. */
         .word.circle-picked {
             outline: 2px dashed var(--text-primary);
-            outline-offset: 2px;
+            outline-offset: -4px;
         }
 
         /* Скрытое слово вне выделения: в круг не входит и не открывается. */
@@ -1020,14 +1021,16 @@
             font-size: calc(max(1rem, min(var(--size-max, 1rem), var(--fit-w, 99rem), var(--fit-h, 99rem))) * var(--user-text-scale, 1));
         }
 
+        /* Шаг строки — плашка (1.7em) плюс зазор между рядами плашек, не меньше
+           0.4em: тогда плашки не раздвигают строки и не касаются друг друга. */
         .text-display.size-xl {
             --size-max: 2.4rem;
-            line-height: 1.9;
+            line-height: 2.1;
         }
 
         .text-display.size-lg {
             --size-max: 1.8rem;
-            line-height: 2.0;
+            line-height: 2.1;
         }
 
         .text-display.size-md {
@@ -1370,9 +1373,10 @@
                 border-radius: 16px;
             }
 
+            /* Ниже 2em нельзя: плашка 1.7em, ряды плашек сомкнутся. */
             .practice-shell .text-display.size-xl,
             .practice-shell .text-display.size-lg {
-                line-height: 1.7;
+                line-height: 2.0;
             }
 
             .practice-dock {
@@ -1519,14 +1523,20 @@
             pointer-events: none;
         }
 
+        /* Плашка — квадрат 1.7em (ярлык 1.12em + отступы, по ширине — невидимая
+           цифра). Она должна быть заметно ниже шага строки (не меньше 2.1em у
+           крупного текста, см. size-xl/size-lg): раньше плашка была 1.96em при
+           шаге 1.9–2em, ряды плашек стояли вплотную, раздвигали строки, а
+           рамка выделения и кольцо фокуса залезали на соседний ряд. Открытое
+           слово (.word.revealed) той же высоты, чтобы открытие не меняло ряд. */
         .word.hidden-word {
             background: var(--gradient-primary);
             color: var(--accent-on-strong);
             border-radius: 0.38em;
-            padding: 0.42em 0.62em;
+            padding: 0.29em 0.52em;
             font-weight: 600;
             display: inline-block;
-            line-height: 1.05;
+            line-height: 1.12;
             vertical-align: middle;
             text-align: center;
         }
@@ -1907,10 +1917,10 @@
         .word.revealed {
             background: var(--accent-correct);
             color: var(--accent-correct-text);
-            padding: 0.34em 0.5em;
+            padding: 0.29em 0.45em;
             border-radius: 0.38em;
             display: inline-block;
-            line-height: 1.05;
+            line-height: 1.12;
         }
 
         /* Открытое слово, отмеченное сложным, — тот же красный, что и у скрытого
