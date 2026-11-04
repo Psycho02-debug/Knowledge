@@ -1166,7 +1166,7 @@
             text-align: center;
         }
 
-        /* Режим «По строкам»: стрелки листают строки, под номером строки мелко —
+        /* «Строка по кругу»: стрелки листают строки, под номером строки мелко —
            номер материала, чтобы не терять место в очереди. */
         .practice-line-counter {
             display: flex;
@@ -1218,27 +1218,6 @@
                20px высоты панели, а на телефоне каждая строка панели съедает
                видимую часть текста. */
             font-size: 13px;
-        }
-
-        /* «По строкам»: на месте «Фокуса» у открытой строки встаёт «↺ Скрыть все
-           слова». Обе подписи всегда лежат в кнопке друг на друге, видна одна:
-           высота кнопки — по длинной, и смена подписи не меняет высоту дока
-           (на ширине 375 «Фокус на следующем слове» — две строки, «Скрыть» — одна). */
-        .practice-swap-labels {
-            display: grid;
-            align-items: center;
-            min-width: 0;
-        }
-
-        .practice-swap-label {
-            grid-area: 1 / 1;
-            min-width: 0;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .practice-swap-label.is-off {
-            visibility: hidden;
         }
 
         /* «Строка по кругу»: обычное слово отмечается нажатием. */
@@ -8040,9 +8019,9 @@
         function getRenderableHiddenIndices(text) {
             ensureTextStudyData(text);
             const hiddenSorted = [...getPracticeHiddenWords(text)].sort((a, b) => a - b);
-            // «По строкам»: всё, что идёт по скрытым словам (подсказка, «Открыть
-            // слово», Return, «М»), видит только строку на экране.
-            if (isPracticeLinesMode()) {
+            // «Строка по кругу»: всё, что идёт по скрытым словам (подсказка,
+            // Return, «М»), видит только строку на экране.
+            if (isPracticeCircleMode()) {
                 const line = getPracticeLineRange(text);
                 return hiddenSorted.filter(index => index >= line.start && index <= line.end);
             }
@@ -8783,8 +8762,8 @@
             returnToRootTexts: false,
             folderModalMode: 'root',
             mode: 'chooser', // chooser, edit, practice, game, quiz, type, example
-            practiceMode: 'default', // default, firstletter, hints, lines, circle («Строка по кругу»)
-            practiceLineIndex: 0, // строка на экране в режимах practiceMode 'lines' и 'circle'
+            practiceMode: 'default', // default, firstletter, hints, circle («Строка по кругу»)
+            practiceLineIndex: 0, // строка на экране в «Строке по кругу» (practiceMode 'circle')
             typeDisplayMode: 'default', // default, letters, hints
             typeFocusLineEnabled: false,
             typeState: {
@@ -13089,10 +13068,7 @@
                         <div class="chooser-card" onclick="openTermInMode(state.currentText, 'numbers')">
                             <div class="chooser-card-title">Только номера строк</div>
                         </div>
-                        <div class="chooser-card" onclick="openTermInMode(state.currentText, 'practice', 'lines')">
-                            <div class="chooser-card-title">По строкам со скрытыми словами</div>
-                        </div>
-                        <div class="chooser-card chooser-card-span" onclick="openTermInMode(state.currentText, 'practice', 'circle')">
+                        <div class="chooser-card" onclick="openTermInMode(state.currentText, 'practice', 'circle')">
                             <div class="chooser-card-title">Строка по кругу</div>
                         </div>
                         <div class="chooser-card chooser-card-span" onclick="openAudioPlayer()">
@@ -13189,8 +13165,7 @@
             return state.view === 'practice' &&
                 state.mode === 'practice' &&
                 (state.practiceMode === 'default' || state.practiceMode === 'firstletter' ||
-                 state.practiceMode === 'hints' || state.practiceMode === 'lines' ||
-                 state.practiceMode === 'circle');
+                 state.practiceMode === 'hints' || state.practiceMode === 'circle');
         }
 
         // Фокус выключен, пока пользователь сам не включит его кнопкой
@@ -13255,9 +13230,9 @@
             }
             const hidden = new Set(getPracticeHiddenWords(text));
             const targets = [];
-            // «По строкам» — фокус ходит по строке на экране и после её конца
+            // «Строка по кругу» — фокус ходит по строке на экране и после её конца
             // возвращается к её началу.
-            const line = isPracticeLinesMode() ? getPracticeLineRange(text) : null;
+            const line = isPracticeCircleMode() ? getPracticeLineRange(text) : null;
             const end = line ? line.end + 1 : words.length;
             for (let i = line ? line.start : 0; i < end; i++) {
                 const token = words[i];
@@ -13348,18 +13323,14 @@
             return true;
         }
 
-        // ——— Режим «По строкам» ———
-        // Тот же экран скрытых слов (state.practiceMode 'lines', слова — пустые
-        // плашки, как в «Полностью скрытых»), но на экране одна строка материала.
-        // Индексы слов остаются сквозными по всему тексту, поэтому открытые,
-        // сложные и подсказки работают как в обычной практике — просто всё, что
-        // перебирает слова (getRenderableHiddenIndices, цели фокуса, прогресс),
-        // смотрит только в пределы строки.
-        function isPracticeLinesMode() {
-            return state.view === 'practice' && state.mode === 'practice' &&
-                (state.practiceMode === 'lines' || state.practiceMode === 'circle');
-        }
-
+        // ——— Строка на экране («Строка по кругу») ———
+        // Экран скрытых слов, но на нём одна строка материала. Индексы слов
+        // остаются сквозными по всему тексту, поэтому открытые слова и подсказки
+        // работают как в обычной практике — просто всё, что перебирает слова
+        // (getRenderableHiddenIndices, цели фокуса, прогресс), смотрит только в
+        // пределы строки. Раньше на этой основе был и режим «По строкам»
+        // (practiceMode 'lines', слова из «Выбора»); по просьбе пользователя его
+        // убрали, осталась «Строка по кругу».
         // Строки материала: первое и последнее слово каждой. Строка — всё между
         // переводами строк (getTokenLineNumbers), пустые строки пропускаются.
         // Внутри одной отрисовки спрашивают несколько раз — считаем один.
@@ -13399,15 +13370,18 @@
             return { index, count, start: lines[index].start, end: lines[index].end };
         }
 
-        // Стрелки ‹ › и ← →: соседняя строка. За краем текста — соседний материал,
-        // строки идут дальше подряд; назад — с последней строки предыдущего.
+        // Стрелки ‹ › и ← →, «Следующая строка ›»: соседняя строка. За краем
+        // текста — соседний материал, строки идут дальше подряд; назад — с
+        // последней строки предыдущего. Открытые слова строки, с которой уходят,
+        // прячутся снова (hidePracticeCircleLineOnLeave).
         function stepPracticeLine(direction) {
-            if (!isPracticeLinesMode()) return false;
+            if (!isPracticeCircleMode()) return false;
             if (state.currentFolder === null || state.currentText === null) return false;
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             const line = getPracticeLineRange(text);
             const next = line.index + direction;
             if (next >= 0 && next < line.count) {
+                hidePracticeCircleLineOnLeave(text);
                 state.practiceLineIndex = next;
                 // Включённый фокус встаёт на начало новой строки (renderPracticeView
                 // ставит его на первое слово, когда прежнего на экране нет).
@@ -13421,49 +13395,9 @@
             return true;
         }
 
-        // Главная кнопка режима (и ↑): пока в строке есть закрытые слова —
-        // «Показать строку», потом — следующая строка, после последней —
-        // следующий материал, а в конце очереди — «↺ С первой строки».
-        function practiceLinesPrimaryAction() {
-            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
-            const progress = getPracticeProgress(text);
-            if (progress.total > 0 && !progress.allRevealed) {
-                markHiddenWordsRevealed(text, getRenderableHiddenIndices(text));
-                // Как «Показать все скрытые слова»: строку сверяют целиком, и
-                // выделенное слово с приглушёнными соседями только мешает.
-                exitPracticeFocusMode();
-                render();
-                return true;
-            }
-            if (stepPracticeLine(1)) return true;
-            text.revealedWords = [];
-            text.halfRevealedWords = [];
-            state.practiceLineIndex = 0;
-            exitPracticeFocusMode();
-            render();
-            window.scrollTo(0, 0);
-            return true;
-        }
-
-        // ↑ и кнопка «↺ Скрыть все слова» (она встаёт на место «Фокуса», когда
-        // строка открыта): закрытую строку открыть, открытую — спрятать обратно,
-        // чтобы пройти её ещё раз. Дальше по строкам ведут главная кнопка,
-        // Return и →. В строке без скрытых слов прятать нечего — ↑ ведёт дальше,
-        // как главная кнопка.
-        function togglePracticeLineReveal() {
-            const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
-            const progress = getPracticeProgress(text);
-            if (!progress.allRevealed) return practiceLinesPrimaryAction();
-            const lineWords = new Set(getRenderableHiddenIndices(text));
-            text.revealedWords = text.revealedWords.filter(index => !lineWords.has(index));
-            text.halfRevealedWords = text.halfRevealedWords.filter(index => !lineWords.has(index));
-            render();
-            return true;
-        }
-
         // ——— «Строка по кругу» ———
-        // Вариант «По строкам» (practiceMode 'circle', isPracticeLinesMode для
-        // него тоже true — строки, навигация, подсказка общие). Слова для
+        // practiceMode 'circle': одна строка на экране (строки и переход между
+        // ними — раздел выше). Слова для
         // скрытия отмечают прямо на строке нажатием, каждый раз с чистого листа:
         // при входе в режим не отмечено ничего. Это свои отметки режима, а не
         // hiddenWords из «Выбора» — разметка материала не трогается, и чужие
@@ -13587,6 +13521,17 @@
             return true;
         }
 
+        // Уход со строки (stepPracticeLine): открытые отмеченные слова строки
+        // прячутся снова, чтобы, вернувшись, строку проходили заново, а не
+        // смотрели на открытый ответ. Это новый круг — счётчик строки растёт,
+        // как у «↺ Ещё круг». Если на строке ничего не открыто, круга не было
+        // и трогать нечего.
+        function hidePracticeCircleLineOnLeave(text) {
+            const marked = getRenderableHiddenIndices(text);
+            const opened = new Set([...text.revealedWords, ...text.halfRevealedWords]);
+            if (marked.some(index => opened.has(index))) hidePracticeCircleLine(text, marked);
+        }
+
         function hidePracticeCircleLine(text, marked) {
             const lineWords = new Set(marked);
             text.revealedWords = text.revealedWords.filter(index => !lineWords.has(index));
@@ -13600,12 +13545,6 @@
             if (progress.total === 0) return 'Отметьте слова на строке';
             if (!progress.allRevealed) return 'Открыть слово';
             return getPracticeCircleCount(text, lineIndex) === 0 ? 'Спрятать отмеченные' : '↺ Ещё круг';
-        }
-
-        function getPracticeLinesPrimaryLabel(progress, line, nav) {
-            if (progress.total > 0 && !progress.allRevealed) return 'Показать строку';
-            if (line.index < line.count - 1) return 'Следующая строка ›';
-            return nav.hasNext ? 'Следующий материал ›' : '↺ С первой строки';
         }
 
         // ——— Чтобы текст в практике не скакал ———
@@ -13634,7 +13573,7 @@
         function getPracticeTextAnchorKey() {
             return [state.currentFolder, state.currentSubfolder, state.currentText,
                 state.practiceMode, Math.round(window.innerWidth),
-                state.practiceMode === 'lines' || state.practiceMode === 'circle' ? state.practiceLineIndex : ''].join('|');
+                state.practiceMode === 'circle' ? state.practiceLineIndex : ''].join('|');
         }
 
         function getPracticeTextAnchorStyle() {
@@ -13901,9 +13840,9 @@
             }
 
             const words = text.content.split(/(\s+)/);
-            // «По строкам» рисует только слова строки на экране.
-            const line = isPracticeLinesMode() ? getPracticeLineRange(text) : null;
             const isCircle = isPracticeCircleMode();
+            // «Строка по кругу» рисует только слова строки на экране.
+            const line = isCircle ? getPracticeLineRange(text) : null;
             // Всё, что цикл ниже спрашивает про каждое слово, — заранее в Set и Map.
             // Раньше это были includes и indexOf по массивам внутри цикла по словам,
             // то есть квадрат от длины текста: на 580 словах и 172 скрытых — десятки
@@ -13913,12 +13852,13 @@
             const halfRevealedSet = new Set(text.halfRevealedWords || []);
             const pendingSet = new Set(state.pendingWords);
             const hardSet = new Set(text.hardWords || []);
-            // Скрытые слова (в «По строкам» — строки), которые ещё не открыты.
+            // Скрытые слова (в «Строке по кругу» — отмеченные на строке), которые
+            // ещё не открыты.
             const unrevealedCount = state.mode === 'practice' ? getUnrevealedFocusTargets(text).length : 0;
             // Фокус нужен, пока есть что вспоминать. Когда открыто всё, он гаснет
             // сам. Слова открывают по-разному: нажатием, Return, «Открыть слово»,
-            // а в «По строкам» фокус переезжает на следующую строку, которая может
-            // быть уже открыта. Поэтому проверка стоит здесь, в отрисовке, а не в
+            // а в «Строке по кругу» фокус переезжает на следующую строку, где
+            // может не быть закрытых слов. Поэтому проверка стоит здесь, в отрисовке, а не в
             // каждом из этих мест.
             if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled && unrevealedCount === 0) {
                 exitPracticeFocusMode();
@@ -14092,7 +14032,7 @@
             // Кегль считается по тому, что на экране: короткая строка встаёт крупно.
             const shownContent = line ? words.slice(line.start, line.end + 1).join('') : text.content;
             const plainLength = shownContent.replace(/\s+/g, ' ').trim().length;
-            // Строка «По строкам» — не крупнее size-lg: строки короткие, и самый
+            // Строка «Строки по кругу» — не крупнее size-lg: строки короткие, и самый
             // крупный кегль после открытия длинных слов уводил текст под панель.
             const sizeClass = !isPracticeLayout ? 'size-sm'
                 : plainLength <= 60 && !line ? 'size-xl'
@@ -14118,10 +14058,8 @@
             // Главная кнопка открывает сразу все скрытые слова — свериться с текстом
             // целиком. Поштучное раскрытие кнопкой убрано: слово открывают нажатием
             // на него. Когда открыто всё, та же кнопка прячет слова обратно.
-            // «По строкам» — строку, а потом ведёт дальше (practiceLinesPrimaryAction);
-            // спрятать открытую строку — ↑ и кнопка на месте «Фокуса».
+            // В «Строке по кругу» она ведёт круг (practiceCircleStep).
             const primaryAction = isCircle ? (progress.total === 0 ? '' : 'practiceCircleStep()')
-                : line ? 'practiceLinesPrimaryAction()'
                 : (!progress || progress.total === 0 ? '' : 'toggleAllWordsReveal()');
             // Кнопка нужна, только пока в тексте осталось что вспоминать: когда всё
             // открыто, фокус выключен (см. выше) и включить его нельзя. Включённый
@@ -14141,16 +14079,7 @@
             // «Открыть слово» — то же, что Return: следующее скрытое слово строго
             // по порядку текста. Нужна, пока есть что открывать.
             const canOpenNext = isPracticeLayout && unrevealedCount > 0;
-            // «По строкам», строка открыта целиком: фокусу делать нечего, и его
-            // место занимает «↺ Скрыть все слова» — пройти строку ещё раз. Главная
-            // кнопка в это время ведёт к следующей строке.
-            const canHideLine = Boolean(line && progress && progress.allRevealed);
             const focusButton = `<button class="practice-skip-btn" onclick="focusNextPracticeWord()" ${canFocusNext ? '' : 'disabled'} title="Перевести фокус на следующее слово, не открывая текущее">Фокус на следующем слове</button>`;
-            // В «По строкам» кнопка всегда несёт обе подписи (см. .practice-swap-labels),
-            // чтобы смена подписи не меняла высоту дока.
-            const focusSlotButton = line
-                ? `<button class="practice-skip-btn" onclick="${canHideLine ? 'togglePracticeLineReveal()' : 'focusNextPracticeWord()'}" ${canHideLine || canFocusNext ? '' : 'disabled'} title="${canHideLine ? 'Снова спрятать слова строки (↑)' : 'Перевести фокус на следующее слово, не открывая текущее'}"><span class="practice-swap-labels"><span class="practice-swap-label${canHideLine ? ' is-off' : ''}">Фокус на следующем слове</span><span class="practice-swap-label${canHideLine ? '' : ' is-off'}">↺ Скрыть все слова</span></span></button>`
-                : focusButton;
             // «Подсказка» стоит в правом верхнем углу карточки с текстом. Рисуем её
             // всегда, когда в тексте есть скрытые слова, и гасим, когда подсказывать
             // нечего: появление и исчезновение узла меняло бы число детей карточки,
@@ -14173,7 +14102,6 @@
                 : circleCount === 0 ? `Отмечено: ${progress.total}`
                 : `Круг ${circleCount} · ${progress.revealed} из ${progress.total}`;
             const primaryLabel = isCircle ? getPracticeCirclePrimaryLabel(text, progress, line.index)
-                : line ? getPracticeLinesPrimaryLabel(progress, line, nav)
                 : !progress || progress.total === 0
                 ? 'Нет скрытых слов'
                 : (progress.allRevealed ? '↺ Скрыть все слова' : 'Показать все скрытые слова');
@@ -14243,7 +14171,7 @@
                                 <!-- Ряд не исчезает, когда кнопки не нужны, — кнопки гаснут: иначе
                                      панель меняла высоту, страница укорачивалась и экран прыгал. -->
                                 <div class="practice-assist-row">
-                                    ${isCircle ? assistButtons : `${focusSlotButton}
+                                    ${isCircle ? assistButtons : `${focusButton}
                                     <button class="practice-skip-btn practice-hint-btn" onclick="revealNextHiddenWordInOrder()" ${canOpenNext ? '' : 'disabled'} title="Открыть следующее скрытое слово по порядку; с фокусом — все скрытые слова до слова под фокусом (Return)">Открыть слово</button>`}
                                 </div>
                             ` : ''}
@@ -18683,14 +18611,14 @@
                 openTermInMode(state.currentText, 'practice', 'hints');
                 return true;
             }
-            // «По строкам» — клавиша 6, по просьбе пользователя. Семёрка осталась
-            // рабочей: сначала режим открывался ею.
+            // «Строка по кругу» — клавиша 6 (и 7): обе открывали «По строкам», а
+            // его место занял круг.
             if (key === '6' || key === '7') {
-                openTermInMode(state.currentText, 'practice', 'lines');
+                openTermInMode(state.currentText, 'practice', 'circle');
                 return true;
             }
             // «Вписать» — пятый режим в панели, поэтому его клавиша 5. Раньше
-            // его открывала и 6, теперь она отдана «По строкам».
+            // его открывала и 6, теперь она отдана «Строке по кругу».
             if (key === '5') {
                 openTermInMode(state.currentText, 'type');
                 return true;
@@ -18794,7 +18722,7 @@
                 .replace(/>/g, '&gt;');
         }
 
-        // lineIndex — с какой строки открыть материал в режиме «По строкам»
+        // lineIndex — с какой строки открыть материал в «Строке по кругу»
         // (-1 — с последней, см. stepPracticeLine); по умолчанию с первой.
         function navigateToTerm(direction, lineIndex) {
             const target = getStudyNavigationTarget(direction);
@@ -21182,8 +21110,8 @@
         }
         
         function getPracticeProgress(text) {
-            // «По строкам» — прогресс строки на экране.
-            const hidden = isPracticeLinesMode() ? getRenderableHiddenIndices(text) : (text.hiddenWords || []);
+            // «Строка по кругу» — прогресс строки на экране.
+            const hidden = isPracticeCircleMode() ? getRenderableHiddenIndices(text) : (text.hiddenWords || []);
             const total = hidden.length;
             const revealedSet = new Set(text.revealedWords || []);
             const revealed = hidden.filter(i => revealedSet.has(i)).length;
@@ -21232,7 +21160,6 @@
         
         function toggleAllWordsReveal() {
             if (isPracticeCircleMode()) return togglePracticeCircleLine();
-            if (isPracticeLinesMode()) return togglePracticeLineReveal();
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             if (!text.hiddenWords || !text.hiddenWords.length) return false;
             const allRevealed = text.hiddenWords.every(i => text.revealedWords.includes(i));
@@ -21659,11 +21586,11 @@
                 // preventDefault и на автоповторе: после клика фокус стоит на кнопке
                 // («Показать все скрытые слова», «Фокус…»), и браузер сам «нажал»
                 // бы её. Само открытие — только на отдельное нажатие.
-                // «По строкам»: когда в строке открывать нечего — следующая строка.
+                // В «Строке по кругу» Return забирает её ветка выше.
                 if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey &&
                     !document.querySelector('.modal.show')) {
                     e.preventDefault();
-                    if (!e.repeat && !revealNextHiddenWordInOrder() && isPracticeLinesMode()) stepPracticeLine(1);
+                    if (!e.repeat) revealNextHiddenWordInOrder();
                     return;
                 }
                 // «М» отмечает подсвеченное слово сложным — то же, что долгое
@@ -21751,12 +21678,12 @@
             if (e.key === 'ArrowRight') {
                 e.preventDefault();
                 if (state.view === 'term_chooser') navigateChooser(1);
-                else if (isPracticeLinesMode()) stepPracticeLine(1);
+                else if (isPracticeCircleMode()) stepPracticeLine(1);
                 else navigateToTerm(1);
             } else if (e.key === 'ArrowLeft') {
                 e.preventDefault();
                 if (state.view === 'term_chooser') navigateChooser(-1);
-                else if (isPracticeLinesMode()) stepPracticeLine(-1);
+                else if (isPracticeCircleMode()) stepPracticeLine(-1);
                 else navigateToTerm(-1);
             } else if ((e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') && state.view === 'practice' && state.mode === 'practice') {
                 e.preventDefault();
