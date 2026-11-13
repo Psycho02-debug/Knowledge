@@ -13377,13 +13377,19 @@
         // Включает режим фокуса (если он выключен) и ведёт по словам текста по
         // порядку, ничего не раскрывая. Первое нажатие встаёт на первое слово.
         // Когда все скрытые слова открыты, фокуса нет: ни стрелка, ни кнопка
-        // его не включают.
+        // его не включают. Исключение — «Строка по кругу»: там на полностью
+        // открытой строке фокус можно включить снова кнопкой или стрелкой вниз
+        // и вести его по открытым словам; сам он после открытия всех слов
+        // не включается.
         function focusNextPracticeWord() {
             if (!isPracticeFocusModeEnabled()) return false;
             if (state.currentText === null || state.currentFolder === null) return false;
             const text = ensureTextStudyData(getCurrentFolder().texts[state.currentText]);
             if (isCirclePicking(text)) return false;
-            if (!getUnrevealedFocusTargets(text).length) return false;
+            // В «Строке по кругу» фокус разрешён и когда все слова строки
+            // открыты: тогда он ведёт по словам для перечитывания. В остальных
+            // режимах без неоткрытых скрытых слов фокус не включается.
+            if (!isPracticeCircleMode() && !getUnrevealedFocusTargets(text).length) return false;
             const targets = getPracticeFocusTargets(text);
             if (!targets.length) return false;
 
@@ -13392,6 +13398,9 @@
                 state.practiceFocusWordIndex = targets[0];
             } else {
                 if (targets.length < 2) return false;
+                // Связка под фокусом занимает все цели (строка без скрытых слов) —
+                // следующего шага нет.
+                if (getPracticeFocusSpan(text, state.practiceFocusWordIndex).length >= targets.length) return false;
                 advancePracticeFocus(text);
             }
             render();
@@ -13635,8 +13644,15 @@
             const marked = getRenderableHiddenIndices(text);
             if (!marked.length) return false;
             const revealedSet = new Set(text.revealedWords);
-            if (marked.some(index => !revealedSet.has(index))) markHiddenWordsRevealed(text, marked);
-            else hidePracticeCircleLine(text, marked);
+            if (marked.some(index => !revealedSet.has(index))) {
+                markHiddenWordsRevealed(text, marked);
+                // «Открыть все слова» — сверка с текстом целиком: фокус здесь
+                // мешает, выключаем его, как «Показать все» в обычной практике.
+                // На открытой строке его можно включить снова кнопкой.
+                exitPracticeFocusMode();
+            } else {
+                hidePracticeCircleLine(text, marked);
+            }
             render();
             return true;
         }
@@ -13979,10 +13995,14 @@
             const unrevealedCount = state.mode === 'practice' ? getUnrevealedFocusTargets(text).length : 0;
             // Фокус нужен, пока есть что вспоминать. Когда открыто всё, он гаснет
             // сам. Слова открывают по-разному: нажатием, Return, «Открыть слово»,
-            // а в «Строке по кругу» фокус переезжает на следующую строку, где
-            // может не быть закрытых слов. Поэтому проверка стоит здесь, в отрисовке, а не в
-            // каждом из этих мест.
-            if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled && unrevealedCount === 0) {
+            // поэтому проверка стоит здесь, в отрисовке, а не в каждом из этих мест.
+            // «Строка по кругу» — исключение: там фокус можно включить заново и на
+            // полностью открытой строке (перечитывание с указателем), поэтому её
+            // гашение при полном открытии делают сами действия раскрытия —
+            // revealWord, revealNextHiddenWordInOrder и togglePracticeCircleLine, —
+            // а отрисовка не трогает: иначе она погасила бы и только что
+            // включённый вручную фокус.
+            if (isPracticeFocusModeEnabled() && state.practiceFocusEnabled && unrevealedCount === 0 && !isCircle) {
                 exitPracticeFocusMode();
             }
             // Цели фокуса нужны, только пока фокус включён: без него ни одна ветка
@@ -14196,14 +14216,20 @@
             const primaryAction = isCircle ? (circlePicking ? 'toggleCirclePicking()'
                     : progress.total === 0 ? '' : 'togglePracticeCircleLine()')
                 : (!progress || progress.total === 0 ? '' : 'toggleAllWordsReveal()');
-            // Кнопка нужна, только пока в тексте осталось что вспоминать: когда всё
-            // открыто, фокус выключен (см. выше) и включить его нельзя. Включённый
-            // фокус ведёт по всем словам текста, поэтому ему нужно, куда перейти:
-            // хотя бы два слова.
+            // Кнопка нужна, пока есть что вспоминать; в «Строке по кругу» — и когда
+            // строка открыта целиком: там фокус включают заново и ведут по открытым
+            // словам, нужны лишь слова-цели на строке. Включённый фокус ведёт по
+            // всем словам текста, поэтому ему нужно, куда перейти: хотя бы два слова.
+            const circleFocusRestart = isCircle && !circlePicking && unrevealedCount === 0 &&
+                (state.practiceFocusEnabled ? focusTargets.length > 0 : getPracticeFocusTargets(text).length > 0);
+            // Шагать есть куда, только если связка под фокусом — не все цели сразу:
+            // на строке без скрытых слов вся строка — одна связка, и следующего
+            // шага у фокуса нет.
             const canFocusNext = isPracticeLayout &&
                 isPracticeFocusModeEnabled() && !circlePicking &&
-                unrevealedCount > 0 &&
-                (!state.practiceFocusEnabled || focusTargets.length > 1);
+                (unrevealedCount > 0 || circleFocusRestart) &&
+                (!state.practiceFocusEnabled ||
+                    (focusTargets.length > 1 && practiceFocusSpan.size < focusTargets.length));
             // Подсказка относится к слову под фокусом, а без фокуса — к первому ещё
             // не открытому слову текста (см. getActivePracticeTargetIndex).
             const hintTargetIndex = isPracticeLayout ? getActivePracticeTargetIndex(text) : null;
@@ -21187,6 +21213,13 @@
                 getPracticeFocusSpan(text, state.practiceFocusWordIndex).includes(index)) {
                 advancePracticeFocus(text);
             }
+            // «Строка по кругу»: этим словом открыта вся строка — фокус гаснет,
+            // как в остальной практике (там это делает отрисовка). Включить его
+            // снова на открытой строке можно кнопкой «Фокус на следующем слове».
+            if (isPracticeCircleMode() && state.practiceFocusEnabled &&
+                !getUnrevealedFocusTargets(text).length) {
+                exitPracticeFocusMode();
+            }
             render();
         }
 
@@ -21242,6 +21275,12 @@
                 markHiddenWordsRevealed(text, [next]);
                 state.practiceFocusWordIndex = next;
                 advancePracticeFocus(text);
+            }
+            // «Строка по кругу»: открыто всё — фокус гаснет сам, как в остальной
+            // практике; на открытой строке его включают заново кнопкой.
+            if (isPracticeCircleMode() && state.practiceFocusEnabled &&
+                !getUnrevealedFocusTargets(text).length) {
+                exitPracticeFocusMode();
             }
             render();
             scrollToFocusedWord();
