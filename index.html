@@ -13381,6 +13381,16 @@
         // открытой строке фокус можно включить снова кнопкой или стрелкой вниз
         // и вести его по открытым словам; сам он после открытия всех слов
         // не включается.
+        // «Выйти из фокуса»: стоит на месте «Открыть слово», когда все слова
+        // открыты, а фокус ещё включён (так бывает в «Строке по кругу», где фокус
+        // ведут и по открытой строке). Открывать нечего — зато фокус можно снять.
+        function leavePracticeFocus() {
+            if (!state.practiceFocusEnabled) return false;
+            exitPracticeFocusMode();
+            render();
+            return true;
+        }
+
         function focusNextPracticeWord() {
             if (!isPracticeFocusModeEnabled()) return false;
             if (state.currentText === null || state.currentFolder === null) return false;
@@ -14254,7 +14264,13 @@
             // попросил убрать её — строки листают стрелки ‹ › под главной кнопкой.
             const showCornerHint = hasHiddenWords || isCircle;
             const showAssistRow = hasHiddenWords || isCircle;
-            const openWordButton = isCircle
+            // Всё открыто, а фокус ещё горит — «Открыть слово» бесполезна, на её
+            // месте кнопка, которая снимает фокус.
+            const canLeaveFocus = isPracticeLayout && !circlePicking && unrevealedCount === 0 &&
+                isPracticeFocusModeEnabled() && state.practiceFocusEnabled;
+            const openWordButton = canLeaveFocus
+                ? `<button class="practice-skip-btn practice-hint-btn" onclick="leavePracticeFocus()" title="Выключить фокус: все слова уже открыты">Выйти из фокуса</button>`
+                : isCircle
                 ? `<button class="practice-skip-btn practice-hint-btn" onclick="practiceCircleStep()" ${canOpenNext && !circlePicking ? '' : 'disabled'} title="Открыть следующее скрытое слово строки по порядку; с фокусом — все скрытые слова до слова под фокусом (пробел, Return)">Открыть слово</button>`
                 : `<button class="practice-skip-btn practice-hint-btn" onclick="revealNextHiddenWordInOrder()" ${canOpenNext ? '' : 'disabled'} title="Открыть следующее скрытое слово по порядку; с фокусом — все скрытые слова до слова под фокусом (Return)">Открыть слово</button>`;
             const circleCount = isCircle ? getPracticeCircleCount(text, line.index) : 0;
