@@ -7857,6 +7857,45 @@
             return words.slice(firstIndex, lastIndex + 1).join('').trim();
         }
 
+        // ——— Текст материала — по блоку на строку ———
+        // Весь текст раньше был одним абзацем: сотни чипов в одном блоке с
+        // pre-wrap, строки разделял только перевод строки. Открытое слово меняет
+        // ширину своей плашки, и браузер заново раскладывал ВСЕ строки абзаца —
+        // на тексте в 150 строк это около 4 мс на каждое нажатие, больше
+        // половины его цены. Каждая строка текста — свой блок: перевод строки и
+        // так начинает новую строку, поэтому геометрия та же (сверено до тысячных
+        // пикселя на всех чипах), а пересчитывается только строка с изменённым
+        // словом — 0.1 мс. Заодно точечное обновление, встретив строку с другим
+        // числом узлов, пересобирает только её, а не весь текст.
+        // Перевод строки остаётся в конце своего блока: завершающий перевод
+        // строки новой строки не даёт, а пустые строки («\n\n») рисует как раньше.
+        const TEXT_LINE_OPEN = '<div class="text-line">';
+        const TEXT_LINE_BREAK = '</div><div class="text-line">';
+        // Место текста в разметке экрана. Начинается с «<», а пользовательский
+        // текст экранируется, так что в нём такой строки не бывает.
+        const TEXT_LINES_SLOT = '<text-lines-slot>';
+
+        // Строки текста этой отрисовки: их разметку setAppHtml сравнивает с
+        // прошлой и разбирает заново только изменившиеся (см. там).
+        let textLinesRender = null;
+
+        // shell — разметка экрана с TEXT_LINES_SLOT на месте текста, joined — разметка
+        // текста, где каждая строка кончается TEXT_LINE_BREAK. Возвращает экран целиком.
+        function withTextLines(shell, joined) {
+            const lines = joined.split(TEXT_LINE_BREAK);
+            // Текст кончается переводом строки — последний блок был бы пуст: его
+            // не рисуем (высоты у пустого блока всё равно нет).
+            if (lines[lines.length - 1] === '') lines.pop();
+            const at = shell.indexOf(TEXT_LINES_SLOT);
+            const head = shell.slice(0, at);
+            const tail = shell.slice(at + TEXT_LINES_SLOT.length);
+            let body = '';
+            for (let k = 0; k < lines.length; k++) body += TEXT_LINE_OPEN + lines[k] + '</div>';
+            const html = head + body + tail;
+            textLinesRender = { html, head, tail, lines };
+            return html;
+        }
+
         function normalizeDisplayWhitespaceToken(token, isAtStart = false) {
             // Девять из десяти разделителей — одиночный пробел или перевод строки,
             // для них цепочка замен ничего не меняет. Отвечаем сразу.
@@ -9675,9 +9714,12 @@
                 oldParent.innerHTML = newParent.innerHTML;
                 return;
             }
+            // Строки текста, разметка которых не изменилась (см. setAppHtml).
+            const keepsLines = oldParent === keptLinesHolder;
             for (let i = 0; i < oldKids.length; i++) {
                 const oldNode = oldKids[i];
                 const newNode = newKids[i];
+                if (keepsLines && newNode.nodeType === 1 && newNode.hasAttribute(KEPT_LINE_ATTR)) continue;
                 if (oldNode.nodeType !== newNode.nodeType ||
                     (oldNode.nodeType === 1 && oldNode.tagName !== newNode.tagName)) {
                     oldParent.replaceChild(newNode.cloneNode(true), oldNode);
@@ -9738,14 +9780,80 @@
 
         // canPatch включаем только для повторной отрисовки того же экрана: при входе
         // на экран разметка собирается начисто, так что сравнивать не с чем.
+        // ——— Строки текста, которые не изменились, не разбираются заново ———
+        // Открытое слово меняет одну строку текста, а разметка экрана собирается
+        // целиком: на тексте в 150 строк это 170 КБ, которые шаблон разбирал в
+        // 2000 узлов, а патч обходил, чтобы найти один изменившийся чип. Теперь
+        // setAppHtml помнит разметку каждой строки прошлой отрисовки (у блока,
+        // в котором строки лежат) и в шаблон вместо неизменённой строки кладёт
+        // пустую заглушку data-keep-line: patchChildNodes её пропускает, и живая
+        // строка остаётся как была. Это верно, потому что разметка строки целиком
+        // задаёт её DOM, а вне отрисовки строки текста никто не трогает. Если
+        // заглушка всё же попала в документ (поддерево выше пересобрано), её
+        // заменяет настоящая строка — результат тот же, что без заглушек.
+        let renderedTextLines = null;
+        let keptLinesHolder = null;
+        const KEPT_LINE_ATTR = 'data-keep-line';
+
+        function getTextLinesHolder(container) {
+            const first = container.querySelector('.text-line');
+            return first ? first.parentNode : null;
+        }
+
+        function buildKeptLinesHtml(container, lineRender) {
+            const prev = renderedTextLines;
+            if (!prev || !container.contains(prev.holder)) return null;
+            const lines = lineRender.lines;
+            if (prev.lines.length !== lines.length || prev.holder.childNodes.length !== lines.length) return null;
+            let body = '';
+            let kept = 0;
+            for (let k = 0; k < lines.length; k++) {
+                if (prev.lines[k] === lines[k]) {
+                    body += '<div class="text-line" ' + KEPT_LINE_ATTR + '="' + k + '"></div>';
+                    kept++;
+                } else {
+                    body += TEXT_LINE_OPEN + lines[k] + '</div>';
+                }
+            }
+            if (!kept) return null;
+            keptLinesHolder = prev.holder;
+            return lineRender.head + body + lineRender.tail;
+        }
+
+        function restoreKeptLines(container, lineRender) {
+            const left = container.querySelectorAll('[' + KEPT_LINE_ATTR + ']');
+            for (let i = 0; i < left.length; i++) {
+                const k = Number(left[i].getAttribute(KEPT_LINE_ATTR));
+                const staging = document.createElement('template');
+                staging.innerHTML = TEXT_LINE_OPEN + lineRender.lines[k] + '</div>';
+                left[i].replaceWith(staging.content);
+            }
+        }
+
         function setAppHtml(container, html, canPatch) {
+            // Строки текста отдаёт отрисовщик этой же отрисовки; чужие (отрисовщик
+            // упал до вызова) не годятся — сверяем, что разметка та же.
+            let lineRender = textLinesRender;
+            textLinesRender = null;
+            if (lineRender && lineRender.html !== html) lineRender = null;
+            try {
+                applyAppHtml(container, html, canPatch, lineRender);
+            } finally {
+                keptLinesHolder = null;
+                const holder = lineRender ? getTextLinesHolder(container) : null;
+                renderedTextLines = holder ? { holder, lines: lineRender.lines } : null;
+            }
+        }
+
+        function applyAppHtml(container, html, canPatch, lineRender) {
             if (!canPatch || !container.firstChild) {
                 container.innerHTML = html;
                 return;
             }
+            const stagingHtml = lineRender ? buildKeptLinesHtml(container, lineRender) : null;
             try {
                 const staging = document.createElement('template');
-                staging.innerHTML = html;
+                staging.innerHTML = stagingHtml || html;
                 // Изменилось число узлов верхнего уровня — экран перестроен, а не
                 // обновлён (так бывает, когда карточка уходит во весь экран).
                 // patchChildNodes в этом случае копирует innerHTML нового родителя,
@@ -9756,6 +9864,7 @@
                     return;
                 }
                 patchChildNodes(container, staging.content);
+                if (stagingHtml) restoreKeptLines(container, lineRender);
             } catch (err) {
                 // Любая неожиданность — возвращаемся к заведомо рабочему пути.
                 container.innerHTML = html;
@@ -9961,7 +10070,10 @@
                     // Разделитель с переводом строки внутри фокуса рисовать нельзя:
                     // он развернул бы строку обратно в две.
                     if (focusLine !== null && word.includes('\n')) return '';
-                    return escapeHtml(normalizeDisplayWhitespaceToken(word, i === firstFocusToken));
+                    const spacing = normalizeDisplayWhitespaceToken(word, i === firstFocusToken);
+                    return spacing.includes('\n')
+                        ? escapeHtml(spacing) + TEXT_LINE_BREAK
+                        : escapeHtml(spacing);
                 }
                 const isMarked = hiddenSet.has(i);
                 if (isMarked) {
@@ -10021,12 +10133,12 @@
                 const completeText = peekedCount
                     ? `Текст перед вами целиком. Вписано ${hiddenSorted.length - peekedCount} из ${hiddenSorted.length}, открыто нажатием — ${peekedCount}.`
                     : 'Все слова вписаны верно — текст перед вами целиком.';
-                return `
+                return withTextLines(`
                     ${getTermNavHeader(text)}
                     <div class="container type-shell">
                         ${modeButtons}
                         <div class="type-card">
-                        <div class="text-display">${wordSpans}</div>
+                        <div class="text-display">${TEXT_LINES_SLOT}</div>
                         <div class="type-progress-track"><div class="type-progress-fill" style="transform:scaleX(1)"></div></div>
                         <div class="type-input-wrap active">
                             <div class="game-complete">
@@ -10040,7 +10152,7 @@
                         </div>
                         ${getTermNavInline()}
                     </div>
-                `;
+                `, wordSpans);
             }
 
             // Оба блока — подсказка «сейчас слово N» и сообщение об ошибке — рисуются
@@ -10058,7 +10170,7 @@
                     : '';
             const singleTokensHtml = `<div class="type-feedback wrong${wrongList.length ? '' : ' is-hidden'}">${feedbackText}</div>`;
 
-            return `
+            return withTextLines(`
                 ${getTermNavHeader(text)}
                 <div class="container type-shell">
                     ${modeButtons}
@@ -10068,7 +10180,7 @@
                         <button class="practice-mode-btn ${state.typeDisplayMode === 'hints' ? 'active' : ''}" onclick="setTypeDisplayMode('hints')">?</button>
                     </div>
                     <div class="type-card">
-                    <div class="text-display">${wordSpans}</div>
+                    <div class="text-display">${TEXT_LINES_SLOT}</div>
                     <div class="type-progress-track"><div class="type-progress-fill" style="transform:scaleX(${hiddenSorted.length ? (solvedCount / hiddenSorted.length).toFixed(4) : 0})"></div></div>
                     <div class="type-input-wrap active">
                         <div class="type-input-label">
@@ -10104,7 +10216,7 @@
                     </div>
                     ${getTermNavInline()}
                 </div>
-            `;
+            `, wordSpans);
         }
 
         function normalizeTypeWord(word) {
@@ -14073,7 +14185,9 @@
                         practiceParts.push('&nbsp;');
                         continue;
                     }
-                    practiceParts.push(escapeHtml(spacing));
+                    practiceParts.push(spacing.includes('\n')
+                        ? escapeHtml(spacing) + TEXT_LINE_BREAK
+                        : escapeHtml(spacing));
                     continue;
                 }
 
@@ -14295,7 +14409,7 @@
                     + cornerHintButton
                     + `</div>`;
 
-            return `
+            return withTextLines(`
                 ${getTermNavHeader(text)}
                 <div class="container${isPracticeLayout ? ' practice-shell' : (state.mode === 'edit' ? ' edit-shell' : '')}">
                     ${isPracticeLayout ? `
@@ -14333,7 +14447,7 @@
                     `}
 
                     ${text.image ? `<div style="text-align:center;margin-bottom:12px;"><img src="${text.image}" loading="lazy" decoding="async" style="max-width:100%;max-height:150px;border-radius:12px;object-fit:cover;"></div>` : ''}
-                    <div class="text-display-row${showCornerHint ? ' has-corner-hint' : ''}${showCornerHint && isCircle ? ' has-corner-tools' : ''}"><div class="text-display ${sizeClass}${isPracticeFocusActive ? ' practice-focus-mode' : ''}${isPracticeLayout && getPracticeTextAnchorStyle() ? ' is-anchored' : ''}" style="${fitStyle}${isPracticeLayout ? getPracticeTextAnchorStyle() : ''}"><div class="text-display-inner">${practiceParts.join('')}</div></div>${cornerTools}</div>
+                    <div class="text-display-row${showCornerHint ? ' has-corner-hint' : ''}${showCornerHint && isCircle ? ' has-corner-tools' : ''}"><div class="text-display ${sizeClass}${isPracticeFocusActive ? ' practice-focus-mode' : ''}${isPracticeLayout && getPracticeTextAnchorStyle() ? ' is-anchored' : ''}" style="${fitStyle}${isPracticeLayout ? getPracticeTextAnchorStyle() : ''}"><div class="text-display-inner">${TEXT_LINES_SLOT}</div></div>${cornerTools}</div>
 
                     ${isPracticeLayout ? '' : `
                         <div class="action-buttons">
@@ -14397,7 +14511,7 @@
                         </div>
                     </div>
                 `}
-            `;
+            `, practiceParts.join(''));
         }
 
         function renderExampleView(text) {

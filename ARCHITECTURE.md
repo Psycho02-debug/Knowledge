@@ -2,7 +2,7 @@
 
 Обзор для того, кто открывает проект без истории переписки: из чего он состоит, где что лежит в `index.html`, какие есть экраны и режимы, как устроены офлайн и зависимости, какие известны риски. Подсистемы подробно — в [docs/](docs/) (список — §2), правила и маршрут «задача → документ» — в [CLAUDE.md](CLAUDE.md), поведение для пользователя — в [README.md](README.md).
 
-**Сверено с кодом 2026-11-04:** версия кэша `zapominalka-v159`, `index.html` — 21 862 строки, 1,04 МБ (по сети около 205 КБ: GitHub Pages отдаёт его сжатым gzip). Номера строк — ориентир для v159: файл правится постоянно, ищите по имени — `grep -n "function имя(" index.html`.
+**Сверено с кодом 2026-11-19:** версия кэша `zapominalka-v162`, `index.html` — 22 031 строка, 1,05 МБ (по сети около 210 КБ: GitHub Pages отдаёт его сжатым gzip). Номера строк — ориентир для v159: файл правится постоянно, ищите по имени — `grep -n "function имя(" index.html`.
 
 ---
 
@@ -121,7 +121,7 @@
 | 8927–9173 | Хранение и запуск, слушатели жизненного цикла, папка при запуске | `scheduleIdleTask`, `flushSaveData`, `flushLocalStats`, `flushPendingPersistence`, `getLocalData`, `loadData`, `openStartupFolder`, `saveData` |
 | 9174–9286 | Дерево папок, записи списка материалов | `ensureFolderShape`, `normalizeFoldersTree`, `getTopFolder`, `getCurrentFolder`, `getCurrentFolderTitle`, `buildTextsViewEntries`, `getTextLocationFromListIndex`, `shuffleVisibleTexts` |
 | 9287–9631 | Статистика, мелкие помощники, подготовка «Игры» (в том числе `// ——— «Собери текст по строкам»`) и «Теста» | `getLocalStats`, `saveLocalStats`, `buildStatsSummary`, `getFirstLettersOnly`, `getMaxHintLetters`, `shuffleArray`, `initGame`, `initQuiz` |
-| 9632–9905 | **Конвейер отрисовки** | `syncElementAttributes`, `patchChildNodes`, `setAppHtml`, `render`, `renderScreen`, `syncDockSpacing` |
+| 9632–9905 | **Конвейер отрисовки** | `syncElementAttributes`, `patchChildNodes`, `setAppHtml` (с пропуском неизменённых строк текста: `buildKeptLinesHtml`, `restoreKeptLines`), `render`, `renderScreen`, `syncDockSpacing`; строки текста собирает `withTextLines` (≈7860) |
 | 9906–10574 | Режим «Вписать», раскладка клавиатуры, каскад появления карточек | `renderTypeView`, `normalizeTypeWord`, `convertKeyboardLayout`, `typeWordMatches`, `getTypeSequenceTokens`, `evaluateTypedWords`, `checkTypeWord`, `focusTypeField`, `syncTypeTextClamp`, `toggleTypeFocusLine`, `compactMarkup`, `getTermCardEntryDelay` |
 | 10575–10818 | Смена режима, свайп и перетаскивание карточек, пометка сложных материалов | `setMode`, `initTermCardSwipe`, `initDragReorder`, `toggleAttention`, `resetAllAttention`, `toggleDifficultFilter` |
 | 10819–10965 | Главная навигация и нижняя панель вкладок | `setPrimaryView`, `handlePrimaryCreateAction`, `openLearningBranch`, `renderBottomNav`, `renderShell` |
