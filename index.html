@@ -1423,6 +1423,307 @@
             }
         }
 
+        /* ===== Полотно изучения (v163) =====
+           Практика (все четыре вида) и «Выбор» — один монолитный экран: шапка,
+           текст и док стоят на одном фоне, без рамок, теней и карточки вокруг
+           текста. Сверху только название, всё управление — в доке снизу.
+           Правила идут после основных и сильнее их по специфичности. */
+        /* Фон — один сплошной цвет: градиент приложения у закреплённых шапки и
+           дока рисовался бы заново в их рамках, и на стыках были бы видны полосы. */
+        body.practice-layout {
+            background: var(--bg-secondary);
+        }
+
+        .header.study-canvas-header {
+            background: var(--bg-secondary);
+            box-shadow: none;
+            border-bottom: none;
+            justify-content: center;
+            padding: 14px 20px 6px;
+            top: 0;
+        }
+
+        /* Текст под шапкой и над доком не обрезается краем, а растворяется в фоне.
+           Статичный градиент, без backdrop-filter. */
+        .header.study-canvas-header::after,
+        .practice-dock.study-dock::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 22px;
+            pointer-events: none;
+        }
+
+        .header.study-canvas-header::after {
+            top: 100%;
+            background: linear-gradient(var(--bg-secondary), transparent);
+        }
+
+        .practice-dock.study-dock::before {
+            bottom: 100%;
+            background: linear-gradient(transparent, var(--bg-secondary));
+        }
+
+        .header.study-canvas-header h1 {
+            font-size: 1.02rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-align: center;
+            max-width: 100%;
+        }
+
+        .container.study-canvas {
+            max-width: 680px;
+            display: flex;
+            flex-direction: column;
+            min-height: calc(100dvh - 48px);
+            padding: 4px 20px calc(260px + env(safe-area-inset-bottom));
+        }
+
+        .study-canvas .text-display-row {
+            flex: 1;
+            display: flex;
+        }
+
+        .study-canvas .text-display,
+        .practice-shell .text-display-row .text-display {
+            background: none;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            padding: 8px 0 16px;
+            min-height: 0;
+        }
+
+        /* Закреплённое положение текста (syncPracticeTextAnchor) — сильнее
+           обычного отступа выше. */
+        .practice-shell .text-display-row .text-display.is-anchored {
+            padding-top: var(--text-anchor-top);
+        }
+
+        .study-canvas .text-display {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            font-size: calc(max(1.05rem, min(var(--size-max, 1rem), var(--fit-w, 99rem), var(--fit-h, 99rem))) * var(--user-text-scale, 1));
+        }
+
+        /* В «Выборе» текст от верха: отмеченное слово шире обычного, и центр
+           сдвигал бы весь текст на каждое нажатие. */
+        .edit-shell.study-canvas .text-display {
+            justify-content: flex-start;
+            padding-top: 12px;
+        }
+
+        /* Кегль на полотне крупнее прежнего: текст — главное на экране. */
+        .study-canvas .text-display.size-xl { --size-max: 2.5rem; }
+        .study-canvas .text-display.size-lg { --size-max: 1.95rem; }
+        .study-canvas .text-display.size-md { --size-max: 1.45rem; line-height: 2.15; }
+        .study-canvas .text-display.size-sm { --size-max: 1.15rem; line-height: 2.25; }
+
+        .study-canvas-image {
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .study-canvas-image img {
+            max-width: 100%;
+            max-height: 140px;
+            border-radius: 12px;
+            object-fit: cover;
+        }
+
+        .practice-dock.study-dock {
+            background: var(--bg-secondary);
+            border-top: none;
+            padding: 6px 16px calc(10px + env(safe-area-inset-bottom));
+        }
+
+        .study-dock .practice-dock-inner {
+            gap: 8px;
+        }
+
+        .study-tools-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+        }
+
+        .study-tools {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .study-tools-row .term-edit-btn {
+            width: 38px;
+            height: 38px;
+            color: var(--text-tertiary);
+        }
+
+        .study-tools-row .term-edit-btn:disabled {
+            opacity: 0.3;
+            cursor: default;
+            background: transparent;
+        }
+
+        .study-tool-btn.study-tool-text {
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .study-tool-btn.study-tool-star {
+            font-size: 19px;
+            line-height: 1;
+        }
+
+        .study-tool-btn.is-on {
+            color: var(--accent-primary);
+            background: var(--bg-badge);
+        }
+
+        .study-tool-btn.is-attention {
+            color: #ec4899;
+        }
+
+        .study-dock .practice-textsize-row {
+            margin: 0;
+            background: none;
+            border: none;
+            padding: 4px 6px;
+        }
+
+        .study-dock .practice-skip-btn {
+            padding: 13px 8px;
+            border-radius: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .study-dock .practice-assist-row .practice-hint-btn {
+            padding: 13px 14px;
+        }
+
+        .study-dock .practice-primary-btn {
+            padding: 15px;
+            border-radius: 14px;
+            box-shadow: none;
+        }
+
+        .study-batch-row {
+            display: flex;
+            gap: 8px;
+            align-items: stretch;
+        }
+
+        .study-batch-row .practice-primary-btn {
+            flex: 1 1 auto;
+            width: auto;
+        }
+
+        .study-batch-row .practice-skip-btn {
+            flex: 0 0 auto;
+            width: auto;
+            font-size: 13px;
+        }
+
+        .study-batch-row .study-cancel-btn {
+            padding-left: 15px;
+            padding-right: 15px;
+        }
+
+        .study-dock .practice-nav-btn {
+            width: 42px;
+            height: 42px;
+            font-size: 20px;
+            box-shadow: none;
+        }
+
+        .study-dock .practice-nav-row {
+            gap: 14px;
+        }
+
+        /* Под счётчиком — прогресс; строка «small» есть всегда, чтобы док не
+           менял высоту. */
+        .practice-nav-counter.study-status {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            line-height: 1.25;
+            min-width: 150px;
+            font-size: 15px;
+        }
+
+        .practice-nav-counter.study-status small {
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            white-space: nowrap;
+        }
+
+        @media (orientation: landscape) and (max-height: 560px) {
+            .header.study-canvas-header {
+                padding: 6px 14px 2px;
+            }
+
+            .container.study-canvas {
+                max-width: 900px;
+                padding-left: max(20px, env(safe-area-inset-left));
+                padding-right: max(20px, env(safe-area-inset-right));
+            }
+
+            .study-canvas .text-display {
+                --fit-h: 9vh;
+            }
+
+            .study-dock .practice-dock-inner {
+                flex-wrap: wrap;
+            }
+
+            /* Два ряда: значки и стрелки сверху, кнопки действий снизу. */
+            .study-dock .study-tools-row {
+                order: 1;
+                flex: 0 0 calc(100% - 230px);
+            }
+
+            .study-dock .practice-nav-row {
+                order: 2;
+                flex: 1 0 auto;
+                justify-content: flex-end;
+            }
+
+            .study-dock .practice-assist-row,
+            .study-dock .study-batch-row,
+            .study-dock .practice-primary-btn {
+                order: 3;
+            }
+
+            .study-tools-row .term-edit-btn {
+                width: 34px;
+                height: 30px;
+            }
+
+            .study-dock .practice-primary-btn {
+                flex: 1 0 210px;
+                white-space: nowrap;
+                padding: 12px;
+            }
+
+            .practice-nav-counter.study-status {
+                min-width: 96px;
+            }
+
+            .study-batch-row {
+                flex: 1 1 auto;
+            }
+        }
+
         .term-example {
             background: var(--bg-card);
             border-radius: 12px;
@@ -9895,7 +10196,7 @@
         function renderScreen() {
             const app = document.getElementById('app');
             if (!app) return;
-            document.body.classList.toggle('practice-layout', state.view === 'practice' && state.mode === 'practice');
+            document.body.classList.toggle('practice-layout', state.view === 'practice' && (state.mode === 'practice' || state.mode === 'edit'));
 
             // Анимации появления должны играть при входе на экран, а не при каждом
             // обновлении внутри него. Приложение перерисовывает DOM целиком на любое
@@ -14310,8 +14611,8 @@
             const plainLength = shownContent.replace(/\s+/g, ' ').trim().length;
             // Строка «Строки по кругу» — не крупнее size-lg: строки короткие, и самый
             // крупный кегль после открытия длинных слов уводил текст под панель.
-            const sizeClass = !isPracticeLayout ? 'size-sm'
-                : plainLength <= 60 && !line ? 'size-xl'
+            // «Выбор» с v163 — на том же полотне и с тем же кеглем, что практика.
+            const sizeClass = plainLength <= 60 && !line ? 'size-xl'
                 : plainLength <= 180 ? 'size-lg'
                 : plainLength <= 400 ? 'size-md' : 'size-sm';
             // Кегль ограничиваем шириной строки: самое длинное слово не должно
@@ -14323,7 +14624,7 @@
             const lineShare = plainWords.length <= 1 ? 0.92 : 0.85;
             const wordWidthEm = (longestWord * 0.62 + 1.3).toFixed(2);
             const userScale = (state.practiceTextScale || 1).toFixed(2);
-            const fitStyle = `--fit-w: calc((100vw - 76px) * ${lineShare} / ${wordWidthEm}); --user-text-scale: ${userScale};`;
+            const fitStyle = `--fit-w: calc((100vw - 40px) * ${lineShare} / ${wordWidthEm}); --user-text-scale: ${userScale};`;
 
             const progress = isPracticeLayout ? getPracticeProgress(text) : null;
             const nav = isPracticeLayout ? getStudyNavigationMeta() : null;
@@ -14365,18 +14666,15 @@
             // по порядку текста. Нужна, пока есть что открывать.
             const canOpenNext = isPracticeLayout && unrevealedCount > 0;
             const focusButton = `<button class="practice-skip-btn" onclick="focusNextPracticeWord()" ${canFocusNext ? '' : 'disabled'} title="Перевести фокус на следующее слово, не открывая текущее">Фокус на следующем слове</button>`;
-            // «Подсказка» стоит в правом верхнем углу карточки с текстом. Рисуем её
-            // всегда, когда в тексте есть скрытые слова, и гасим, когда подсказывать
-            // нечего: появление и исчезновение узла меняло бы число детей карточки,
-            // и точечное обновление пересобирало бы весь текст с чипами.
+            // «Подсказка» (💡) с v163 — значок в ряду инструментов дока; рисуется
+            // всегда и гаснет, когда подсказывать нечего.
             //
-            // «Строка по кругу»: ряд и подсказка рисуются всегда, даже в материале
+            // «Строка по кругу»: ряд рисуется всегда, даже в материале
             // без скрытых слов: строки переключают стрелки, и от материала к
             // материалу панель не должна менять высоту. Ряд — как в обычной
             // практике: фокус и «Открыть слово» (practiceCircleStep — то же, что
             // пробел и Return). «Следующей строки ›» здесь больше нет: пользователь
             // попросил убрать её — строки листают стрелки ‹ › под главной кнопкой.
-            const showCornerHint = hasHiddenWords || isCircle;
             const showAssistRow = hasHiddenWords || isCircle;
             // Всё открыто, а фокус ещё горит — «Открыть слово» бесполезна, на её
             // месте кнопка, которая снимает фокус.
@@ -14399,118 +14697,118 @@
                 ? 'Нет скрытых слов'
                 : (progress.allRevealed ? '↺ Скрыть все слова' : 'Показать все скрытые слова');
 
-            const cornerHintButton = `<button class="practice-corner-hint-btn" onclick="revealNextHintLetter()" ${canHint ? '' : 'disabled'} title="Открыть следующую букву слова (Shift)">💡 ${hintLabel}</button>`;
+            // ——— Полотно изучения (v163) ———
+            // Практика (все четыре вида) и «Выбор» — один экран: сверху только
+            // название, посередине текст прямо на фоне, без карточки, рамок и
+            // подсказок, снизу — все кнопки. Инструменты — ряд значков в доке;
+            // все кнопки рисуются всегда и только гаснут (disabled), чтобы док не
+            // менял высоту и текст не скакал.
+            const toolBack = `<button class="term-edit-btn study-tool-btn" onclick="goBackToChooser()" title="Назад к материалу" aria-label="Назад">${STUDY_ICON_BACK}</button>`;
+            const toolAttention = `<button class="term-edit-btn study-tool-btn study-tool-star${text.attention ? ' is-attention' : ''}" onclick="toggleAttention(state.currentText)" title="${text.attention ? 'Снять отметку «сложный материал»' : 'Отметить материал сложным'}" aria-label="Сложный материал">${text.attention ? '★' : '☆'}</button>`;
+            const toolSize = `<button class="term-edit-btn study-tool-btn study-tool-text${state.practiceSizeControlOpen ? ' is-on' : ''}" onclick="togglePracticeSizeControl()" title="Размер текста" aria-label="Размер текста">Aa</button>`;
+            const toolEdit = `<button class="term-edit-btn study-tool-btn" onclick="showEditTextModal()" title="Редактировать текст" aria-label="Редактировать текст">${STUDY_ICON_EDIT}</button>`;
+            const sizeRow = state.practiceSizeControlOpen ? `
+                <div class="practice-textsize-row">
+                    <span class="practice-textsize-icon">A</span>
+                    <input type="range" class="practice-textsize-slider" min="50" max="150" step="5" value="${Math.round((state.practiceTextScale || 1) * 100)}" oninput="setPracticeTextScale(this.value)" onchange="commitPracticeTextScale()">
+                    <span class="practice-textsize-icon big">A</span>
+                    <span class="practice-textsize-label" id="practiceTextScaleLabel">${Math.round((state.practiceTextScale || 1) * 100)}%</span>
+                </div>
+            ` : '';
+            const header = `<div class="header study-canvas-header"><h1>${escapeHtml(text.title || '')}</h1></div>`;
+            const imageHtml = text.image ? `<div class="study-canvas-image"><img src="${text.image}" loading="lazy" decoding="async"></div>` : '';
+            const canvasText = `<div class="text-display-row"><div class="text-display ${sizeClass}${isPracticeFocusActive ? ' practice-focus-mode' : ''}${isPracticeLayout && getPracticeTextAnchorStyle() ? ' is-anchored' : ''}" style="${fitStyle}${isPracticeLayout ? getPracticeTextAnchorStyle() : ''}"><div class="text-display-inner">${TEXT_LINES_SLOT}</div></div></div>`;
+
+            if (!isPracticeLayout) {
+                // «Выбор»: тот же экран, в доке — действия над выделением.
+                const editNav = getStudyNavigationMeta();
+                const pendingCount = state.pendingWords.length;
+                const hiddenCount = (text.hiddenWords || []).length;
+                const editStatus = pendingCount ? `Выбрано: ${pendingCount}`
+                    : hiddenCount ? `Скрыто: ${hiddenCount} ${getWordGenitiveText(hiddenCount)}` : 'Нажмите на слова';
+                return withTextLines(`
+                    ${header}
+                    <div class="container study-canvas edit-shell">
+                        ${imageHtml}
+                        ${canvasText}
+                    </div>
+                    <div class="practice-dock study-dock">
+                        <div class="practice-dock-inner">
+                            ${sizeRow}
+                            <div class="study-tools-row">
+                                ${toolBack}
+                                <div class="study-tools">
+                                    ${toolAttention}
+                                    ${toolSize}
+                                    ${getTermListenButton(text)}
+                                    ${toolEdit}
+                                    <button class="term-edit-btn study-tool-btn" onclick="copyProcessedMaterial()" ${hiddenCount ? '' : 'disabled'} title="Скопировать материал" aria-label="Скопировать материал">${STUDY_ICON_COPY}</button>
+                                </div>
+                            </div>
+                            <div class="practice-assist-row">
+                                <button class="practice-skip-btn" onclick="selectAllPendingWords()" title="Выделить все слова (/)">Выделить все слова</button>
+                                <button class="practice-skip-btn practice-hint-btn" onclick="clearMarks()" ${hiddenCount || pendingCount ? '' : 'disabled'} title="Снять выделение и открыть все скрытые слова">Сбросить выбор</button>
+                            </div>
+                            <div class="study-batch-row">
+                                <button class="practice-primary-btn" onclick="applyBatchHide()" ${pendingCount ? '' : 'disabled'}>Скрыть слова</button>
+                                <button class="practice-skip-btn" onclick="showBatchHintModal()" ${pendingCount ? '' : 'disabled'}>Через вопросы</button>
+                                <button class="practice-skip-btn study-cancel-btn" onclick="cancelBatch()" ${pendingCount ? '' : 'disabled'} title="Отменить выбор" aria-label="Отменить выбор">✕</button>
+                            </div>
+                            <div class="practice-nav-row">
+                                <button class="practice-nav-btn" onclick="navigateToTerm(-1)" ${!editNav.hasPrev ? 'disabled' : ''}>‹</button>
+                                <span class="practice-nav-counter study-status">${editNav.current + 1}/${editNav.total}<small>${editStatus}</small></span>
+                                <button class="practice-nav-btn" onclick="navigateToTerm(1)" ${!editNav.hasNext ? 'disabled' : ''}>›</button>
+                            </div>
+                        </div>
+                    </div>
+                `, practiceParts.join(''));
+            }
+
+            const toolHint = `<button class="term-edit-btn study-tool-btn" onclick="revealNextHintLetter()" ${canHint ? '' : 'disabled'} title="${hintLabel}: следующая буква слова (Shift)" aria-label="${hintLabel}">${STUDY_ICON_HINT}</button>`;
             // «Строка по кругу»: рядом с подсказкой — выделение слов строки.
-            const cornerTools = !showCornerHint ? ''
-                : !isCircle ? cornerHintButton
-                : `<div class="practice-corner-tools">`
-                    + `<button class="practice-corner-hint-btn${circlePicking ? ' is-active' : ''}" onclick="toggleCirclePicking()" ${circlePicking || progress.total > 0 ? '' : 'disabled'} title="${circlePicking ? 'Закончить выбор слов (Ж)' : 'Выбрать слова строки, на которых остановиться (Ж)'}"><span class="corner-swap-labels"><span${circlePicking ? ' class="is-off"' : ''}>Выделить слова</span><span${circlePicking ? '' : ' class="is-off"'}>Готово</span></span></button>`
-                    + `<button class="practice-corner-hint-btn" onclick="clearCirclePicks()" ${circlePickedSet.size ? '' : 'disabled'} title="Снова работать со всеми скрытыми словами строки (Э)">Убрать выделение</button>`
-                    + cornerHintButton
-                    + `</div>`;
+            const circleTools = !isCircle ? ''
+                : `<button class="term-edit-btn study-tool-btn${circlePicking ? ' is-on' : ''}" onclick="toggleCirclePicking()" ${circlePicking || progress.total > 0 ? '' : 'disabled'} title="${circlePicking ? 'Закончить выбор слов (Ж)' : 'Выделить слова строки, на которых остановиться (Ж)'}" aria-label="Выделить слова">${STUDY_ICON_PICK}</button>`
+                + `<button class="term-edit-btn study-tool-btn" onclick="clearCirclePicks()" ${circlePickedSet.size ? '' : 'disabled'} title="Убрать выделение: снова все скрытые слова строки (Э)" aria-label="Убрать выделение">${STUDY_ICON_UNPICK}</button>`;
+            const statusMain = line ? `Строка ${Math.min(line.index + 1, line.count)}/${line.count}` : `${nav.current + 1}/${nav.total}`;
+            const statusSub = line ? `${progressLabel} · материал ${nav.current + 1}/${nav.total}`
+                : (progress.total > 0 ? progressLabel : 'Нет скрытых слов');
 
             return withTextLines(`
-                ${getTermNavHeader(text)}
-                <div class="container${isPracticeLayout ? ' practice-shell' : (state.mode === 'edit' ? ' edit-shell' : '')}">
-                    ${isPracticeLayout ? `
-                        <div class="practice-meta-row">
-                            <div class="practice-meta-left">
-                                <button class="practice-attention-btn ${text.attention ? 'active' : ''}" onclick="toggleAttention(state.currentText)">
-                                    ${text.attention ? '★ Сложный' : '☆ Сложный'}
-                                </button>
-                                <button class="practice-textsize-btn ${state.practiceSizeControlOpen ? 'active' : ''}" onclick="togglePracticeSizeControl()" aria-label="Размер текста" title="Размер текста">Aa</button>
+                ${header}
+                <div class="container study-canvas practice-shell">
+                    ${imageHtml}
+                    ${canvasText}
+                </div>
+                <div class="practice-dock study-dock">
+                    <div class="practice-dock-inner">
+                        ${sizeRow}
+                        <div class="study-tools-row">
+                            ${toolBack}
+                            <div class="study-tools">
+                                ${toolAttention}
+                                ${toolSize}
+                                ${getTermListenButton(text)}
+                                ${toolEdit}
+                                ${circleTools}
+                                ${toolHint}
                             </div>
-                            ${progress.total > 0 || isCircle ? `
-                                <div class="practice-progress">
-                                    <div class="practice-progress-track"><div class="practice-progress-fill" style="transform:scaleX(${(progress.total ? progress.revealed / progress.total : 0).toFixed(4)})"></div></div>
-                                    <div class="practice-progress-label">${progressLabel}</div>
-                                </div>
-                            ` : ''}
                         </div>
-                        ${state.practiceSizeControlOpen ? `
-                            <div class="practice-textsize-row">
-                                <span class="practice-textsize-icon">A</span>
-                                <input type="range" class="practice-textsize-slider" min="50" max="150" step="5" value="${Math.round((state.practiceTextScale || 1) * 100)}" oninput="setPracticeTextScale(this.value)" onchange="commitPracticeTextScale()">
-                                <span class="practice-textsize-icon big">A</span>
-                                <span class="practice-textsize-label" id="practiceTextScaleLabel">${Math.round((state.practiceTextScale || 1) * 100)}%</span>
+                        ${showAssistRow ? `
+                            <!-- Ряд не исчезает, когда кнопки не нужны, — кнопки гаснут: иначе
+                                 панель меняла высоту, страница укорачивалась и экран прыгал. -->
+                            <div class="practice-assist-row">
+                                ${focusButton}
+                                ${openWordButton}
                             </div>
                         ` : ''}
-                    ` : ''}
-                    ${state.mode === 'edit' ? `
-                        <div class="help-text">
-                            Нажмите на слова, затем выберите, как их скрыть
+                        <button class="practice-primary-btn" ${primaryAction ? `onclick="${primaryAction}"` : 'disabled'}>${primaryLabel}</button>
+                        <div class="practice-nav-row">
+                            <button class="practice-nav-btn" onclick="${line ? 'stepPracticeLine(-1)' : 'navigateToTerm(-1)'}" ${(line ? line.index > 0 || nav.hasPrev : nav.hasPrev) ? '' : 'disabled'} title="${line ? 'Предыдущая строка (←)' : 'Предыдущий материал (←)'}">‹</button>
+                            <span class="practice-nav-counter study-status">${statusMain}<small>${statusSub}</small></span>
+                            <button class="practice-nav-btn" onclick="${line ? 'stepPracticeLine(1)' : 'navigateToTerm(1)'}" ${(line ? line.index < line.count - 1 || nav.hasNext : nav.hasNext) ? '' : 'disabled'} title="${line ? 'Следующая строка (→)' : 'Следующий материал (→)'}">›</button>
                         </div>
-                    ` : `
-                        <div class="help-text">
-                            ${circlePicking ? 'Нажимайте на скрытые слова, чтобы выделить их · «Готово» — закончить выбор' : `Нажимайте на скрытые слова чтобы открыть их${isPracticeLayout ? ' · долгое нажатие отмечает слово сложным' : ''}`}
-                        </div>
-                    `}
-
-                    ${text.image ? `<div style="text-align:center;margin-bottom:12px;"><img src="${text.image}" loading="lazy" decoding="async" style="max-width:100%;max-height:150px;border-radius:12px;object-fit:cover;"></div>` : ''}
-                    <div class="text-display-row${showCornerHint ? ' has-corner-hint' : ''}${showCornerHint && isCircle ? ' has-corner-tools' : ''}"><div class="text-display ${sizeClass}${isPracticeFocusActive ? ' practice-focus-mode' : ''}${isPracticeLayout && getPracticeTextAnchorStyle() ? ' is-anchored' : ''}" style="${fitStyle}${isPracticeLayout ? getPracticeTextAnchorStyle() : ''}"><div class="text-display-inner">${TEXT_LINES_SLOT}</div></div>${cornerTools}</div>
-
-                    ${isPracticeLayout ? '' : `
-                        <div class="action-buttons">
-                            ${state.mode === 'edit' ? `
-                                <button class="action-btn btn-edit-text" onclick="showEditTextModal()">Редактировать текст</button>
-                                <button class="action-btn btn-select-all" onclick="selectAllPendingWords()">Выделить все слова</button>
-                                <button class="action-btn btn-reset" onclick="clearMarks()">Сбросить выбор</button>
-                                ${(text.hiddenWords || []).length ? `
-                                    <button class="action-btn btn-save" onclick="copyProcessedMaterial()">Скопировать материал</button>
-                                ` : ''}
-                            ` : ''}
-                        </div>
-                        <div style="text-align:center;margin-top:12px;">
-                            <button class="practice-attention-btn ${text.attention ? 'active' : ''}" onclick="toggleAttention(state.currentText)">
-                                ${text.attention ? '★ Сложный' : '☆ Пометить как сложный'}
-                            </button>
-                        </div>
-                    `}
+                    </div>
                 </div>
-                ${isPracticeLayout ? `
-                    <div class="practice-dock">
-                        <div class="practice-dock-inner">
-                            ${showAssistRow ? `
-                                <!-- Ряд не исчезает, когда кнопки не нужны, — кнопки гаснут: иначе
-                                     панель меняла высоту, страница укорачивалась и экран прыгал. -->
-                                <div class="practice-assist-row">
-                                    ${focusButton}
-                                    ${openWordButton}
-                                </div>
-                            ` : ''}
-                            <button class="practice-primary-btn" ${primaryAction ? `onclick="${primaryAction}"` : 'disabled'}>${primaryLabel}</button>
-                            ${line ? `
-                                <div class="practice-nav-row">
-                                    <button class="practice-nav-btn" onclick="stepPracticeLine(-1)" ${line.index > 0 || nav.hasPrev ? '' : 'disabled'} title="Предыдущая строка (←)">‹</button>
-                                    <span class="practice-nav-counter practice-line-counter">Строка ${Math.min(line.index + 1, line.count)}/${line.count}<small>материал ${nav.current + 1}/${nav.total}</small></span>
-                                    <button class="practice-nav-btn" onclick="stepPracticeLine(1)" ${line.index < line.count - 1 || nav.hasNext ? '' : 'disabled'} title="Следующая строка (→)">›</button>
-                                </div>
-                            ` : `
-                                <div class="practice-nav-row">
-                                    <button class="practice-nav-btn" onclick="navigateToTerm(-1)" ${!nav.hasPrev ? 'disabled' : ''}>‹</button>
-                                    <span class="practice-nav-counter">${nav.current + 1}/${nav.total}</span>
-                                    <button class="practice-nav-btn" onclick="navigateToTerm(1)" ${!nav.hasNext ? 'disabled' : ''}>›</button>
-                                </div>
-                            `}
-                        </div>
-                    </div>
-                ` : `
-                    <div class="edit-dock">
-                        <div class="edit-dock-inner">
-                            ${getTermNavInline()}
-                            ${state.pendingWords.length > 0 ? `
-                                <div class="edit-dock-batch">
-                                    <div class="batch-info">Выбрано: ${state.pendingWords.length}</div>
-                                    <div class="batch-buttons">
-                                        <button class="batch-btn batch-default" onclick="applyBatchHide()">Скрыть слова</button>
-                                        <button class="batch-btn batch-hint" onclick="showBatchHintModal()">Скрыть через вопросы</button>
-                                        <button class="batch-btn batch-cancel" onclick="cancelBatch()" title="Отменить выбор" aria-label="Отменить выбор">✕</button>
-                                    </div>
-                                </div>
-                            ` : ''}
-                        </div>
-                    </div>
-                `}
             `, practiceParts.join(''));
         }
 
@@ -15335,6 +15633,13 @@
         // Кнопка в шапке любого экрана изучения открывает плеер озвучки — и чтобы
         // слушать, и чтобы добавить звук, если его ещё нет. Пока звук играет (и после
         // закрытия плеера тоже), кнопка подсвечена.
+        // Значки ряда инструментов на полотне изучения (renderPracticeView, v163).
+        const STUDY_ICON_BACK = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
+        const STUDY_ICON_EDIT = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+        const STUDY_ICON_HINT = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/></svg>';
+        const STUDY_ICON_COPY = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+        const STUDY_ICON_PICK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="3 3"><rect x="3" y="6" width="18" height="12" rx="3"/></svg>';
+        const STUDY_ICON_UNPICK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="3" stroke-dasharray="3 3"/><path d="M9.5 9.5l5 5M14.5 9.5l-5 5"/></svg>';
         const TERM_LISTEN_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
 
         // Звучит весь текст (или пункты по порядку) и не стоит на паузе.
@@ -21446,7 +21751,7 @@
         function setPracticeTextScale(value) {
             const scale = Math.max(0.5, Math.min(1.5, Number(value) / 100 || 1));
             state.practiceTextScale = scale;
-            const card = document.querySelector('.practice-shell .text-display');
+            const card = document.querySelector('.study-canvas .text-display');
             if (card) card.style.setProperty('--user-text-scale', String(scale));
             const label = document.getElementById('practiceTextScaleLabel');
             if (label) label.textContent = Math.round(scale * 100) + '%';
