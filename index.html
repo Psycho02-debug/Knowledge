@@ -1987,10 +1987,11 @@
 
         /* Слово, которое нужно вписать прямо сейчас. Класс проставлялся, но стиля
            у него не было — на экране никак не было видно, на каком ты слове. */
+        /* Без font-weight: жирная невидимая цифра шире, плашка раздавалась
+           и могла перенести строку (то же, что с фокусом практики, v172). */
         .word.hidden-word.focused {
             background: var(--accent-primary);
             color: #232b12;
-            font-weight: 800;
             box-shadow: 0 0 0 3px var(--accent-primary);
         }
 
@@ -2001,7 +2002,6 @@
         .word.hidden-word.hard-word.focused {
             background: linear-gradient(135deg, #d4564c 0%, #ab3a3a 100%);
             color: #ffffff;
-            font-weight: 800;
             box-shadow: 0 0 0 3px #d4564c;
         }
 
@@ -2075,17 +2075,19 @@
             box-shadow: 0 0 0 3px var(--accent-primary);
         }
 
+        /* Жирность под фокусом не меняем НИГДЕ (v172). Раньше у скрытого и
+           открытого слова под фокусом стояло 800: жирные буквы (и невидимая
+           цифра пустой плашки) шире, плашка раздавалась, и слово у края ряда
+           уезжало на следующую строку, утягивая за собой соседние плашки, —
+           на следующем шаге возвращалось обратно. Текст перекладывался, экран
+           докручивался за якорем. Заливка, кольцо-тень и translateY места
+           не занимают, поэтому ширина слова под фокусом та же, что без него. */
         .text-display.practice-focus-mode .word.practice-focus-active.hidden-word {
             background: var(--accent-primary);
             color: #232b12;
-            font-weight: 800;
             transform: translateY(-1px);
         }
 
-        /* Обычное слово под фокусом. Жирность не меняем намеренно: у обычных слов
-           нет своего чипа, и более широкие жирные буквы перекладывали бы строку
-           на каждом шаге фокуса — текст бы дёргался. Заливка и кольцо-тень места
-           не занимают, поэтому вёрстка стоит на месте. */
         .text-display.practice-focus-mode .word.practice-focus-active:not(.hidden-word):not(.revealed) {
             background: var(--accent-primary);
             color: #232b12;
@@ -2094,7 +2096,6 @@
         .text-display.practice-focus-mode .word.practice-focus-active.revealed {
             background: var(--accent-primary);
             color: #232b12;
-            font-weight: 800;
         }
 
         .word.has-letters-edit {
