@@ -320,10 +320,29 @@
            Исключения сделаны именно через :not(), а не через отдельное правило с
            animation: revert — revert возвращает к значению браузера, то есть к
            отсутствию анимации, и потому обратную связь не восстанавливает.
-           Модальные окна лежат вне #app и этим правилом не затрагиваются. */
-        #app.no-entry-anim *:not(.wrong):not(.correct):not(.edit-dock-batch),
-        #app.no-entry-anim *::before,
-        #app.no-entry-anim *::after {
+           Модальные окна лежат вне #app и этим правилом не затрагиваются.
+           Правило перечисляет только классы с анимацией появления (v168), а не
+           «#app.no-entry-anim *»: смена класса на #app пересчитывает стили каждого
+           элемента, к которому подходит правило. Со звёздочкой это были все
+           элементы экрана — 4 тысячи на тексте в 150 строк, 5–8 мс на первое
+           касание после входа в любой режим. Добавили анимацию появления новому
+           элементу — добавьте его класс сюда, иначе она будет играть на каждое
+           касание. У псевдоэлементов анимаций нет. */
+        #app.no-entry-anim .folder-card:not(.wrong):not(.correct):not(.edit-dock-batch),
+        #app.no-entry-anim .search-bar:not(.wrong):not(.correct):not(.edit-dock-batch),
+        #app.no-entry-anim .term-card:not(.wrong):not(.correct):not(.edit-dock-batch),
+        #app.no-entry-anim .mode-toggle:not(.wrong):not(.correct):not(.edit-dock-batch),
+        #app.no-entry-anim .text-display:not(.wrong):not(.correct):not(.edit-dock-batch),
+        #app.no-entry-anim .term-example:not(.wrong):not(.correct):not(.edit-dock-batch),
+        #app.no-entry-anim .help-text:not(.wrong):not(.correct):not(.edit-dock-batch),
+        #app.no-entry-anim .empty-state:not(.wrong):not(.correct):not(.edit-dock-batch),
+        #app.no-entry-anim .game-area:not(.wrong):not(.correct):not(.edit-dock-batch),
+        #app.no-entry-anim .quiz-area:not(.wrong):not(.correct):not(.edit-dock-batch),
+        #app.no-entry-anim .type-input-wrap:not(.wrong):not(.correct):not(.edit-dock-batch),
+        #app.no-entry-anim .type-card:not(.wrong):not(.correct):not(.edit-dock-batch),
+        #app.no-entry-anim .swipe-hint:not(.wrong):not(.correct):not(.edit-dock-batch),
+        #app.no-entry-anim .chooser-term-preview:not(.wrong):not(.correct):not(.edit-dock-batch),
+        #app.no-entry-anim .chooser-card:not(.wrong):not(.correct):not(.edit-dock-batch) {
             animation: none !important;
         }
 
@@ -10124,14 +10143,31 @@
 
         const PATCH_VALUE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 
+        // Список, который растёт и укорачивается с конца (собранные слова «Игры»).
+        // Обычно другое число детей значит, что структура изменилась, и поддерево
+        // собирается заново. Для такого списка это пересборка всех уже собранных
+        // слов на каждое нажатие: на тысяче слов — 11 мс (v168). Здесь хвост
+        // дописывается или отрезается, а начало сверяется как обычно.
+        const PATCH_GROW_ATTR = 'data-patch-grow';
+
         function patchChildNodes(oldParent, newParent) {
             const oldKids = oldParent.childNodes;
             const newKids = newParent.childNodes;
             // Разное число детей означает, что структура изменилась. Пересобрать
             // это поддерево целиком дешевле и надёжнее, чем угадывать соответствие.
             if (oldKids.length !== newKids.length) {
-                oldParent.innerHTML = newParent.innerHTML;
-                return;
+                if (oldParent.nodeType !== 1 || !oldParent.hasAttribute(PATCH_GROW_ATTR)) {
+                    oldParent.innerHTML = newParent.innerHTML;
+                    return;
+                }
+                // Растущий список: выравниваем число детей с конца, дальше —
+                // обычная сверка по порядку (дописанные копии совпадут сразу).
+                while (oldKids.length > newKids.length) oldParent.removeChild(oldParent.lastChild);
+                if (oldKids.length < newKids.length) {
+                    const tail = document.createDocumentFragment();
+                    for (let i = oldKids.length; i < newKids.length; i++) tail.appendChild(newKids[i].cloneNode(true));
+                    oldParent.appendChild(tail);
+                }
             }
             // Строки текста, разметка которых не изменилась (см. setAppHtml).
             const keepsLines = oldParent === keptLinesHolder;
@@ -17417,7 +17453,7 @@
             // поле): иначе точечное обновление пересобрало бы его целиком, поле
             // пересоздалось бы и потеряло фокус на каждом слове.
             const resultContent = gs.byLines
-                ? `<span class="game-line-marker">${escapeHtml(gs.lineMarker)}</span><span class="game-result-words">${resultWords}</span><input class="game-type-input" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Номера слов по порядку" placeholder="${gs.selectedWords.length || gs.lineDone ? '' : 'Наберите номера слов по порядку…'}" onkeydown="handleGameTypeKey(event)" oninput="handleGameTypeInput(this)">`
+                ? `<span class="game-line-marker">${escapeHtml(gs.lineMarker)}</span><span class="game-result-words" data-patch-grow>${resultWords}</span><input class="game-type-input" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Номера слов по порядку" placeholder="${gs.selectedWords.length || gs.lineDone ? '' : 'Наберите номера слов по порядку…'}" onkeydown="handleGameTypeKey(event)" oninput="handleGameTypeInput(this)">`
                 : resultWords;
 
             return `
@@ -17449,7 +17485,7 @@
                             <span>Ошибок: ${gs.errors}</span>
                         </div>
 
-                        <div class="game-result${gs.lineDone ? ' is-line-done' : ''}${gs.byLines ? ' has-type-input' : ''}">
+                        <div class="game-result${gs.lineDone ? ' is-line-done' : ''}${gs.byLines ? ' has-type-input' : ''}"${gs.byLines ? '' : ' data-patch-grow'}>
                             ${resultContent}
                         </div>
 
