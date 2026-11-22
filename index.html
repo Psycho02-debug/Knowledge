@@ -887,6 +887,14 @@
             padding-bottom: calc(150px + env(safe-area-inset-bottom));
         }
 
+        /* Отступ под нижней панелью по её настоящей высоте (syncDockSpacing).
+           Переменная стоит на #app, который патч DOM не трогает; селектор с id
+           сильнее всех правил отступа ниже, как раньше инлайновый style. */
+        #app[style*="--dock-space"] .container.practice-shell,
+        #app[style*="--dock-space"] .container.edit-shell {
+            padding-bottom: var(--dock-space);
+        }
+
         .practice-shell .text-display-row {
             flex: 1;
             display: flex;
@@ -9026,7 +9034,10 @@
         }
 
         function getChallengeMedalIcon() {
-            const uid = Math.random().toString(36).slice(2, 8);
+            // Медаль на экране одна (главная), поэтому id постоянные. Раньше они
+            // были случайными на каждую отрисовку, и патч DOM переписывал 18
+            // атрибутов SVG на любое обновление главной.
+            const uid = 'home';
             const ribbonLeftId = `challengeRibbonLeft-${uid}`;
             const ribbonRightId = `challengeRibbonRight-${uid}`;
             const medalCoreId = `challengeMedalCore-${uid}`;
@@ -10377,20 +10388,26 @@
         // появляется кнопка фокуса и ползунок размера, у панели выбора — блок
         // «Выбрано: N». Раньше отступ был фиксированным, и часть текста
         // оставалась под панелью навсегда — её нельзя было доскроллить.
+        // Отступ — переменная --dock-space на #app, а не style контейнера (v165).
+        // Контейнер текста приходит из разметки без style, и патч DOM на КАЖДОЙ
+        // перерисовке снимал записанный сюда отступ, а эта функция тут же
+        // записывала его снова: две записи стиля на касание заставляли браузер
+        // заново пересчитывать стили и раскладку всего текста (150 строк —
+        // ≈1.4 мс), и выигрыш блоков строк (v162) пропадал. #app патч не
+        // трогает — переменная живёт, пока высота панели та же. Правило в
+        // стилях: #app[style*="--dock-space"] .container.practice-shell.
         function syncDockSpacing() {
+            const app = document.getElementById('app');
+            if (!app) return;
             const shell = document.querySelector('.container.practice-shell, .container.edit-shell');
-            if (!shell) return;
-            const dock = document.querySelector('.practice-dock, .edit-dock');
-            if (!dock) return;
-            // Запись стиля инвалидирует вёрстку, даже когда значение то же самое.
-            // Высота панели меняется редко (поворот экрана, появление кнопки
-            // фокуса), поэтому сравниваем и пишем только при реальном отличии —
-            // иначе каждая перерисовка заставляла бы браузер пересчитывать
-            // раскладку всего экрана впустую.
-            const next = (dock.offsetHeight + 16) + 'px';
-            if (shell.style.paddingBottom !== next) {
-                shell.style.paddingBottom = next;
-            }
+            const dock = shell ? document.querySelector('.practice-dock, .edit-dock') : null;
+            // Нет контейнера или панели — отступ из стилей, переменную убираем.
+            // Запись стиля инвалидирует вёрстку, даже когда значение то же самое,
+            // поэтому сравниваем и пишем только при реальном отличии.
+            const next = dock ? (dock.offsetHeight + 16) + 'px' : '';
+            if (app.style.getPropertyValue('--dock-space') === next) return;
+            if (next) app.style.setProperty('--dock-space', next);
+            else app.style.removeProperty('--dock-space');
         }
 
         function renderTypeView() {
@@ -13776,14 +13793,73 @@
             const memoKey = renderGroupsMemo ? 'focusTargets:' + state.practiceMode + ':' + state.practiceLineIndex : null;
             const memo = memoKey ? renderGroupsMemo.get(memoKey) : null;
             if (memo && memo.text === text) return memo.targets;
-            const targets = computePracticeFocusTargets(text);
+            const targets = getCachedPracticeFocusTargets(text);
             if (memoKey) renderGroupsMemo.set(memoKey, { text, targets });
+            return targets;
+        }
+
+        // Память целей между отрисовками (v165). Шаг фокуса спрашивает цели пять
+        // раз (проверка, связка, шаг, отрисовка, подсказка), и каждый раз это был
+        // полный проход по тексту с проверками «знак», «номер пункта», «/»: на
+        // тексте в 150 строк — треть стоимости шага. Цели зависят только от
+        // текста, скрытых слов и вида практики (в «Вопросах» — ещё от групп),
+        // поэтому ключ — они сами; сравнить строку индексов в десятки раз дешевле
+        // прохода. «Строку по кругу» не запоминаем: там цели зависят от строки и
+        // выделения, а строка короткая. Массив общий — вызывающие его не меняют.
+        let practiceFocusTargetsCache = null;
+
+        // Токены текста для горячих мест ТОЛЬКО ДЛЯ ЧТЕНИЯ (v165): отрисовка
+        // практики, цели фокуса, подсказка. На каждое касание текст резался на
+        // токены по три раза (по 0.1 мс на тексте в 150 строк) и ещё дважды
+        // проходился ради длины и самого длинного слова — хотя текст между
+        // касаниями не меняется. Массив общий: менять его нельзя, кто правит
+        // токены — режет текст сам (content.split(/(\s+)/), как раньше).
+        // Сравнение строки с прошлой — по ссылке или memcmp, дешевле разбиения.
+        let textTokensCache = { content: null, tokens: null, metrics: null };
+
+        function getCachedTextTokens(content) {
+            const value = content || '';
+            if (textTokensCache.content !== value) {
+                textTokensCache = { content: value, tokens: value.split(/(\s+)/), metrics: null };
+            }
+            return textTokensCache.tokens;
+        }
+
+        // Длина текста без лишних пробелов и длина самого длинного слова — по
+        // ним renderPracticeView выбирает кегль. Считаются те же выражения, что
+        // и раньше, один раз на текст.
+        function getCachedTextMetrics(content) {
+            getCachedTextTokens(content);
+            if (!textTokensCache.metrics) {
+                const value = textTokensCache.content;
+                const plainWords = value.split(/\s+/).filter(Boolean);
+                textTokensCache.metrics = {
+                    plainLength: value.replace(/\s+/g, ' ').trim().length,
+                    wordCount: plainWords.length,
+                    longestWord: plainWords.reduce((max, word) => Math.max(max, word.length), 1)
+                };
+            }
+            return textTokensCache.metrics;
+        }
+
+        function getCachedPracticeFocusTargets(text) {
+            if (isPracticeCircleMode()) return computePracticeFocusTargets(text);
+            ensureTextStudyData(text);
+            const hiddenKey = (text.hiddenWords || []).join(',');
+            const groupsKey = state.practiceMode === 'hints' ? JSON.stringify(text.hiddenWordGroups || {}) : '';
+            const cache = practiceFocusTargetsCache;
+            if (cache && cache.text === text && cache.content === text.content &&
+                cache.mode === state.practiceMode && cache.hidden === hiddenKey && cache.groups === groupsKey) {
+                return cache.targets;
+            }
+            const targets = computePracticeFocusTargets(text);
+            practiceFocusTargetsCache = { text, content: text.content, mode: state.practiceMode, hidden: hiddenKey, groups: groupsKey, targets };
             return targets;
         }
 
         function computePracticeFocusTargets(text) {
             ensureTextStudyData(text);
-            const words = text.content.split(/(\s+)/);
+            const words = getCachedTextTokens(text.content);
             const suppressed = new Set();
             if (state.practiceMode === 'hints') {
                 getHiddenWordGroups(text).forEach(group => {
@@ -14477,7 +14553,8 @@
                 return renderTermCardView(text);
             }
 
-            const words = text.content.split(/(\s+)/);
+            // Общий массив только для чтения (getCachedTextTokens).
+            const words = getCachedTextTokens(text.content);
             const isCircle = isPracticeCircleMode();
             // «Строка по кругу» рисует только слова строки на экране.
             const line = isCircle ? getPracticeLineRange(text) : null;
@@ -14687,8 +14764,20 @@
             
             const isPracticeLayout = state.mode === 'practice';
             // Кегль считается по тому, что на экране: короткая строка встаёт крупно.
-            const shownContent = line ? words.slice(line.start, line.end + 1).join('') : text.content;
-            const plainLength = shownContent.replace(/\s+/g, ' ').trim().length;
+            // Весь текст — размеры из памяти (getCachedTextMetrics), строку
+            // «Строки по кругу» считаем на месте: она короткая.
+            const shownMetrics = line
+                ? (() => {
+                    const shownContent = words.slice(line.start, line.end + 1).join('');
+                    const lineWords = shownContent.split(/\s+/).filter(Boolean);
+                    return {
+                        plainLength: shownContent.replace(/\s+/g, ' ').trim().length,
+                        wordCount: lineWords.length,
+                        longestWord: lineWords.reduce((max, word) => Math.max(max, word.length), 1)
+                    };
+                })()
+                : getCachedTextMetrics(text.content);
+            const plainLength = shownMetrics.plainLength;
             // Строка «Строки по кругу» — не крупнее size-lg: строки короткие, и самый
             // крупный кегль после открытия длинных слов уводил текст под панель.
             // «Выбор» с v163 — на том же полотне и с тем же кеглем, что практика.
@@ -14699,9 +14788,8 @@
             // занимать больше доли строки, иначе слова встают столбцом. Слова умеют
             // переноситься внутри чипа (overflow-wrap), так что доля может быть щедрой —
             // это только защита от одного экстремально длинного слова, а не от обычных.
-            const plainWords = shownContent.split(/\s+/).filter(Boolean);
-            const longestWord = plainWords.reduce((max, word) => Math.max(max, word.length), 1);
-            const lineShare = plainWords.length <= 1 ? 0.92 : 0.85;
+            const longestWord = shownMetrics.longestWord;
+            const lineShare = shownMetrics.wordCount <= 1 ? 0.92 : 0.85;
             const wordWidthEm = (longestWord * 0.62 + 1.3).toFixed(2);
             const userScale = (state.practiceTextScale || 1).toFixed(2);
             const fitStyle = `--fit-w: calc((100vw - 40px) * ${lineShare} / ${wordWidthEm}); --user-text-scale: ${userScale};`;
@@ -21676,7 +21764,7 @@
         // пакетно, ничего не спрашивая, — и на таких словах кнопка упиралась в тупик.
         function canRevealHintLetter(text, index) {
             if (index === null || index === undefined) return false;
-            const word = text.content.split(/(\s+)/)[index];
+            const word = getCachedTextTokens(text.content)[index];
             if (word === undefined) return false;
             return getVisibleHintLetters(text, index) < getMaxHintLetters(word);
         }
