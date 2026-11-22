@@ -1760,6 +1760,12 @@
             margin-top: 4px;
         }
 
+        /* По строкам стрелки листают часто и подряд — разносим их шире (v171),
+           чтобы большой палец не попадал в соседнюю. */
+        .study-dock .practice-nav-row.practice-nav-arrows.practice-nav-lines {
+            gap: 96px;
+        }
+
         /* Под счётчиком — прогресс; строка «small» есть всегда, чтобы док не
            менял высоту. */
         .practice-nav-counter.study-status {
@@ -1839,6 +1845,11 @@
             /* Здесь стрелки стоят в одном ряду с кнопками — отступ сверху сдвинул бы их вниз. */
             .study-dock .practice-nav-row.practice-nav-arrows {
                 margin-top: 0;
+            }
+
+            /* В альбомной стрелки делят ряд с кнопками — зазор поменьше. */
+            .study-dock .practice-nav-row.practice-nav-arrows.practice-nav-lines {
+                gap: 48px;
             }
 
             .study-dock .practice-primary-btn {
@@ -15065,7 +15076,7 @@
                         ` : ''}
                         ${isCircle ? circleFocusPrimaryButton
                             : `<button class="practice-primary-btn" ${primaryAction ? `onclick="${primaryAction}"` : 'disabled'}>${primaryLabel}</button>`}
-                        <div class="practice-nav-row practice-nav-arrows">
+                        <div class="practice-nav-row practice-nav-arrows${line ? ' practice-nav-lines' : ''}">
                             <button class="practice-nav-btn" onclick="${line ? 'stepPracticeLine(-1)' : 'navigateToTerm(-1)'}" ${(line ? line.index > 0 || nav.hasPrev : nav.hasPrev) ? '' : 'disabled'} title="${line ? 'Предыдущая строка (←)' : 'Предыдущий материал (←)'}">‹</button>
                             <button class="practice-nav-btn" onclick="${line ? 'stepPracticeLine(1)' : 'navigateToTerm(1)'}" ${(line ? line.index < line.count - 1 || nav.hasNext : nav.hasNext) ? '' : 'disabled'} title="${line ? 'Следующая строка (→)' : 'Следующий материал (→)'}">›</button>
                         </div>
