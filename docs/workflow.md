@@ -1,7 +1,7 @@
 # Как работать с кодом
 
 > **Когда читать:** перед проверкой правки в браузере, при выборе способа правки, добавлении режима, поля, экрана, клавиши или окна, при чистке кода.  
-> **Сверено с кодом:** 2026-11-19, версия кэша `zapominalka-v162`. Номера строк — ориентир для v162, ищите по имени функции.  
+> **Сверено с кодом:** 2026-11-22, версия кэша `zapominalka-v173` (раздел «Проверка во встроенном браузере Claude»; остальное — v162). Номера строк — ориентир для v162, ищите по имени функции.  
 > **Связано:** [performance.md](performance.md) — сравнение с прошлой версией и замеры · наверх: [CLAUDE.md](../CLAUDE.md), [ARCHITECTURE.md](../ARCHITECTURE.md)
 
 ## Проверка правок
@@ -13,6 +13,37 @@ python3 -m http.server 8000
 ```
 
 Через `file://` service worker не регистрируется. Браузер кэширует страницу, поэтому при проверке правок открывайте адрес с меняющимся параметром: `?v=2` — без него встроенный браузер Claude отдаёт прошлую версию из своего кэша, даже когда файл на диске уже другой.
+
+### Проверка во встроенном браузере Claude
+
+Так быстрее всего (v173). Шаги и ловушки:
+
+1. **Сервер не читает «Рабочий стол».** `python3 -m http.server` с папкой на Desktop падает с `PermissionError: Operation not permitted` (песочница приложения). Копируйте сайт в scratchpad сессии и раздавайте оттуда:
+   ```bash
+   S=<scratchpad сессии>/site; mkdir -p $S; rsync -a --exclude .git --exclude graphify-out pwa/ $S/
+   ```
+   После каждой правки `index.html` повторяйте `rsync` и открывайте адрес с новым `?v=N`.
+2. **`launch.json` лежит в корне проекта** — `Игра запоминание информации iphone/.claude/launch.json`, а не в `pwa/.claude/` (там его не ищут). Записи от прошлых сессий указывают на чужие scratchpad — добавьте свою:
+   ```json
+   {"name": "pwa-here", "runtimeExecutable": "python3",
+    "runtimeArgs": ["-I", "-c", "import http.server,functools; http.server.test(HandlerClass=functools.partial(http.server.SimpleHTTPRequestHandler, directory='<S>'), port=8047, bind='127.0.0.1')"],
+    "port": 8047}
+   ```
+   Порт в команде задан жёстко — он обязан совпадать с `port`. Если порт занят, `preview_start` назначает другой, а сервер слушает прежний, и вкладка не открывается: остановите сервер и смените оба числа на свободное. `pwa/.claude/` не создавайте — он попал бы в коммит.
+3. **Размер телефона** — `resize_window` с `preset: "mobile"` (375×812) **на ту вкладку, которую вернул `preview_start`** (`tabId`): без `tabId` размер ставится на другую вкладку, и замеры идут на ширине 1024. Альбомная — `width: 812, height: 375`. После проверки — `preset: "desktop"`.
+4. **Тестовый материал без ручного ввода** — в `javascript_tool` (`state` и функции глобальные, в обычной вкладке они видны прямо):
+   ```js
+   const content = "Первая строка текста для проверки
+Вторая строка с несколькими словами
+Третья строка ещё немного слов";
+   const tokens = content.split(/(\s+)/);                       // индексы — как везде, вместе с пробелами
+   const hidden = tokens.map((t, i) => /\S/.test(t) && i % 4 === 0 ? i : -1).filter(i => i >= 0);
+   state.folders = [{ name: 'Тест', texts: [{ title: 'Проверка', content, hiddenWords: hidden }], subfolders: [] }];
+   state.currentFolder = 0; state.currentSubfolder = null;
+   openTermInMode(0, 'practice', 'circle');   // или 'edit'; 'practice' + 'default' / 'firstletter' / 'hints'; 'type', 'numbers', 'quiz'…
+   ```
+   Игра — `openGameMode(0, false)` (по словам) или `openGameMode(0, true)` (по строкам). Данные эти живут только в `localStorage` вкладки на `localhost` и в git не попадают.
+5. **Замер положения кнопок** — `getBoundingClientRect()` у `.study-dock .practice-primary-btn`, `.practice-assist-row`, `.practice-nav-arrows .practice-nav-btn`; отступ под доком — `document.getElementById('app').style.getPropertyValue('--dock-space')`. Затем скриншот (`scale: 0.6` хватает) для пользователя.
 
 Скрипты правок с русским текстом надёжнее класть в файл и запускать `python3 файл.py`, чем передавать через heredoc: в zsh heredoc с кириллицей однажды пришёл в Python не в UTF-8, и правка не применилась. В Python 3.9 внутри f-строк нельзя обратную косую черту — выносите значения в переменные. Скрипт-файл с очень длинными строками кириллицы Python 3.9 может отвергнуть с «Non-UTF-8 code starting with \xd0», хотя файл в порядке (сбой токенизатора на длинных строках) — первой строкой файла поставьте `# -*- coding: utf-8 -*-`. Во встроенном браузере Claude регистрация service worker не проходит даже у неизменённой версии — это особенность среды; логику кэша проверяйте напрямую через Cache API.
 
