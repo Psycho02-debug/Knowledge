@@ -14910,6 +14910,11 @@
                 : !progress || progress.total === 0
                 ? 'Нет скрытых слов'
                 : (progress.allRevealed ? '↺ Скрыть все слова' : 'Показать все скрытые слова');
+            // В «Строке по кругу» (v167) кнопки поменяны местами по просьбе
+            // пользователя: крупная главная — «Фокус на следующем слове», а
+            // «Открыть все слова» / «↺ Ещё круг» / «Готово» — в ряду помощников.
+            const circleFocusPrimaryButton = `<button class="practice-primary-btn" onclick="focusNextPracticeWord()" ${canFocusNext ? '' : 'disabled'} title="Перевести фокус на следующее слово, не открывая текущее">Фокус на следующем слове</button>`;
+            const circleRevealAllButton = `<button class="practice-skip-btn" ${primaryAction ? `onclick="${primaryAction}"` : 'disabled'}>${primaryLabel}</button>`;
 
             // ——— Полотно изучения (v163) ———
             // Практика (все четыре вида) и «Выбор» — один экран: сверху ряд значков
@@ -15014,11 +15019,12 @@
                             <!-- Ряд не исчезает, когда кнопки не нужны, — кнопки гаснут: иначе
                                  панель меняла высоту, страница укорачивалась и экран прыгал. -->
                             <div class="practice-assist-row">
-                                ${focusButton}
+                                ${isCircle ? circleRevealAllButton : focusButton}
                                 ${openWordButton}
                             </div>
                         ` : ''}
-                        <button class="practice-primary-btn" ${primaryAction ? `onclick="${primaryAction}"` : 'disabled'}>${primaryLabel}</button>
+                        ${isCircle ? circleFocusPrimaryButton
+                            : `<button class="practice-primary-btn" ${primaryAction ? `onclick="${primaryAction}"` : 'disabled'}>${primaryLabel}</button>`}
                         <div class="practice-nav-row">
                             <button class="practice-nav-btn" onclick="${line ? 'stepPracticeLine(-1)' : 'navigateToTerm(-1)'}" ${(line ? line.index > 0 || nav.hasPrev : nav.hasPrev) ? '' : 'disabled'} title="${line ? 'Предыдущая строка (←)' : 'Предыдущий материал (←)'}">‹</button>
                             <span class="practice-nav-counter study-status">${statusMain}<small>${statusSub}</small></span>
