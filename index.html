@@ -1760,10 +1760,23 @@
             margin-top: 4px;
         }
 
-        /* По строкам стрелки листают часто и подряд — разносим их шире (v171),
-           чтобы большой палец не попадал в соседнюю. */
+        /* По строкам стрелки листают часто и подряд — разносим их шире
+           (v171: 96px, v173: 140px), чтобы большой палец не попадал в соседнюю. */
         .study-dock .practice-nav-row.practice-nav-arrows.practice-nav-lines {
-            gap: 96px;
+            gap: 140px;
+        }
+
+        /* «Строка по кругу» (v173): пользователь попросил поднять кнопки.
+           Весь док выше от нижнего края на 24px (стрелки поднимаются на ~4 мм),
+           а крупная «Фокус на следующем слове» и ряд над ней — ещё на 66px
+           зазора над стрелками: всего ~90px, около 1,5 см на iPhone. Высоту
+           дока под текстом учитывает syncDockSpacing. */
+        .practice-dock.study-dock.study-dock-circle {
+            padding-bottom: calc(34px + env(safe-area-inset-bottom));
+        }
+
+        .study-dock.study-dock-circle .practice-primary-btn {
+            margin-bottom: 66px;
         }
 
         /* Под счётчиком — прогресс; строка «small» есть всегда, чтобы док не
@@ -1849,7 +1862,17 @@
 
             /* В альбомной стрелки делят ряд с кнопками — зазор поменьше. */
             .study-dock .practice-nav-row.practice-nav-arrows.practice-nav-lines {
-                gap: 48px;
+                gap: 64px;
+            }
+
+            /* В альбомной высоты мало, а кнопки стоят в ряд — подъём из
+               книжной ориентации (v173) не нужен. */
+            .practice-dock.study-dock.study-dock-circle {
+                padding-bottom: calc(10px + env(safe-area-inset-bottom));
+            }
+
+            .study-dock.study-dock-circle .practice-primary-btn {
+                margin-bottom: 0;
             }
 
             .study-dock .practice-primary-btn {
@@ -15065,7 +15088,7 @@
                     ${imageHtml}
                     ${canvasText}
                 </div>
-                <div class="practice-dock study-dock">
+                <div class="practice-dock study-dock${isCircle ? ' study-dock-circle' : ''}">
                     <div class="practice-dock-inner">
                         ${showAssistRow ? `
                             <!-- Ряд не исчезает, когда кнопки не нужны, — кнопки гаснут: иначе
