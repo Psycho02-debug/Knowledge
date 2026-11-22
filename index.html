@@ -1547,13 +1547,18 @@
            ограничения по ширине. Раньше он умножал уже готовый кегль, и на
            120–150% самое длинное слово вылезало за край экрана. Теперь ползунок
            растит текст, пока длинное слово помещается в строку (--fit-w), а
-           уменьшать можно до 12 px. */
+           уменьшать можно до 12 px.
+           v166: ещё потолок --fit-c — в ряд открытого текста влезает не меньше
+           28 букв (около трёх слов), иначе после открытия слова шли по одному
+           в ряд. «Aa» двигает и этот потолок, но вчетверо слабее (150% — на
+           12.5% крупнее), чтобы ползунок работал на всём ходу и не возвращал
+           слова по одному в ряд. */
         .study-canvas .text-display {
             flex: 1;
             display: flex;
             flex-direction: column;
             justify-content: center;
-            font-size: max(0.75rem, min(calc(var(--size-max, 1rem) * var(--user-text-scale, 1)), var(--fit-w, 99rem), var(--fit-h, 99rem)));
+            font-size: max(0.75rem, min(calc(var(--size-max, 1rem) * var(--user-text-scale, 1)), calc(var(--fit-c, 99rem) * (0.75 + 0.25 * var(--user-text-scale, 1))), var(--fit-w, 99rem), var(--fit-h, 99rem)));
         }
 
         /* В «Выборе» текст от верха: отмеченное слово шире обычного, и центр
@@ -7936,6 +7941,28 @@
             const trimmed = token.trim();
             if (trimmed === '' || !PUNCTUATION_TOKEN_CODES.has(trimmed.charCodeAt(0))) return false;
             return /^[.,!?;:…—–«»„“”‘’‹›"'()\[\]{}\-]+$/u.test(trimmed);
+        }
+
+        // Пробел между словом и отделённым знаком — неразрывный, чтобы знак не
+        // остался один в начале или в конце строки. Закрывающий и нейтральный знак
+        // («,», «.», «)», «—», «»») клеится к слову ПЕРЕД ним, открывающий («(»,
+        // «[», «{», ««», «„», «‹») — к слову ПОСЛЕ него. Прямые кавычки бывают и
+        // теми и другими — клеятся с обеих сторон, как раньше. С другой стороны
+        // знака пробел обычный: цепочка «слово , слово — слово» переносится.
+        const OPENING_PUNCTUATION_CODES = new Set(Array.from('([{«„‹', ch => ch.charCodeAt(0)));
+        const BOTH_SIDES_PUNCTUATION_CODES = new Set(Array.from('"\'', ch => ch.charCodeAt(0)));
+
+        function shouldGlueSpaceToPunctuation(before, after) {
+            if (isPunctuationToken(after)) {
+                const code = after.trim().charCodeAt(0);
+                if (!OPENING_PUNCTUATION_CODES.has(code)) return true;
+            }
+            if (isPunctuationToken(before)) {
+                const trimmed = before.trim();
+                const code = trimmed.charCodeAt(trimmed.length - 1);
+                if (OPENING_PUNCTUATION_CODES.has(code) || BOTH_SIDES_PUNCTUATION_CODES.has(code)) return true;
+            }
+            return false;
         }
 
         // Знак препинания, прилипший к слову, попадает в чип вместе с ним: скрывается
@@ -14518,6 +14545,11 @@
             return `<span class="${className}" data-widx="${wordIndex}"${action ? ` onclick="${action}(${wordIndex})"` : ''}><span class="word-hidden-label">${escapeHtml(String(displayText))}</span></span>`;
         }
 
+        // Сколько букв открытого текста должно влезать в ряд полотна (см. --fit-c
+        // в renderPracticeView). 28 — три русских слова по 8–9 букв с пробелами:
+        // при 24 длинные слова («зависимости от возможностей») ещё шли по одному.
+        const PRACTICE_MIN_ROW_CHARS = 28;
+
         function renderPracticeView() {
             const folder = getCurrentFolder();
             const text = ensureTextStudyData(folder.texts[state.currentText]);
@@ -14639,7 +14671,12 @@
                     // с переносом перед кавычкой выглядит как ошибка вёрстки.
                     // Неразрывный пробел рисуется так же, но запрещает разрыв.
                     // Только для одиночного пробела — перенос строки в тексте важнее.
-                    if (spacing === ' ' && (isPunctuationToken(words[i - 1]) || isPunctuationToken(words[i + 1]))) {
+                    // Знак клеится к одной стороне (v166): закрывающий и нейтральный
+                    // («,», «.», «)», «—») — к слову перед ним, открывающий («(»,
+                    // ««») — к слову после. Раньше пробел был неразрывным с ОБЕИХ
+                    // сторон знака, и «таблица . балансировщик — событие» склеивалось
+                    // в один кусок шире строки: на крупном кегле он уезжал за край.
+                    if (spacing === ' ' && shouldGlueSpaceToPunctuation(words[i - 1], words[i + 1])) {
                         practiceParts.push('&nbsp;');
                         continue;
                     }
@@ -14792,7 +14829,16 @@
             const lineShare = shownMetrics.wordCount <= 1 ? 0.92 : 0.85;
             const wordWidthEm = (longestWord * 0.62 + 1.3).toFixed(2);
             const userScale = (state.practiceTextScale || 1).toFixed(2);
-            const fitStyle = `--fit-w: calc((100vw - 40px) * ${lineShare} / ${wordWidthEm}); --user-text-scale: ${userScale};`;
+            // Букв в ряду (v166): ряд ОТКРЫТОГО текста вмещает не меньше
+            // PRACTICE_MIN_ROW_CHARS букв — около трёх слов, а текст короче —
+            // целиком. Кегль выбирается по длине текста с плашками, а плашка
+            // — квадрат в 1.6em, куда уже длинного слова: короткая строка
+            // «Строки по кругу» вставала крупно (31 px), и после открытия
+            // русские слова в 10–15 букв шли по одному-два в ряд — текст
+            // вырастал втрое. 0.57em — средняя ширина буквы Inter вместе с
+            // пробелом и подсветкой открытого слова (замер).
+            const rowChars = Math.max(1, Math.min(PRACTICE_MIN_ROW_CHARS, plainLength));
+            const fitStyle = `--fit-w: calc((100vw - 40px) * ${lineShare} / ${wordWidthEm}); --fit-c: calc((100vw - 40px) / ${(rowChars * 0.57).toFixed(2)}); --user-text-scale: ${userScale};`;
 
             const progress = isPracticeLayout ? getPracticeProgress(text) : null;
             const nav = isPracticeLayout ? getStudyNavigationMeta() : null;
