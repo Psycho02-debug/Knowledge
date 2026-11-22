@@ -70,7 +70,7 @@
 - **Чипы и строки текста (`.text-line`) вне `render()` не трогать** — неизменённые строки отрисовка не сверяет; текст по строкам собирается только через `withTextLines`. → [rendering.md](docs/rendering.md)
 - **`render…View` не меняют `hiddenWords` и `hiddenWordGroups`** (память `renderGroupsMemo`). → [rendering.md](docs/rendering.md)
 - **Новый `transition` оживает при патче** — проверьте, не играет ли он на каждое действие. → [rendering.md](docs/rendering.md)
-- **Текст практики не скачет**: кнопки дока гасить `disabled`, а не прятать; плашка 1.7em при шаге строки не меньше 2.0em; центрирование текста на каждой отрисовке не возвращать; прокрутка к слову — только вниз. → [rendering.md](docs/rendering.md)
+- **Текст практики не скачет**: кнопки дока гасить `disabled`, а не прятать; плашка 1.7em при шаге строки не меньше 2.0em (на полотне изучения — 1.6em и 1.95em); центрирование текста на каждой отрисовке не возвращать; прокрутка к слову — только вниз. → [rendering.md](docs/rendering.md)
 - **Пользовательский текст — через `escapeHtml()`, в атрибуты — `escapeHtmlAttr()`.** → [rendering.md](docs/rendering.md)
 - **Каскад появления — только первые 16 элементов и около секунды**: дольше — iPhone теряет нажатия. → [rendering.md](docs/rendering.md)
 - **`focus()` поля, `play()` звука, `input.click()` — синхронно внутри жеста**, иначе iOS их не выполнит. → [input.md](docs/input.md), [audio.md](docs/audio.md)

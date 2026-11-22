@@ -222,7 +222,7 @@
 
 Копии уже разошлись: в панели `renderExampleView` нет «Вписать» и «Вопросов», в обеих панелях `renderGameView` нет «Вписать». Это не задумано — так получилось при добавлении режимов по одному. В `edit` и `practice` панели нет вовсе.
 
-**Полотно изучения (v163).** `edit` и `practice` (все четыре `practiceMode`) рисуются одним шаблоном в конце `renderPracticeView`: шапка `.study-canvas-header` только с названием (вместо `getTermNavHeader`), текст без карточки в `.container.study-canvas`, всё управление — в доке `.practice-dock.study-dock`. Остальные режимы по-прежнему с `getTermNavHeader` и своей разметкой. Подробно — [docs/practice.md](docs/practice.md), «Полотно изучения».
+**Полотно изучения (v163).** `edit` и `practice` (все четыре `practiceMode`) рисуются одним шаблоном в конце `renderPracticeView`: шапка `.study-canvas-header` (вместо `getTermNavHeader`) — ряд значков и название (значки в шапке с v164), текст без карточки в `.container.study-canvas`, кнопки действий — в доке `.practice-dock.study-dock`. Остальные режимы по-прежнему с `getTermNavHeader` и своей разметкой. Подробно — [docs/practice.md](docs/practice.md), «Полотно изучения».
 
 Подробно о режимах: «Выбор» и практика — [docs/practice.md](docs/practice.md), остальные — [docs/modes.md](docs/modes.md).
 

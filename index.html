@@ -1434,13 +1434,45 @@
             background: var(--bg-secondary);
         }
 
+        /* Шапка полотна (v164): сверху ряд значков (назад слева, инструменты
+           справа), под ним название. Значки переехали сюда из дока — там они
+           стояли вплотную над главными кнопками, и по ним промахивались. */
         .header.study-canvas-header {
             background: var(--bg-secondary);
             box-shadow: none;
             border-bottom: none;
-            justify-content: center;
-            padding: 14px 20px 6px;
+            flex-direction: column;
+            align-items: stretch;
+            justify-content: flex-start;
+            gap: 0;
+            padding: calc(4px + env(safe-area-inset-top, 0px)) 10px 4px;
             top: 0;
+        }
+
+        .study-canvas-header .study-topbar {
+            width: 100%;
+            max-width: 680px;
+            margin: 0 auto;
+        }
+
+        .study-canvas-header .study-topbar .term-edit-btn {
+            width: 40px;
+            height: 40px;
+        }
+
+        /* Ползунок размера — поверх текста под шапкой, а не отдельной строкой:
+           открытие не сдвигает ни текст, ни кнопки. */
+        .study-canvas-header .practice-textsize-row.study-size-pop {
+            position: absolute;
+            top: calc(100% - 2px);
+            left: 12px;
+            right: 12px;
+            max-width: 460px;
+            margin: 0 auto;
+            z-index: 2;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
         }
 
         /* Текст под шапкой и над доком не обрезается краем, а растворяется в фоне.
@@ -1471,14 +1503,15 @@
             color: var(--text-secondary);
             text-align: center;
             max-width: 100%;
+            padding: 0 8px 2px;
         }
 
         .container.study-canvas {
             max-width: 680px;
             display: flex;
             flex-direction: column;
-            min-height: calc(100dvh - 48px);
-            padding: 4px 20px calc(260px + env(safe-area-inset-bottom));
+            min-height: calc(100dvh - 72px);
+            padding: 4px 20px calc(210px + env(safe-area-inset-bottom));
         }
 
         .study-canvas .text-display-row {
@@ -1502,12 +1535,17 @@
             padding-top: var(--text-anchor-top);
         }
 
+        /* Кегль (v164): размер из «Aa» умножает потолок своего класса ДО
+           ограничения по ширине. Раньше он умножал уже готовый кегль, и на
+           120–150% самое длинное слово вылезало за край экрана. Теперь ползунок
+           растит текст, пока длинное слово помещается в строку (--fit-w), а
+           уменьшать можно до 12 px. */
         .study-canvas .text-display {
             flex: 1;
             display: flex;
             flex-direction: column;
             justify-content: center;
-            font-size: calc(max(1.05rem, min(var(--size-max, 1rem), var(--fit-w, 99rem), var(--fit-h, 99rem))) * var(--user-text-scale, 1));
+            font-size: max(0.75rem, min(calc(var(--size-max, 1rem) * var(--user-text-scale, 1)), var(--fit-w, 99rem), var(--fit-h, 99rem)));
         }
 
         /* В «Выборе» текст от верха: отмеченное слово шире обычного, и центр
@@ -1517,11 +1555,44 @@
             padding-top: 12px;
         }
 
-        /* Кегль на полотне крупнее прежнего: текст — главное на экране. */
-        .study-canvas .text-display.size-xl { --size-max: 2.5rem; }
-        .study-canvas .text-display.size-lg { --size-max: 1.95rem; }
-        .study-canvas .text-display.size-md { --size-max: 1.45rem; line-height: 2.15; }
-        .study-canvas .text-display.size-sm { --size-max: 1.15rem; line-height: 2.25; }
+        /* Кегль на полотне крупнее прежнего: текст — главное на экране.
+           Шаг строки (v164) — 1.95–2.0em: плашка на полотне 1.6em (см. ниже),
+           зазор между рядами плашек 0.35–0.4em. Раньше 2.15–2.25em — строки
+           расходились так, что текст читался как столбец отдельных блоков. */
+        .study-canvas .text-display.size-xl { --size-max: 2.5rem; line-height: 1.95; }
+        .study-canvas .text-display.size-lg { --size-max: 1.95rem; line-height: 1.95; }
+        .study-canvas .text-display.size-md { --size-max: 1.45rem; line-height: 1.95; }
+        .study-canvas .text-display.size-sm { --size-max: 1.15rem; line-height: 2.0; }
+
+        /* Слова на полотне (v164) — как обычный текст, а не россыпь блоков.
+           Обычное слово — без полей: между словами только пробел. Открытое слово
+           — подсветка вплотную к буквам (0.16em по бокам), а не «таблетка» с
+           полями 0.45em + 0.12em: после «Показать все» строка снова читается
+           как фраза. Плашка скрытого слова — квадрат 1.6em, открытое слово той
+           же высоты, чтобы открытие не меняло высоту ряда. Только полотно:
+           «Вписать» и карточки рисуют чипы со своими размерами. */
+        .study-canvas .text-display .word {
+            margin: 0;
+            padding: 0.1em 0;
+        }
+
+        .study-canvas .text-display .word.hidden-word {
+            padding: 0.24em 0.46em;
+            margin: 0 0.05em;
+        }
+
+        .study-canvas .text-display .word.revealed {
+            padding: 0.24em 0.16em;
+            margin: 0 0.02em;
+            border-radius: 0.3em;
+        }
+
+        /* Отмеченное в «Выборе» слово — тоже вплотную к буквам. */
+        .study-canvas .text-display .word.marked,
+        .study-canvas .text-display .word.has-hint,
+        .study-canvas .text-display .word.pending-selection {
+            padding: 0.1em 0.14em;
+        }
 
         .study-canvas-image {
             text-align: center;
@@ -1589,13 +1660,6 @@
 
         .study-tool-btn.is-attention {
             color: #ec4899;
-        }
-
-        .study-dock .practice-textsize-row {
-            margin: 0;
-            background: none;
-            border: none;
-            padding: 4px 6px;
         }
 
         .study-dock .practice-skip-btn {
@@ -1668,8 +1732,30 @@
         }
 
         @media (orientation: landscape) and (max-height: 560px) {
+            /* Высоты мало — шапка в одну строку: назад, название, значки. */
             .header.study-canvas-header {
-                padding: 6px 14px 2px;
+                flex-direction: row;
+                align-items: center;
+                padding: 4px max(14px, env(safe-area-inset-right)) 2px max(14px, env(safe-area-inset-left));
+            }
+
+            .study-canvas-header .study-topbar {
+                display: contents;
+            }
+
+            .header.study-canvas-header h1 {
+                order: 1;
+                flex: 1 1 auto;
+                min-width: 0;
+            }
+
+            .study-canvas-header .study-tools {
+                order: 2;
+            }
+
+            .study-canvas-header .study-topbar .term-edit-btn {
+                width: 38px;
+                height: 34px;
             }
 
             .container.study-canvas {
@@ -1686,27 +1772,21 @@
                 flex-wrap: wrap;
             }
 
-            /* Два ряда: значки и стрелки сверху, кнопки действий снизу. */
-            .study-dock .study-tools-row {
+            /* Значки теперь в шапке. Док: кнопки действий, затем стрелки. */
+            .study-dock .practice-assist-row,
+            .study-dock .study-batch-row {
                 order: 1;
-                flex: 0 0 calc(100% - 230px);
+                flex: 1 1 300px;
+            }
+
+            .study-dock .practice-primary-btn {
+                order: 2;
             }
 
             .study-dock .practice-nav-row {
-                order: 2;
-                flex: 1 0 auto;
-                justify-content: flex-end;
-            }
-
-            .study-dock .practice-assist-row,
-            .study-dock .study-batch-row,
-            .study-dock .practice-primary-btn {
                 order: 3;
-            }
-
-            .study-tools-row .term-edit-btn {
-                width: 34px;
-                height: 30px;
+                flex: 0 0 auto;
+                justify-content: flex-end;
             }
 
             .study-dock .practice-primary-btn {
@@ -14698,24 +14778,37 @@
                 : (progress.allRevealed ? '↺ Скрыть все слова' : 'Показать все скрытые слова');
 
             // ——— Полотно изучения (v163) ———
-            // Практика (все четыре вида) и «Выбор» — один экран: сверху только
-            // название, посередине текст прямо на фоне, без карточки, рамок и
-            // подсказок, снизу — все кнопки. Инструменты — ряд значков в доке;
-            // все кнопки рисуются всегда и только гаснут (disabled), чтобы док не
-            // менял высоту и текст не скакал.
+            // Практика (все четыре вида) и «Выбор» — один экран: сверху ряд значков
+            // и название, посередине текст прямо на фоне, без карточки, рамок и
+            // подсказок, снизу — крупные кнопки действий. Все кнопки рисуются
+            // всегда и только гаснут (disabled), чтобы шапка и док не меняли
+            // высоту и текст не скакал.
             const toolBack = `<button class="term-edit-btn study-tool-btn" onclick="goBackToChooser()" title="Назад к материалу" aria-label="Назад">${STUDY_ICON_BACK}</button>`;
             const toolAttention = `<button class="term-edit-btn study-tool-btn study-tool-star${text.attention ? ' is-attention' : ''}" onclick="toggleAttention(state.currentText)" title="${text.attention ? 'Снять отметку «сложный материал»' : 'Отметить материал сложным'}" aria-label="Сложный материал">${text.attention ? '★' : '☆'}</button>`;
             const toolSize = `<button class="term-edit-btn study-tool-btn study-tool-text${state.practiceSizeControlOpen ? ' is-on' : ''}" onclick="togglePracticeSizeControl()" title="Размер текста" aria-label="Размер текста">Aa</button>`;
             const toolEdit = `<button class="term-edit-btn study-tool-btn" onclick="showEditTextModal()" title="Редактировать текст" aria-label="Редактировать текст">${STUDY_ICON_EDIT}</button>`;
+            // Ползунок размера (v164) — всплывающая панель под верхним рядом, поверх
+            // текста: открывается и закрывается, не сдвигая ни текст, ни кнопки.
             const sizeRow = state.practiceSizeControlOpen ? `
-                <div class="practice-textsize-row">
+                <div class="practice-textsize-row study-size-pop">
                     <span class="practice-textsize-icon">A</span>
                     <input type="range" class="practice-textsize-slider" min="50" max="150" step="5" value="${Math.round((state.practiceTextScale || 1) * 100)}" oninput="setPracticeTextScale(this.value)" onchange="commitPracticeTextScale()">
                     <span class="practice-textsize-icon big">A</span>
                     <span class="practice-textsize-label" id="practiceTextScaleLabel">${Math.round((state.practiceTextScale || 1) * 100)}%</span>
                 </div>
             ` : '';
-            const header = `<div class="header study-canvas-header"><h1>${escapeHtml(text.title || '')}</h1></div>`;
+            // Значки (назад, «сложный», размер, озвучка, правка, подсказка…) с v164
+            // стоят в шапке над названием, а не в доке: в доке они были вплотную над
+            // главными кнопками, и по ним промахивались. Внизу — только крупные
+            // кнопки действий.
+            const buildHeader = (tools) => `<div class="header study-canvas-header">
+                    <div class="study-tools-row study-topbar">
+                        ${toolBack}
+                        <div class="study-tools">${tools}</div>
+                    </div>
+                    <h1>${escapeHtml(text.title || '')}</h1>
+                    ${sizeRow}
+                </div>`;
             const imageHtml = text.image ? `<div class="study-canvas-image"><img src="${text.image}" loading="lazy" decoding="async"></div>` : '';
             const canvasText = `<div class="text-display-row"><div class="text-display ${sizeClass}${isPracticeFocusActive ? ' practice-focus-mode' : ''}${isPracticeLayout && getPracticeTextAnchorStyle() ? ' is-anchored' : ''}" style="${fitStyle}${isPracticeLayout ? getPracticeTextAnchorStyle() : ''}"><div class="text-display-inner">${TEXT_LINES_SLOT}</div></div></div>`;
 
@@ -14726,25 +14819,20 @@
                 const hiddenCount = (text.hiddenWords || []).length;
                 const editStatus = pendingCount ? `Выбрано: ${pendingCount}`
                     : hiddenCount ? `Скрыто: ${hiddenCount} ${getWordGenitiveText(hiddenCount)}` : 'Нажмите на слова';
+                const editHeader = buildHeader(`
+                                    ${toolAttention}
+                                    ${toolSize}
+                                    ${getTermListenButton(text)}
+                                    ${toolEdit}
+                                    <button class="term-edit-btn study-tool-btn" onclick="copyProcessedMaterial()" ${hiddenCount ? '' : 'disabled'} title="Скопировать материал" aria-label="Скопировать материал">${STUDY_ICON_COPY}</button>`);
                 return withTextLines(`
-                    ${header}
+                    ${editHeader}
                     <div class="container study-canvas edit-shell">
                         ${imageHtml}
                         ${canvasText}
                     </div>
                     <div class="practice-dock study-dock">
                         <div class="practice-dock-inner">
-                            ${sizeRow}
-                            <div class="study-tools-row">
-                                ${toolBack}
-                                <div class="study-tools">
-                                    ${toolAttention}
-                                    ${toolSize}
-                                    ${getTermListenButton(text)}
-                                    ${toolEdit}
-                                    <button class="term-edit-btn study-tool-btn" onclick="copyProcessedMaterial()" ${hiddenCount ? '' : 'disabled'} title="Скопировать материал" aria-label="Скопировать материал">${STUDY_ICON_COPY}</button>
-                                </div>
-                            </div>
                             <div class="practice-assist-row">
                                 <button class="practice-skip-btn" onclick="selectAllPendingWords()" title="Выделить все слова (/)">Выделить все слова</button>
                                 <button class="practice-skip-btn practice-hint-btn" onclick="clearMarks()" ${hiddenCount || pendingCount ? '' : 'disabled'} title="Снять выделение и открыть все скрытые слова">Сбросить выбор</button>
@@ -14773,26 +14861,21 @@
             const statusSub = line ? `${progressLabel} · материал ${nav.current + 1}/${nav.total}`
                 : (progress.total > 0 ? progressLabel : 'Нет скрытых слов');
 
+            const practiceHeader = buildHeader(`
+                                ${toolAttention}
+                                ${toolSize}
+                                ${getTermListenButton(text)}
+                                ${toolEdit}
+                                ${circleTools}
+                                ${toolHint}`);
             return withTextLines(`
-                ${header}
+                ${practiceHeader}
                 <div class="container study-canvas practice-shell">
                     ${imageHtml}
                     ${canvasText}
                 </div>
                 <div class="practice-dock study-dock">
                     <div class="practice-dock-inner">
-                        ${sizeRow}
-                        <div class="study-tools-row">
-                            ${toolBack}
-                            <div class="study-tools">
-                                ${toolAttention}
-                                ${toolSize}
-                                ${getTermListenButton(text)}
-                                ${toolEdit}
-                                ${circleTools}
-                                ${toolHint}
-                            </div>
-                        </div>
                         ${showAssistRow ? `
                             <!-- Ряд не исчезает, когда кнопки не нужны, — кнопки гаснут: иначе
                                  панель меняла высоту, страница укорачивалась и экран прыгал. -->
