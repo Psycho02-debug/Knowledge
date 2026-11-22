@@ -1644,8 +1644,10 @@
             padding: 6px 16px calc(10px + env(safe-area-inset-bottom));
         }
 
+        /* Ряды кнопок дока разведены на 14px, кнопки в ряду — на 12px:
+           при 8px большим пальцем легко попасть в соседнюю кнопку. */
         .study-dock .practice-dock-inner {
-            gap: 8px;
+            gap: 14px;
         }
 
         .study-tools-row {
@@ -1745,6 +1747,19 @@
             gap: 14px;
         }
 
+        .study-dock .practice-assist-row,
+        .study-dock .study-batch-row {
+            gap: 12px;
+        }
+
+        /* В практике между стрелками нет подписи — стрелки ближе друг к другу,
+           а отступ сверху добавляет к зазору дока ещё 4px, чтобы не задеть
+           главную кнопку. */
+        .study-dock .practice-nav-row.practice-nav-arrows {
+            gap: 28px;
+            margin-top: 4px;
+        }
+
         /* Под счётчиком — прогресс; строка «small» есть всегда, чтобы док не
            менял высоту. */
         .practice-nav-counter.study-status {
@@ -1819,6 +1834,11 @@
                 order: 3;
                 flex: 0 0 auto;
                 justify-content: flex-end;
+            }
+
+            /* Здесь стрелки стоят в одном ряду с кнопками — отступ сверху сдвинул бы их вниз. */
+            .study-dock .practice-nav-row.practice-nav-arrows {
+                margin-top: 0;
             }
 
             .study-dock .practice-primary-btn {
@@ -14156,13 +14176,6 @@
             return practiceCircleSession;
         }
 
-        // Номер круга строки: первый идёт сразу при входе (слова уже закрыты),
-        // каждое новое скрытие строки — следующий. В counts — сколько раз её
-        // прятали снова.
-        function getPracticeCircleCount(text, lineIndex) {
-            return (getPracticeCircleSession(text).counts[lineIndex] || 0) + 1;
-        }
-
         // Вход в материал (и переход к соседнему): все слова закрыты, круги с первого.
         function startPracticeCircle(text) {
             text.revealedWords = [];
@@ -14935,12 +14948,6 @@
                 : isCircle
                 ? `<button class="practice-skip-btn practice-hint-btn" onclick="practiceCircleStep()" ${canOpenNext && !circlePicking ? '' : 'disabled'} title="Открыть следующее скрытое слово строки по порядку; с фокусом — все скрытые слова до слова под фокусом (пробел, Return)">Открыть слово</button>`
                 : `<button class="practice-skip-btn practice-hint-btn" onclick="revealNextHiddenWordInOrder()" ${canOpenNext ? '' : 'disabled'} title="Открыть следующее скрытое слово по порядку; с фокусом — все скрытые слова до слова под фокусом (Return)">Открыть слово</button>`;
-            const circleCount = isCircle ? getPracticeCircleCount(text, line.index) : 0;
-            const progressLabel = !progress ? ''
-                : !isCircle ? `${progress.revealed} из ${progress.total} ${getWordGenitiveText(progress.total)}`
-                : circlePicking ? (circlePickedSet.size ? `Выделено: ${circlePickedSet.size}` : 'Выделите слова')
-                : progress.total === 0 ? 'Нет скрытых слов на строке'
-                : `Круг ${circleCount} · ${progress.revealed} из ${progress.total}`;
             const primaryLabel = circlePicking ? 'Готово'
                 : isCircle ? getPracticeCirclePrimaryLabel(progress)
                 : !progress || progress.total === 0
@@ -15032,9 +15039,6 @@
             const circleTools = !isCircle ? ''
                 : `<button class="term-edit-btn study-tool-btn${circlePicking ? ' is-on' : ''}" onclick="toggleCirclePicking()" ${circlePicking || progress.total > 0 ? '' : 'disabled'} title="${circlePicking ? 'Закончить выбор слов (Ж)' : 'Выделить слова строки, на которых остановиться (Ж)'}" aria-label="Выделить слова">${STUDY_ICON_PICK}</button>`
                 + `<button class="term-edit-btn study-tool-btn" onclick="clearCirclePicks()" ${circlePickedSet.size ? '' : 'disabled'} title="Убрать выделение: снова все скрытые слова строки (Э)" aria-label="Убрать выделение">${STUDY_ICON_UNPICK}</button>`;
-            const statusMain = line ? `Строка ${Math.min(line.index + 1, line.count)}/${line.count}` : `${nav.current + 1}/${nav.total}`;
-            const statusSub = line ? `${progressLabel} · материал ${nav.current + 1}/${nav.total}`
-                : (progress.total > 0 ? progressLabel : 'Нет скрытых слов');
 
             const practiceHeader = buildHeader(`
                                 ${toolAttention}
@@ -15061,9 +15065,8 @@
                         ` : ''}
                         ${isCircle ? circleFocusPrimaryButton
                             : `<button class="practice-primary-btn" ${primaryAction ? `onclick="${primaryAction}"` : 'disabled'}>${primaryLabel}</button>`}
-                        <div class="practice-nav-row">
+                        <div class="practice-nav-row practice-nav-arrows">
                             <button class="practice-nav-btn" onclick="${line ? 'stepPracticeLine(-1)' : 'navigateToTerm(-1)'}" ${(line ? line.index > 0 || nav.hasPrev : nav.hasPrev) ? '' : 'disabled'} title="${line ? 'Предыдущая строка (←)' : 'Предыдущий материал (←)'}">‹</button>
-                            <span class="practice-nav-counter study-status">${statusMain}<small>${statusSub}</small></span>
                             <button class="practice-nav-btn" onclick="${line ? 'stepPracticeLine(1)' : 'navigateToTerm(1)'}" ${(line ? line.index < line.count - 1 || nav.hasNext : nav.hasNext) ? '' : 'disabled'} title="${line ? 'Следующая строка (→)' : 'Следующий материал (→)'}">›</button>
                         </div>
                     </div>
