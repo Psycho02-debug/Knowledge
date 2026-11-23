@@ -14485,27 +14485,46 @@
             if (Math.abs(delta) > 2) window.scrollBy(0, delta);
         }
 
-        // Подтягиваем экран к слову ТОЛЬКО вниз и только если слово скрылось за
-        // нижней панелью. Вверх не двигаем никогда: раньше здесь был
-        // scrollIntoView({block:'center'}), из-за которого экран уезжал вверх —
-        // например, когда фокус после последнего слова возвращался к началу текста.
-        function scrollWordIntoViewIfBelow(el) {
-            if (!el) return;
+        // Слово под фокусом всегда должно быть видно между шапкой и доком.
+        // Пока оно на виду — экран не двигается вовсе (никакого центрирования:
+        // до v164 здесь был scrollIntoView({block:'center'}), и экран дёргался
+        // на каждом шаге). Ушло под док — докручиваем вниз ровно настолько,
+        // чтобы оно встало над доком; ушло за шапку — вверх, чтобы встало под
+        // ней. До v174 вверх не крутили никогда, и после последнего слова фокус
+        // возвращался к началу текста за верхний край: на экране оставался
+        // конец текста без единого выделенного слова.
+        // Поля — с запасом на полосы затемнения под шапкой и над доком (22 px),
+        // иначе слово у края наполовину растворялось в них.
+        const FOCUS_VIEW_MARGIN = 28;
+
+        function keepFocusedSpanInView(first, last) {
+            if (!first || !last) return;
             const dock = document.querySelector('.practice-dock');
             const dockTop = dock ? dock.getBoundingClientRect().top : window.innerHeight;
-            const rect = el.getBoundingClientRect();
-            const safeBottom = dockTop - 12;
-            if (rect.bottom <= safeBottom) return;
-            const delta = rect.bottom - safeBottom;
+            const safeTop = getStickyHeaderBottom() + FOCUS_VIEW_MARGIN;
+            const safeBottom = dockTop - FOCUS_VIEW_MARGIN;
+            const firstTop = first.getBoundingClientRect().top;
+            const lastBottom = last.getBoundingClientRect().bottom;
+            let delta = 0;
+            if (firstTop < safeTop) {
+                delta = firstTop - safeTop;
+            } else if (lastBottom > safeBottom) {
+                // Связка выше окна целиком не влезет — тогда главное её начало.
+                delta = Math.min(lastBottom - safeBottom, firstTop - safeTop);
+            }
+            // Плашка скрытого слова и обычное слово в одной строке разнятся
+            // по высоте на 2–5 px — ради этого экран не трогаем, иначе он
+            // подрагивал бы на каждом шаге по строке. Запас поля это покрывает.
+            if (Math.abs(delta) < 8) return;
             window.scrollBy({ top: delta, behavior: 'smooth' });
         }
 
         function scrollToFocusedWord() {
             requestAnimationFrame(() => {
-                // Связка может занимать несколько строк — тянемся к её последнему
-                // слову, иначе хвост остался бы под нижней панелью.
-                const focused = document.querySelectorAll('.word.practice-focus-active');
-                scrollWordIntoViewIfBelow(focused[focused.length - 1]);
+                // Связка может занимать несколько строк — держим на виду её
+                // начало и, если влезает, хвост.
+                const focused = document.querySelectorAll('.practice-shell .text-display .word.practice-focus-active');
+                keepFocusedSpanInView(focused[0], focused[focused.length - 1]);
             });
         }
 
@@ -21992,7 +22011,8 @@
             if (!focusOn) {
                 const next = unrevealed[0];
                 revealWord(next);
-                scrollWordIntoViewIfBelow(document.querySelector('.practice-shell .word[data-widx="' + next + '"]'));
+                const opened = document.querySelector('.practice-shell .word[data-widx="' + next + '"]');
+                keepFocusedSpanInView(opened, opened);
                 return true;
             }
 

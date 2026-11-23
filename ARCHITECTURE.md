@@ -132,7 +132,7 @@
 | 13209–13390 | Экран материала (выбор режима), шапка термина | `renderChooserView`, `navigateChooser`, `getTermNavHeader` |
 | 13391–13532 | Фокус в практике | `getPracticeFocusTargets`, `getPracticeFocusSpan`, `advancePracticeFocus`, `focusNextPracticeWord` |
 | 13533–13806 | Строка на экране, «Строка по кругу», выделение слов в круге | `getPracticeLines`, `getPracticeLineRange`, `stepPracticeLine`, `practiceCircleStep`, `togglePracticeCircleLine`, `toggleCirclePicking`, `clearCirclePicks` |
-| 13807–13943 | Чтобы текст в практике не скакал | `syncPracticeTextAnchor`, `capturePracticeScrollAnchor`, `restorePracticeScrollAnchor`, `scrollWordIntoViewIfBelow` |
+| 13807–13943 | Чтобы текст в практике не скакал | `syncPracticeTextAnchor`, `capturePracticeScrollAnchor`, `restorePracticeScrollAnchor`, `keepFocusedSpanInView` (v174) |
 | 13944–14063 | Отметка «сложное слово», чип скрытого слова | `toggleHardWord`, `startHardPress`, `renderPracticeHiddenWord` |
 | 14064–14516 | **Практика и выбор слов** | `renderPracticeView`: режимы `edit` и `practice`, а для остальных — диспетчер |
 | 14517–14677 | Пример, карточки по строкам | `renderExampleView`, `buildLineCards`, `renderLineCardsView` |
