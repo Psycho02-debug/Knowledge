@@ -1,12 +1,12 @@
 # Состояние и данные
 
 > **Когда читать:** правка `state`, полей материала, ключей `localStorage`, индексов слов, записи на диск и запуска.  
-> **Сверено с кодом:** 2026-11-19, версия кэша `zapominalka-v162`. Номера строк — ориентир для v162, ищите по имени функции.  
+> **Сверено с кодом:** 2026-11-27, версия кэша `zapominalka-v178` — имена функций, полей и классов и номера строк; описание поведения — сверено 2026-11-19, v162. Номера строк — ориентир для v178, ищите по имени функции.  
 > **Связано:** [rendering.md](rendering.md) — кто читает данные при отрисовке, [practice.md](practice.md), [audio.md](audio.md) — пометка звука · наверх: [CLAUDE.md](../CLAUDE.md), [ARCHITECTURE.md](../ARCHITECTURE.md)
 
 ## Состояние
 
-### Глобальный объект `state` (≈8855)
+### Глобальный объект `state` (≈9395)
 
 Объявлен через `let`, поэтому в `window` не попадает: из консоли он доступен, а из соседнего `iframe` — только как `frame.contentWindow.eval('state')`.
 
@@ -123,7 +123,7 @@
   flashcardFolders: [
     {
       name, description,
-      cards: [ { front, back, image, attention, sourceLabel, sourceUrl } ]
+      cards: [ { front, back, image, attention, superHard, sourceLabel, sourceUrl } ]  // superHard — «суперсложная», только при attention
     }
   ],
   courseFolders: [
@@ -205,7 +205,7 @@ flushPendingPersistence()   — сбросить всё ожидающее (visi
 
 `lastSavedData` при запуске — это строка, прочитанная из хранилища (`getLocalData().raw`), а не повторная сериализация данных: запись пропускается, только если новые данные совпадают с тем, что уже лежит на диске.
 
-### Запуск: `loadData()` (≈9090)
+### Запуск: `loadData()` (≈9630)
 
 ```
 loadTheme(); loadPracticeTextScale()             — ещё до данных, внизу скрипта

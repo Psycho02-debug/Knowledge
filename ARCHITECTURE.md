@@ -2,7 +2,7 @@
 
 Обзор для того, кто открывает проект без истории переписки: из чего он состоит, где что лежит в `index.html`, какие есть экраны и режимы, как устроены офлайн и зависимости, какие известны риски. Подсистемы подробно — в [docs/](docs/) (список — §2), правила и маршрут «задача → документ» — в [CLAUDE.md](CLAUDE.md), поведение для пользователя — в [README.md](README.md).
 
-**Сверено с кодом 2026-11-19** (ссылка на «Док практики» — 2026-11-22, v173)**:** версия кэша `zapominalka-v162`, `index.html` — 22 031 строка, 1,05 МБ (по сети около 210 КБ: GitHub Pages отдаёт его сжатым gzip). Номера строк — ориентир для v162: файл правится постоянно, ищите по имени — `grep -n "function имя(" index.html`.
+**Сверено с кодом 2026-11-27** (карта кода, имена и номера строк; описание поведения — 2026-11-19, v162, ссылка на «Док практики» — 2026-11-22, v173)**:** версия кэша `zapominalka-v178`, `index.html` — 22 732 строки, 1,09 МБ (по сети около 220 КБ: GitHub Pages отдаёт его сжатым gzip). Номера строк — ориентир для v178: файл правится постоянно, ищите по имени — `grep -n "function имя(" index.html`.
 
 ---
 
@@ -80,86 +80,86 @@
 
 ## 3. Внутреннее устройство `index.html`
 
-| Строки (≈ v162) | Что там |
+| Строки (≈ v178) | Что там |
 |---|---|
 | 1–12 | `<head>`: viewport без масштабирования, manifest, мета-теги для iOS, `fonts.css` |
 | 13–7021 | `<style>` — все стили, около 7 тысяч строк |
-| 7027 | `<div id="app"></div>` — пустой: экран целиком рисует `render()` при запуске. Раньше здесь лежал устаревший снимок экрана папок — его убрали, он лишь разбирался, начинал анимацию и тут же стирался |
-| ≈7029–7338 | Четырнадцать модальных окон статичной разметкой (список — [docs/input.md](docs/input.md), «Модальные окна») |
-| 7341–22021 | Основной `<script>`. В конце — `loadTheme()` (21516), главный диспетчер клавиатуры (21526) и `loadData()` (22020) |
-| 22024–22030 | Второй `<script>`: регистрация service worker по событию `load` |
+| 7540 | `<div id="app"></div>` — пустой: экран целиком рисует `render()` при запуске. Раньше здесь лежал устаревший снимок экрана папок — его убрали, он лишь разбирался, начинал анимацию и тут же стирался |
+| ≈7542–7851 | Четырнадцать модальных окон статичной разметкой (список — [docs/input.md](docs/input.md), «Модальные окна») |
+| 7854–22722 | Основной `<script>`. В конце — `loadTheme()` (22217), главный диспетчер клавиатуры (22227) и `loadData()` (22721) |
+| 22725–22731 | Второй `<script>`: регистрация service worker по событию `load` |
 
 ### Стили
 
 - `:root` (≈14) — палитра «тёмная оливковая», переменные `--bg-*`, `--text-*`, `--accent-*`, `--gradient-*`, `--shadow-*`.
 - `body.dark-theme` (≈63) — вторая палитра, ещё глубже. Светлой темы нет: обе тёмные.
 - `@media (prefers-reduced-motion: reduce)` (≈307) — гасит анимации.
-- `#app.no-entry-anim` (≈324) — выключает анимации появления при обновлении того же экрана; с v168 перечисляет 15 классов с анимацией, новый класс с анимацией появления — туда же ([rendering.md](docs/rendering.md)).
-- Чипы слов: `.word`, `.word.hidden-word`, `.has-letters`, `.has-custom-hint`, `.hard-word`, `.practice-focus-active` и затухание соседей в режиме фокуса — ≈1452–1660.
-- Альбомная ориентация: `@media (orientation: landscape) and (max-height: 560px)` (≈1352, ≈1734).
-- Режим «Вписать» — `/* Type mode styles */` ≈2842 и его копия ≈3144, карточка термина — ≈5103 (`.termcard-*`), режим «Номера» — ≈5805 (`.numbers-*`), курсы — ≈6741 (`/* ===== COURSES ===== */`).
-- Узкие экраны — `@media (max-width: 860px)` (≈6621) и `(max-width: 480px)` (≈6633).
+- `#app.no-entry-anim` (≈331) — выключает анимации появления при обновлении того же экрана; с v168 перечисляет 15 классов с анимацией, новый класс с анимацией появления — туда же ([rendering.md](docs/rendering.md)).
+- Чипы слов: `.word`, `.word.hidden-word`, `.has-letters`, `.has-custom-hint`, `.hard-word`, `.practice-focus-active` и затухание соседей в режиме фокуса — ≈1919–2128.
+- Альбомная ориентация: `@media (orientation: landscape) and (max-height: 560px)` (≈1379, ≈2202).
+- Режим «Вписать» — `/* Type mode styles */` ≈3310 и его копия ≈3612, карточка термина — ≈5616 (`.termcard-*`), режим «Номера» — ≈6318 (`.numbers-*`), курсы — ≈7254 (`/* ===== COURSES ===== */`).
+- Узкие экраны — `@media (max-width: 860px)` (≈7134) и `(max-width: 480px)` (≈7146).
 
-> **Ловушка: селекторы повторяются.** Девятнадцать селекторов верхнего уровня объявлены дважды. Например, блок `/* Type mode styles */` скопирован целиком (≈2842 и ≈3144): `.type-input-wrap`, `.type-input-field` и соседние. При одинаковой специфичности побеждает последнее объявление. Перед правкой стиля найдите **все** вхождения селектора.
+> **Ловушка: селекторы повторяются.** Девятнадцать селекторов верхнего уровня объявлены дважды. Например, блок `/* Type mode styles */` скопирован целиком (≈3310 и ≈3612): `.type-input-wrap`, `.type-input-field` и соседние. При одинаковой специфичности побеждает последнее объявление. Перед правкой стиля найдите **все** вхождения селектора.
 
 ### Основной скрипт по областям
 
 Порядок в файле — исторический, а не логический. Таблица идёт сверху вниз; крупные разделы помечены в коде заголовками `// ——— Название ———` (их список: `grep -n "^        // ——— " index.html`).
 
-| Строки (≈ v162) | Область | Ключевые функции |
+| Строки (≈ v178) | Область | Ключевые функции |
 |---|---|---|
-| 7341–7413 | Глобальные переменные списка, тема, размер текста | `toggleTheme`, `loadTheme`, `loadPracticeTextScale`, `getTermCountText` |
-| 7414–7524 | Форма материала, группы скрытых слов | `ensureTextStudyData`, `getHiddenWordGroups`, `computeHiddenWordGroups`, `getHiddenWordGroupByIndex`, `renderGroupsMemo` |
-| 7525–7924 | Классификация токенов, отделение знаков препинания, ремонт индексов (`// ——— Починка съехавшей разметки`) | `isPunctuationToken`, `isNumericListMarkerToken`, `isSlashSeparatorToken`, `splitEdgePunctuation`, `splitEdgeToken`, `repairWordIndexAlignment`, `applyPunctuationSplitToText`, `normalizeAllMaterialsPunctuation` |
-| 7925–8217 | Перенос разметки при правке текста, объединение слов в вопросах | `buildContentWordIndexMap`, `remapProcessedTextState`, `updateMaterialContentPreservingProcessing`, `getRenderableHiddenIndices`, `buildBatchHintUnits`, `mergeBatchHintWithNext` |
-| 8218–8325 | Поиск, сортировка, склонения | `filterTerms`, `clearSearch`, `toggleSort`, `getAllMaterialEntries`, `getCardCountText` |
-| 8326–8584 | Нормализация карточек и курсов, встроенный набор карточек | `normalizeFlashcardCard/Folder/FoldersTree`, `normalizeCourseTask/Lesson/Folder/FoldersTree`, `getDefaultCourseStudyState`, `getBuiltInFlashcardFolders`, `ensureBuiltInFlashcardFolders` |
-| 8585–8767 | Значения по умолчанию, иконки, профиль | `getDefaultFlashcardSessionConfig`, `getDefaultFlashcardStudyState`, `getDefaultProfile`, `getLocalProfile`, `saveProfile`, `linkAccountWithSite` |
-| 8768–8854 | Очередь изучения: порядок перехода между материалами | `setStudyQueueFromVisibleEntries`, `getStudyNavigationMeta`, `getStudyNavigationTarget`, `applyStudyNavigationTarget` |
-| 8855–8965 | **`state`** и переменные отложенной записи | `state`, `lastSavedData`, `renderQueuedWhileHidden`, `lastRenderSignature`, `HAS_TOUCH_INPUT` |
-| 8966–9212 | Хранение и запуск, слушатели жизненного цикла, папка при запуске | `scheduleIdleTask`, `flushSaveData`, `flushLocalStats`, `flushPendingPersistence`, `getLocalData`, `loadData`, `openStartupFolder`, `saveData` |
-| 9213–9325 | Дерево папок, записи списка материалов | `ensureFolderShape`, `normalizeFoldersTree`, `getTopFolder`, `getCurrentFolder`, `getCurrentFolderTitle`, `buildTextsViewEntries`, `getTextLocationFromListIndex`, `shuffleVisibleTexts` |
-| 9326–9670 | Статистика, мелкие помощники, подготовка «Игры» (в том числе `// ——— «Собери текст по строкам»`) и «Теста» | `getLocalStats`, `saveLocalStats`, `buildStatsSummary`, `getFirstLettersOnly`, `getMaxHintLetters`, `shuffleArray`, `initGame`, `initQuiz` |
-| 9671–10014 | **Конвейер отрисовки** | `syncElementAttributes`, `patchChildNodes`, `setAppHtml` (с пропуском неизменённых строк текста: `buildKeptLinesHtml`, `restoreKeptLines`), `render`, `renderScreen`, `syncDockSpacing`; строки текста собирает `withTextLines` (≈7884) |
-| 10015–10686 | Режим «Вписать», раскладка клавиатуры, каскад появления карточек | `renderTypeView`, `normalizeTypeWord`, `convertKeyboardLayout`, `typeWordMatches`, `getTypeSequenceTokens`, `evaluateTypedWords`, `checkTypeWord`, `focusTypeField`, `syncTypeTextClamp`, `toggleTypeFocusLine`, `compactMarkup`, `getTermCardEntryDelay` |
-| 10687–10930 | Смена режима, свайп и перетаскивание карточек, пометка сложных материалов | `setMode`, `initTermCardSwipe`, `initDragReorder`, `toggleAttention`, `resetAllAttention`, `toggleDifficultFilter` |
-| 10931–11077 | Главная навигация и нижняя панель вкладок | `setPrimaryView`, `handlePrimaryCreateAction`, `openLearningBranch`, `renderBottomNav`, `renderShell` |
-| 11078–11660 | Главная, «База знаний», хаб обучения, папки карточек | `renderHomeView`, `renderSharedView`, `renderLearningHubView`, `renderFlashcardFoldersView`, `renderFlashcardFolderView` |
-| 11661–12433 | Курсы: действия, экраны, окна | `openCourseLesson`, `submitCourseQuizChoice`, `selectCourseMatchTerm`, `renderCourseFoldersView`, `renderCourseFolderView`, `renderCourseLessonEditView`, `renderCourseLessonView`, `saveCourseLesson`, `saveCourseTask` |
-| 12434–12789 | Экраны изучения карточек | `renderFlashcardModeToolbar` (шапка, «↺ Начать заново»), `renderFlashcardModeComplete`, `renderFlashcard{Learn,Write,Test,Match,Browse}Body`, `renderFlashcardStudyView` |
-| 12790–12993 | Статистика, экспорт папки в JSON, список папок, профиль | `renderStatsView`, `shareFolder`, `renderFoldersView`, `renderProfileView` |
-| 12994–13208 | **Экран «Материалы»** (список материалов папки) | `renderTextsView` |
-| 13209–13390 | Экран материала (выбор режима), шапка термина | `renderChooserView`, `navigateChooser`, `getTermNavHeader` |
-| 13391–13532 | Фокус в практике | `getPracticeFocusTargets`, `getPracticeFocusSpan`, `advancePracticeFocus`, `focusNextPracticeWord` |
-| 13533–13806 | Строка на экране, «Строка по кругу», выделение слов в круге | `getPracticeLines`, `getPracticeLineRange`, `stepPracticeLine`, `practiceCircleStep`, `togglePracticeCircleLine`, `toggleCirclePicking`, `clearCirclePicks` |
-| 13807–13943 | Чтобы текст в практике не скакал | `syncPracticeTextAnchor`, `capturePracticeScrollAnchor`, `restorePracticeScrollAnchor`, `keepFocusedSpanInView` (v174) |
-| 13944–14063 | Отметка «сложное слово», чип скрытого слова | `toggleHardWord`, `startHardPress`, `renderPracticeHiddenWord` |
-| 14064–14516 | **Практика и выбор слов** | `renderPracticeView`: режимы `edit` и `practice`, а для остальных — диспетчер |
-| 14517–14677 | Пример, карточки по строкам | `renderExampleView`, `buildLineCards`, `renderLineCardsView` |
-| 14678–14857 | Режим «Номера» | `buildNumbersLines`, `renderNumbersView` |
-| 14858–16491 | **Озвучка**: хранение, запись, загрузка файла, воспроизведение, плеер (окно, управление, скорость, обновление во время игры, границы блоков, поиск пауз, дорожка под пальцем) | `openAudioDb`, `saveAudioClip`, `startAudioRecording`, `chooseAudioFile`, `getAudioPlayer`, `openAudioPlayer`, `renderAudioPlayer`, `setAudioRateMenu`, `findAudioPauses`, `onAudioTrackPointerDown` |
-| 16492–16847 | Карточка «термин ↔ текст» (размер текста, полноэкранный режим), вопросы к термину | `formatContentForReading`, `setTermCardTextScale`, `enterTermCardFullscreen`, `renderTermCardView`, `saveQuestionEntry`, `renderQuestionsView` |
-| 16848–17135 | «Собери текст», тест по материалу, тест по папке | `renderGameView`, `renderQuizView`, `selectQuizOption`, `renderFolderQuizView` |
-| 17136–17474 | Окно запуска игр, перенос материалов в модуль, логика теста по папке | `openGameSetup`, `startGameWithSelected`, `showTransferTermsModal`, `transferSelectedTermsToSubfolder`, `startFolderQuiz` |
-| 17475–17745 | Запись статистики, «Сопоставление», правка и удаление материала из списка, ход в «Собери текст» | `recordStudyStats`, `startMatchingGame`, `renderMatchingView`, `editTerm`, `deleteTerm`, `selectWord` |
-| 17746–18810 | Открытие папок, карточки: действия, перенос и движок изучения | `openFolder`, `openFlashcardFolder`, `startFlashcardMode`, `prepareLearnPrompt`, `advanceLearnPrompt`, `armFlashcardTimer`, `syncFlashcardTimer`, `resolveFlashcardMatchAttempt` |
-| 18811–19014 | Навигация по текстам | `openSubfolder`, `openText`, `openTermInMode`, `switchStudyModeByHotkey`, `goBack`, `goBackToTexts`, `goBackToChooser` |
-| 19015–19075 | Экранирование, переход между материалами | `escapeHtml`, `escapeHtmlAttr`, `navigateToTerm` |
-| 19076–19162 | Поле описания: автонумерация списков | `handleDescriptionFocus`, `insertNextListNumber`, `renumberListBelow`, `handleDescriptionBeforeInput` |
-| 19163–19574 | Форматы переноса, выбор материалов, копирование | `buildProcessedDescriptionExport`, `buildProcessedFolderExport`, `parseProcessedFolderImport`, `parseProcessedDescriptionImport`, `parseCombinedMaterialImport`, `copyPlainTextToClipboard`, `toggleTextSelection`, `copySelectedMaterials` |
-| 19575–19875 | Вставка в поля, открытие окон, картинки | `handleTitleFieldPaste`, `handleDescriptionPaste`, `handleFolderNamePaste`, `showFolderModal`, `showTextModal`, `handleImageUpload` |
-| 19876–20525 | Загрузка списка карточек: текст, .xlsx, .docx, .csv; перенос карточек | `FLASHCARD_IMPORT_TEMPLATE`, `parseFlashcardBulkImport`, `readZipTextEntries`, `inflateZipEntry`, `xlsxToPlainText`, `docxToPlainText`, `csvToPlainText`, `applyFlashcardImport` |
-| 20526–20708 | Закрытие окон, Escape, Cmd+Shift в окне материала | `closeModal`, `handleEscapeAction`, `saveTextAndSelectWords`, `runModalShortcut` |
-| 20709–20990 | Сохранение из окон, загрузка списка материалов, порядок и удаление папок | `saveFolder`, `saveFlashcard`, `saveText`, `processBulkImport`, `moveFolder`, `deleteFolder` |
-| 20991–21251 | Выбор слов: отметка, скрытие, вопросы к словам | `toggleMark`, `applyBatchHide`, `selectAllPendingWords`, `showBatchHintModal`, `saveCurrentWordHint`, `finishBatchHint`, `saveHint` |
-| 21252–21515 | Практика: раскрытие и подсказки | `getActivePracticeTargetIndex`, `revealNextHintLetter`, `revealWord`, `toggleAllWordsReveal`, `resetReveal`, `setPracticeTextScale`, `clearMarks` |
-| 21516–22021 | Запуск: тема и масштаб, **диспетчер клавиатуры**, `loadData()` | безымянный обработчик `keydown` ([docs/input.md](docs/input.md)) |
+| 7854–7926 | Глобальные переменные списка, тема, размер текста | `toggleTheme`, `loadTheme`, `loadPracticeTextScale`, `getTermCountText` |
+| 7927–8037 | Форма материала, группы скрытых слов | `ensureTextStudyData`, `getHiddenWordGroups`, `computeHiddenWordGroups`, `getHiddenWordGroupByIndex`, `renderGroupsMemo` |
+| 8038–8459 | Классификация токенов, отделение знаков препинания, ремонт индексов (`// ——— Починка съехавшей разметки`) | `isPunctuationToken`, `isNumericListMarkerToken`, `isSlashSeparatorToken`, `splitEdgePunctuation`, `splitEdgeToken`, `repairWordIndexAlignment`, `applyPunctuationSplitToText`, `normalizeAllMaterialsPunctuation` |
+| 8460–8752 | Перенос разметки при правке текста, объединение слов в вопросах | `buildContentWordIndexMap`, `remapProcessedTextState`, `updateMaterialContentPreservingProcessing`, `getRenderableHiddenIndices`, `buildBatchHintUnits`, `mergeBatchHintWithNext` |
+| 8753–8860 | Поиск, сортировка, склонения | `filterTerms`, `clearSearch`, `toggleSort`, `getAllMaterialEntries`, `getCardCountText` |
+| 8861–9121 | Нормализация карточек и курсов, встроенный набор карточек | `normalizeFlashcardCard/Folder/FoldersTree`, `normalizeCourseTask/Lesson/Folder/FoldersTree`, `getDefaultCourseStudyState`, `getBuiltInFlashcardFolders`, `ensureBuiltInFlashcardFolders` |
+| 9122–9307 | Значения по умолчанию, иконки, профиль | `getDefaultFlashcardSessionConfig`, `getDefaultFlashcardStudyState`, `getDefaultProfile`, `getLocalProfile`, `saveProfile`, `linkAccountWithSite` |
+| 9308–9394 | Очередь изучения: порядок перехода между материалами | `setStudyQueueFromVisibleEntries`, `getStudyNavigationMeta`, `getStudyNavigationTarget`, `applyStudyNavigationTarget` |
+| 9395–9505 | **`state`** и переменные отложенной записи | `state`, `lastSavedData`, `renderQueuedWhileHidden`, `lastRenderSignature`, `HAS_TOUCH_INPUT` |
+| 9506–9752 | Хранение и запуск, слушатели жизненного цикла, папка при запуске | `scheduleIdleTask`, `flushSaveData`, `flushLocalStats`, `flushPendingPersistence`, `getLocalData`, `loadData`, `openStartupFolder`, `saveData` |
+| 9753–9865 | Дерево папок, записи списка материалов | `ensureFolderShape`, `normalizeFoldersTree`, `getTopFolder`, `getCurrentFolder`, `getCurrentFolderTitle`, `buildTextsViewEntries`, `getTextLocationFromListIndex`, `shuffleVisibleTexts` |
+| 9866–10210 | Статистика, мелкие помощники, подготовка «Игры» (в том числе `// ——— «Собери текст по строкам»`) и «Теста» | `getLocalStats`, `saveLocalStats`, `buildStatsSummary`, `getFirstLettersOnly`, `getMaxHintLetters`, `shuffleArray`, `initGame`, `initQuiz` |
+| 10211–10577 | **Конвейер отрисовки** | `syncElementAttributes`, `patchChildNodes`, `setAppHtml` (с пропуском неизменённых строк текста: `buildKeptLinesHtml`, `restoreKeptLines`), `render`, `renderScreen`, `syncDockSpacing`; строки текста собирает `withTextLines` (≈8419) |
+| 10578–11249 | Режим «Вписать», раскладка клавиатуры, каскад появления карточек | `renderTypeView`, `normalizeTypeWord`, `convertKeyboardLayout`, `typeWordMatches`, `getTypeSequenceTokens`, `evaluateTypedWords`, `checkTypeWord`, `focusTypeField`, `syncTypeTextClamp`, `toggleTypeFocusLine`, `compactMarkup`, `getTermCardEntryDelay` |
+| 11250–11493 | Смена режима, свайп и перетаскивание карточек, пометка сложных материалов | `setMode`, `initTermCardSwipe`, `initDragReorder`, `toggleAttention`, `resetAllAttention`, `toggleDifficultFilter` |
+| 11494–11640 | Главная навигация и нижняя панель вкладок | `setPrimaryView`, `handlePrimaryCreateAction`, `openLearningBranch`, `renderBottomNav`, `renderShell` |
+| 11641–12225 | Главная, «База знаний», хаб обучения, папки карточек | `renderHomeView`, `renderSharedView`, `renderLearningHubView`, `renderFlashcardFoldersView`, `renderFlashcardFolderView` |
+| 12226–12998 | Курсы: действия, экраны, окна | `openCourseLesson`, `submitCourseQuizChoice`, `selectCourseMatchTerm`, `renderCourseFoldersView`, `renderCourseFolderView`, `renderCourseLessonEditView`, `renderCourseLessonView`, `saveCourseLesson`, `saveCourseTask` |
+| 12999–13356 | Экраны изучения карточек | `renderFlashcardModeToolbar` (шапка, «↺ Начать заново»), `renderFlashcardModeComplete`, `renderFlashcard{Learn,Write,Test,Match,Browse}Body`, `renderFlashcardStudyView` |
+| 13357–13560 | Статистика, экспорт папки в JSON, список папок, профиль | `renderStatsView`, `shareFolder`, `renderFoldersView`, `renderProfileView` |
+| 13561–13775 | **Экран «Материалы»** (список материалов папки) | `renderTextsView` |
+| 13776–13957 | Экран материала (выбор режима), шапка термина | `renderChooserView`, `navigateChooser`, `getTermNavHeader` |
+| 13958–14158 | Фокус в практике | `getPracticeFocusTargets`, `getPracticeFocusSpan`, `advancePracticeFocus`, `focusNextPracticeWord` |
+| 14159–14425 | Строка на экране, «Строка по кругу», выделение слов в круге | `getPracticeLines`, `getPracticeLineRange`, `stepPracticeLine`, `practiceCircleStep`, `togglePracticeCircleLine`, `toggleCirclePicking`, `clearCirclePicks` |
+| 14426–14581 | Чтобы текст в практике не скакал | `syncPracticeTextAnchor`, `capturePracticeScrollAnchor`, `restorePracticeScrollAnchor`, `keepFocusedSpanInView` (v174) |
+| 14582–14706 | Отметка «сложное слово», чип скрытого слова | `toggleHardWord`, `startHardPress`, `renderPracticeHiddenWord` |
+| 14707–15181 | **Практика и выбор слов** | `renderPracticeView`: режимы `edit` и `practice`, а для остальных — диспетчер |
+| 15182–15342 | Пример, карточки по строкам | `renderExampleView`, `buildLineCards`, `renderLineCardsView` |
+| 15343–15522 | Режим «Номера» | `buildNumbersLines`, `renderNumbersView` |
+| 15523–17163 | **Озвучка**: хранение, запись, загрузка файла, воспроизведение, плеер (окно, управление, скорость, обновление во время игры, границы блоков, поиск пауз, дорожка под пальцем) | `openAudioDb`, `saveAudioClip`, `startAudioRecording`, `chooseAudioFile`, `getAudioPlayer`, `openAudioPlayer`, `renderAudioPlayer`, `setAudioRateMenu`, `findAudioPauses`, `onAudioTrackPointerDown` |
+| 17164–17519 | Карточка «термин ↔ текст» (размер текста, полноэкранный режим), вопросы к термину | `formatContentForReading`, `setTermCardTextScale`, `enterTermCardFullscreen`, `renderTermCardView`, `saveQuestionEntry`, `renderQuestionsView` |
+| 17520–17807 | «Собери текст», тест по материалу, тест по папке | `renderGameView`, `renderQuizView`, `selectQuizOption`, `renderFolderQuizView` |
+| 17808–18146 | Окно запуска игр, перенос материалов в модуль, логика теста по папке | `openGameSetup`, `startGameWithSelected`, `showTransferTermsModal`, `transferSelectedTermsToSubfolder`, `startFolderQuiz` |
+| 18147–18417 | Запись статистики, «Сопоставление», правка и удаление материала из списка, ход в «Собери текст» | `recordStudyStats`, `startMatchingGame`, `renderMatchingView`, `editTerm`, `deleteTerm`, `selectWord` |
+| 18418–19501 | Открытие папок, карточки: действия, перенос и движок изучения | `openFolder`, `openFlashcardFolder`, `startFlashcardMode`, `prepareLearnPrompt`, `advanceLearnPrompt`, `armFlashcardTimer`, `syncFlashcardTimer`, `resolveFlashcardMatchAttempt` |
+| 19502–19705 | Навигация по текстам | `openSubfolder`, `openText`, `openTermInMode`, `switchStudyModeByHotkey`, `goBack`, `goBackToTexts`, `goBackToChooser` |
+| 19706–19766 | Экранирование, переход между материалами | `escapeHtml`, `escapeHtmlAttr`, `navigateToTerm` |
+| 19767–19853 | Поле описания: автонумерация списков | `handleDescriptionFocus`, `insertNextListNumber`, `renumberListBelow`, `handleDescriptionBeforeInput` |
+| 19854–20265 | Форматы переноса, выбор материалов, копирование | `buildProcessedDescriptionExport`, `buildProcessedFolderExport`, `parseProcessedFolderImport`, `parseProcessedDescriptionImport`, `parseCombinedMaterialImport`, `copyPlainTextToClipboard`, `toggleTextSelection`, `copySelectedMaterials` |
+| 20266–20566 | Вставка в поля, открытие окон, картинки | `handleTitleFieldPaste`, `handleDescriptionPaste`, `handleFolderNamePaste`, `showFolderModal`, `showTextModal`, `handleImageUpload` |
+| 20567–21224 | Загрузка списка карточек: текст, .xlsx, .docx, .csv; перенос карточек | `FLASHCARD_IMPORT_TEMPLATE`, `parseFlashcardBulkImport`, `readZipTextEntries`, `inflateZipEntry`, `xlsxToPlainText`, `docxToPlainText`, `csvToPlainText`, `applyFlashcardImport` |
+| 21225–21407 | Закрытие окон, Escape, Cmd+Shift в окне материала | `closeModal`, `handleEscapeAction`, `saveTextAndSelectWords`, `runModalShortcut` |
+| 21408–21690 | Сохранение из окон, загрузка списка материалов, порядок и удаление папок | `saveFolder`, `saveFlashcard`, `saveText`, `processBulkImport`, `moveFolder`, `deleteFolder` |
+| 21691–21951 | Выбор слов: отметка, скрытие, вопросы к словам | `toggleMark`, `applyBatchHide`, `selectAllPendingWords`, `showBatchHintModal`, `saveCurrentWordHint`, `finishBatchHint`, `saveHint` |
+| 21952–22216 | Практика: раскрытие и подсказки | `getActivePracticeTargetIndex`, `revealNextHintLetter`, `revealWord`, `toggleAllWordsReveal`, `resetReveal`, `setPracticeTextScale`, `clearMarks` |
+| 22217–22722 | Запуск: тема и масштаб, **диспетчер клавиатуры**, `loadData()` | безымянный обработчик `keydown` ([docs/input.md](docs/input.md)) |
 
 ---
 
 ## 4. Экраны и режимы
 
-`state.view` выбирает функцию отрисовки в `renderScreen()` (≈9895):
+`state.view` выбирает функцию отрисовки в `renderScreen()` (≈10452):
 
 | `view` | Функция | Что это |
 |---|---|---|
