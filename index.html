@@ -5569,6 +5569,28 @@
             min-width: 0;
         }
 
+        /* В «Только сложные» ряд становится сеткой: «Суперсложные» — второй
+           строкой под «Открыть» (первая колонка), на всю её ширину. */
+        .flashcard-nav-buttons:has(.flashcard-superhard-btn) {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1.35fr;
+        }
+
+        .flashcard-nav-buttons > .flashcard-superhard-btn {
+            grid-column: 1;
+            min-height: 40px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            padding: 8px 2px;
+        }
+
+        .flashcard-nav-buttons > .flashcard-superhard-btn.active {
+            color: #ec4899;
+            border-color: #ec4899;
+            background: rgba(236, 72, 153, 0.1);
+        }
+
         .flashcard-back-btn[disabled] {
             opacity: 0.45;
             cursor: not-allowed;
@@ -8843,6 +8865,8 @@
                 back: typeof card.back === 'string' ? card.back : '',
                 image: typeof card.image === 'string' ? card.image : '',
                 attention: Boolean(card.attention),
+                // «Суперсложная» — подвид сложной: всегда вместе с attention.
+                superHard: Boolean(card.attention && card.superHard),
                 sourceLabel: typeof card.sourceLabel === 'string' ? card.sourceLabel : '',
                 sourceUrl: typeof card.sourceUrl === 'string' ? card.sourceUrl : ''
             };
@@ -9105,7 +9129,7 @@
         function getDefaultFlashcardStudyState() {
             return {
                 mode: 'flashcards',
-                // Изучаются только карточки, отмеченные сложными.
+                // false — вся колода, true — только сложные, 'super' — только суперсложные.
                 onlyHard: false,
                 order: [],
                 current: 0,
@@ -12060,6 +12084,7 @@
             }
 
             const difficultCount = folder.cards.filter(card => card.attention).length;
+            const superHardCount = folder.cards.filter(card => card.superHard).length;
 
             return renderShell(`
                 <div class="app-toolbar">
@@ -12091,6 +12116,7 @@
                     <button class="profile-link-btn" onclick="startFlashcardStudy(false)" ${folder.cards.length ? '' : 'disabled'}>Изучать</button>
                     <button class="module-action-btn secondary" onclick="startFlashcardStudy(true)" ${folder.cards.length ? '' : 'disabled'}>Перемешать</button>
                     <button class="module-action-btn secondary" onclick="startFlashcardStudy(false, true)" ${difficultCount ? '' : 'disabled'} title="${difficultCount ? 'Изучать только карточки, отмеченные сложными' : 'Сложных карточек пока нет — отметьте их клавишей S или кнопкой «☆ Сложная»'}">Только сложные${difficultCount ? ' (' + difficultCount + ')' : ''}</button>
+                    <button class="module-action-btn secondary" onclick="startFlashcardStudy(false, 'super')" ${superHardCount ? '' : 'disabled'} title="${superHardCount ? 'Изучать только суперсложные карточки' : 'Суперсложных пока нет — отметьте их кнопкой «Суперсложные» в режиме «Только сложные»'}">Суперсложные${superHardCount ? ' (' + superHardCount + ')' : ''}</button>
                 </div>
                 ${flashcardSidesNotice ? '<div class="flashcard-sides-notice" role="status">Лицевая и оборотная стороны всех карточек поменялись местами. Нажмите ещё раз, чтобы вернуть.</div>' : ''}
                 ${folder.cards.length ? `
@@ -12976,7 +13002,7 @@
                 <div class="app-toolbar">
                     <div>
                         <div class="app-page-title">${escapeHtml(folder.name)}</div>
-                        <div class="app-page-subtitle">${escapeHtml(meta.subtitle)}${study.onlyHard ? ' Только сложные карточки.' : ''}</div>
+                        <div class="app-page-subtitle">${escapeHtml(meta.subtitle)}${study.onlyHard === 'super' ? ' Только суперсложные карточки.' : study.onlyHard ? ' Только сложные карточки.' : ''}</div>
                         ${study.mode === 'flashcards' && !study.completed ? `
                             <button class="flashcard-restart-btn" onclick="restartFlashcardFromStart()" ${study.current === 0 ? 'disabled' : ''} title="Вернуться к первой карточке (R)">↺ Начать заново</button>
                         ` : ''}
@@ -13287,6 +13313,7 @@
                             <button class="module-action-btn flashcard-flip-btn" onclick="flipFlashcard()">${study.flipped ? 'Скрыть' : 'Открыть'}</button>
                             <button class="module-action-btn secondary flashcard-back-btn" onclick="stepFlashcard(-1)" ${study.current === 0 ? 'disabled' : ''}>Назад</button>
                             <button class="profile-link-btn flashcard-next-btn" onclick="stepFlashcard(1)">${study.current === study.order.length - 1 ? 'Завершить' : 'Дальше'}</button>
+                            ${study.onlyHard ? `<button class="module-action-btn secondary flashcard-superhard-btn ${card.superHard ? 'active' : ''}" onclick="toggleCurrentFlashcardSuperHard()" title="Отметить карточку суперсложной (розовая — уже отмечена)">Суперсложные</button>` : ''}
                         </div>
                     </div>
                 `, 'learning', 'compact-shell');
@@ -18637,6 +18664,24 @@
             const folder = getCurrentFlashcardFolder();
             if (!folder || !folder.cards[index]) return;
             folder.cards[index].attention = !folder.cards[index].attention;
+            // Снятая «сложная» снимает и «суперсложную»: суперсложные — часть сложных.
+            if (!folder.cards[index].attention) folder.cards[index].superHard = false;
+            saveData();
+            render();
+        }
+
+        // «Суперсложные» под «Открыть» в режиме «Только сложные»: отмечает карточку
+        // суперсложной (она остаётся и сложной). Как и со «Сложной», порядок
+        // текущего прохода не меняется — состав обновится при следующем запуске.
+        function toggleCurrentFlashcardSuperHard() {
+            if (state.view !== 'card_study') return;
+            const study = state.flashcardStudyState;
+            if (!study || study.mode !== 'flashcards' || study.completed) return;
+            const folder = getCurrentFlashcardFolder();
+            const card = folder && folder.cards[study.order[study.current]];
+            if (!card) return;
+            card.superHard = !card.superHard;
+            if (card.superHard) card.attention = true;
             saveData();
             render();
         }
@@ -18699,7 +18744,8 @@
             // после «W» — сначала последние добавленные («Изучать», «1», «Только
             // сложные», «Просмотр», «Письмо»).
             if (cardSortReversed) order.reverse();
-            if (onlyHard) order = order.filter(index => folder.cards[index] && folder.cards[index].attention);
+            if (onlyHard === 'super') order = order.filter(index => folder.cards[index] && folder.cards[index].superHard);
+            else if (onlyHard) order = order.filter(index => folder.cards[index] && folder.cards[index].attention);
             if (shuffle) order = shuffleArray(order);
             return order;
         }
@@ -19111,7 +19157,7 @@
             study.stats.startedAt = Date.now();
 
             if (mode === 'flashcards') {
-                study.onlyHard = Boolean(onlyHard);
+                study.onlyHard = onlyHard === 'super' ? 'super' : Boolean(onlyHard);
                 study.order = getFlashcardOrder(folder, shuffle, study.onlyHard);
                 // Сложных не осталось (например, «Пройти снова» после того, как все
                 // отметки сняли) — возвращаемся к папке, а не подсовываем всю колоду.
@@ -19179,7 +19225,7 @@
         }
 
         function startFlashcardStudy(shuffle, onlyHard) {
-            startFlashcardMode('flashcards', Boolean(shuffle), Boolean(onlyHard));
+            startFlashcardMode('flashcards', Boolean(shuffle), onlyHard === 'super' ? 'super' : Boolean(onlyHard));
         }
 
         function restartFlashcardStudy(shuffle) {
@@ -20640,7 +20686,7 @@
         // Строка содержимого, которая сама начинается с ключевого слова, при
         // выгрузке получает обратную косую черту в начале, а при разборе теряет её —
         // так «Лицевая:» внутри текста не начнёт новую карточку.
-        const FLASHCARD_EXPORT_KEYWORDS = 'Папка карточек|Описание|Лицевая|Оборотная|Сложная|Картинка|Источник|Ссылка';
+        const FLASHCARD_EXPORT_KEYWORDS = 'Папка карточек|Описание|Лицевая|Оборотная|Суперсложная|Сложная|Картинка|Источник|Ссылка';
         const FLASHCARD_EXPORT_LINE_RE = new RegExp('^\\s*(' + FLASHCARD_EXPORT_KEYWORDS + ')\\s*:[ \\t]?(.*)$', 'i');
         const FLASHCARD_EXPORT_ESCAPE_RE = new RegExp('^(\\s*)(\\\\*(?:' + FLASHCARD_EXPORT_KEYWORDS + ')\\s*:)', 'i');
         const FLASHCARD_EXPORT_UNESCAPE_RE = new RegExp('^(\\s*)\\\\(\\\\*(?:' + FLASHCARD_EXPORT_KEYWORDS + ')\\s*:)', 'i');
@@ -20670,6 +20716,7 @@
                 out.push(...formatFlashcardExportField('Лицевая', card.front));
                 out.push(...formatFlashcardExportField('Оборотная', card.back));
                 if (card.attention) out.push('Сложная: да');
+                if (card.superHard) out.push('Суперсложная: да');
                 if (card.image) out.push('Картинка: ' + toSingleExportLine(card.image));
                 if (card.sourceLabel) out.push('Источник: ' + toSingleExportLine(card.sourceLabel));
                 if (card.sourceUrl) out.push('Ссылка: ' + toSingleExportLine(card.sourceUrl));
@@ -20708,6 +20755,7 @@
                         front, back,
                         image: card.image,
                         attention: card.attention,
+                        superHard: Boolean(card.attention && card.superHard),
                         sourceLabel: card.sourceLabel,
                         sourceUrl: card.sourceUrl
                     });
@@ -20733,7 +20781,7 @@
                     }
                     if (key === 'лицевая') {
                         finishCard();
-                        card = { front: rest ? [rest] : [], back: [], image: '', attention: false, sourceLabel: '', sourceUrl: '' };
+                        card = { front: rest ? [rest] : [], back: [], image: '', attention: false, superHard: false, sourceLabel: '', sourceUrl: '' };
                         field = 'front';
                         return;
                     }
@@ -20741,6 +20789,11 @@
                         if (key === 'оборотная') {
                             field = 'back';
                             if (rest) card.back.push(rest);
+                            return;
+                        }
+                        if (key === 'суперсложная') {
+                            card.superHard = /^(да|yes|true|1|★)$/i.test(rest.trim());
+                            field = null;
                             return;
                         }
                         if (key === 'сложная') {
@@ -21080,6 +21133,7 @@
                     back: card.back,
                     image: card.image || '',
                     attention: Boolean(card.attention),
+                    superHard: Boolean(card.attention && card.superHard),
                     sourceLabel: card.sourceLabel || '',
                     sourceUrl: card.sourceUrl || ''
                 });
@@ -21420,6 +21474,7 @@
                 back: back,
                 image: image || '',
                 attention: existingCard ? Boolean(existingCard.attention) : false,
+                superHard: existingCard ? Boolean(existingCard.superHard) : false,
                 sourceLabel: existingCard && typeof existingCard.sourceLabel === 'string' ? existingCard.sourceLabel : '',
                 sourceUrl: existingCard && typeof existingCard.sourceUrl === 'string' ? existingCard.sourceUrl : ''
             };
